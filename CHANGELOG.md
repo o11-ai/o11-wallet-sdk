@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Publish reviewed SDK bundles through GitHub trusted publishing.
+- Link npm releases to the dedicated public SDK repository.
+
 ## 0.1.3
 
 - Scope connections to cards, wallets, or all wallets in a workspace.
