@@ -1,0 +1,43 @@
+{
+  "name": "@o11/sdk",
+  "version": "0.1.3",
+  "type": "module",
+  "description": "o11 Wallet TypeScript client and o11 command",
+  "license": "MIT",
+  "homepage": "https://docs.o11.ai/typescript-sdk/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/o11-ai/o11-wallet-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/o11-ai/o11-wallet-sdk/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/client.ts",
+      "import": "./client.js"
+    }
+  },
+  "bin": {
+    "o11": "./cli.js"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "engines": {
+    "bun": ">=1.3.0",
+    "node": ">=22"
+  },
+  "files": [
+    "client.js",
+    "cli.js",
+    "src",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ]
+}
