@@ -2,9 +2,10 @@ import { chmod, lstat, mkdir, readFile, rename, rm, writeFile, open } from "node
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import { tokenRequest, walletOrigin } from "./access-tokens";
+import { tokenRequest, walletOrigin } from "./access-tokens.js";
+import { serializedTokenProvider, type AccessTokenProvider } from "./token-provider.js";
 
-const schema = z.object({ baseUrl: z.url(), apiKey: z.string().startsWith("o11_"), resource: z.url().optional(), refreshToken: z.string().min(40).optional(), expiresAt: z.number().int().positive().optional() });
+const schema = z.object({ baseUrl: z.url(), apiKey: z.string().startsWith("o11_"), resource: z.url().optional(), refreshToken: z.string().min(40).optional(), expiresAt: z.number().int().positive().optional(), refreshState: z.enum(["uncertain", "ended"]).optional() });
 export type ToolConfig = z.infer<typeof schema>;
 export function credentialDirectory(profile?: string) {
   const root = process.env.O11_TOOLS_CONFIG_DIR ?? join(homedir(), ".config", "o11-wallet");
@@ -23,7 +24,7 @@ async function regularFile(file: string) {
   if (stat && (!stat.isFile() || stat.isSymbolicLink())) throw new Error("The wallet credential path must be a regular file");
   return stat;
 }
-export async function readConfig(profile?: string): Promise<ToolConfig> {
+export async function readConfig(profile?: string, options: { refresh?: boolean } = {}): Promise<ToolConfig> {
   const selected = profile ?? process.env.O11_TOOLS_PROFILE;
   if (!selected && process.env.O11_TOOLS_URL && process.env.O11_API_KEY)
     return schema.parse({ baseUrl: process.env.O11_TOOLS_URL, apiKey: process.env.O11_API_KEY });
@@ -36,16 +37,52 @@ export async function readConfig(profile?: string): Promise<ToolConfig> {
   // Credentials and their destination must come from the same source.
   if (!selected && (process.env.O11_TOOLS_URL || process.env.O11_API_KEY))
     throw new Error("Set both O11_TOOLS_URL and O11_API_KEY, or unset both to use saved access");
-  if (saved.refreshToken && saved.expiresAt && saved.expiresAt < Date.now() + 60000) return withConfigLock(profile, async () => {
+  if (options.refresh === false) return saved;
+  assertRefreshState(saved);
+  if (saved.refreshToken && saved.expiresAt && saved.expiresAt < Date.now() + 60000) return renewConfig(profile);
+  return saved;
+}
+function assertRefreshState(config: ToolConfig) {
+  if (config.refreshState) throw new Error(config.refreshState === "uncertain"
+    ? "The last refresh result is unknown. Run o11 login --server URL --reauth to reconnect; retrying the old refresh token could revoke this connection."
+    : "Agent access ended. Run o11 login --server URL --reauth to reconnect.");
+}
+export function renewConfig(profile?: string, rejectedToken?: string): Promise<ToolConfig> {
+  return withConfigLock(profile, async () => {
+    // Environment API keys are deliberately not exchanged or written into a saved profile.
+    if (!(profile ?? process.env.O11_TOOLS_PROFILE) && (process.env.O11_API_KEY || process.env.O11_TOOLS_URL))
+      throw new Error("An environment API key cannot refresh. Check its server and permissions.");
+    const file = path(profile), stat = await regularFile(file);
+    if (!stat || process.platform !== "win32" && (stat.mode & 0o077) !== 0) throw new Error("The saved wallet key must be an owner-only regular file");
     const current = schema.parse(JSON.parse(await readFile(file, "utf8")));
-    if (!current.refreshToken || !current.expiresAt || current.expiresAt >= Date.now() + 60000) return current;
+    assertRefreshState(current);
+    if (rejectedToken && current.apiKey !== rejectedToken) return current;
+    if (!rejectedToken && (!current.expiresAt || current.expiresAt >= Date.now() + 60000)) return current;
+    if (!current.refreshToken) throw new Error("This saved API key cannot refresh. Check access or sign in again.");
     const result = await tokenRequest(current.baseUrl, { grant_type: "refresh_token", client_id: "o11-wallet-cli", refresh_token: current.refreshToken }, current.resource);
-    if (!result.tokens) throw new Error("Could not renew agent access. Run o11 login --server URL to reconnect.");
+    if (!result.tokens) {
+      if (result.ambiguous || result.error === "invalid_grant")
+        await writeConfig({ ...current, refreshState: result.ambiguous ? "uncertain" : "ended" }, profile);
+      throw new Error(result.ambiguous ? "The refresh result is unknown. Run o11 login --server URL --reauth to reconnect." : "Could not renew agent access. Run o11 login --server URL --reauth to reconnect.");
+    }
     const renewed = { ...current, apiKey: result.tokens.access_token, refreshToken: result.tokens.refresh_token, expiresAt: Date.now() + result.tokens.expires_in * 1000 };
     await writeConfig(renewed, profile);
     return renewed;
   });
-  return saved;
+}
+export function profileTokenProvider(profile?: string, expected?: Pick<ToolConfig, "baseUrl" | "resource">): AccessTokenProvider {
+  let bound = expected;
+  const checked = (config: ToolConfig) => {
+    bound ??= config;
+    if (walletOrigin(config.baseUrl) !== walletOrigin(bound.baseUrl) || (config.resource ?? `${walletOrigin(config.baseUrl)}/mcp`) !== (bound.resource ?? `${walletOrigin(bound.baseUrl)}/mcp`))
+      throw new Error("The profile destination changed. Start the command again with its new server and resource.");
+    return config.apiKey;
+  };
+  return serializedTokenProvider({ getAccessToken: async () => checked(await readConfig(profile)),
+    refreshAccessToken: async rejected => {
+      checked(await readConfig(profile));
+      return checked(await renewConfig(profile, rejected));
+    } });
 }
 async function ensureDirectory(profile?: string) {
   const directory = credentialDirectory(profile);

@@ -90,7 +90,7 @@ try {
     const bytes = await readFile(join(root, path));
     assertPublicText(bytes.toString(), path);
     await mkdir(dirname(join(staging, path)), { recursive: true });
-    await writeFile(join(staging, path), bytes, { mode: path === 'cli.js' ? 0o755 : 0o644 });
+    await writeFile(join(staging, path), bytes, { mode: ['cli.js', 'wallet-cli.js'].includes(path) ? 0o755 : 0o644 });
   }
   const archive = join(temporary, 'sdk.tgz');
   await command(['bun', 'pm', 'pack', '--ignore-scripts', '--filename', archive], staging);

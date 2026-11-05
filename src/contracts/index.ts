@@ -1,7 +1,23 @@
 import { z } from "zod";
-import { resourcePlanSchema, type ResourcePlan } from "./resource-plan";
+import { supplierPriceReferenceSchema, type SupplierPriceReference } from "./supplier-price-reference.js";
+export { supplierPriceReferenceSchema, type SupplierPriceReference } from "./supplier-price-reference.js";
+import { resourcePlanSchema, type ResourcePlan } from "./resource-plan.js";
+import { moneySchema } from "./money.js";
+import { providerAuthorizationRequirementSchema, type ProviderAuthorizationRequirement } from "./provider-authorization.js";
+import { providerBillingSchema, type ProviderBilling } from "./execution-account.js";
+import { publishedTariffSchema, tariffRateSchema, type PublishedTariff } from "./published-tariff.js";
+import { publishedInputSchema, type PublishedInput } from "./published-input.js";
+import { toolHealthSchema, type ToolHealth } from "./health.js";
+import { decisionEvidenceSchema, type DecisionEvidence } from "./decision-evidence.js";
+export { moneySchema, dollarsToMicros, formatMoney } from "./money.js";
+export { supportsCustomerAccount } from "./accounts.js";
 
-export const moneySchema = z.string().regex(/^(0|[1-9]\d{0,17})$/);
+export const platformAccountHealthSchema = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("unknown") }),
+  z.object({ state: z.enum(["available", "restricted"]), checkedAt: z.iso.datetime(), retryAt: z.iso.datetime() }),
+]);
+export type PlatformAccountHealth = z.infer<typeof platformAccountHealthSchema>;
+
 export const inputSchema = z.strictObject({
   pathParams: z.record(z.string(), z.string()).default({}),
   queryParams: z.record(z.string(), z.json()).default({}),
@@ -13,7 +29,9 @@ export const invocationSchema = z.strictObject({
   idempotencyKey: z.string().min(1).max(200),
   input: inputSchema,
   connectionId: z.string().uuid().optional(),
-  credentialMode: z.enum(["platform", "customer"]),
+  quoteContext: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  credentialMode: z.enum(["platform", "customer"]).default("platform")
+    .describe("Use the o11 account by default. Select customer only for an explicitly chosen connected provider account."),
   maxCostMicros: moneySchema,
   allowWrite: z.boolean().default(false),
   acceptRecurring: z.boolean().default(false),
@@ -39,7 +57,7 @@ export interface ToolDefinition {
     name: ToolSource;
     id: string;
     revision: string;
-    url: string;
+    url?: string;
     aliases?: string[];
   };
   auth: {
@@ -54,11 +72,23 @@ export interface ToolDefinition {
   successCondition?: { path: string; equals: Json[] };
   requestDefaults?: Record<string, unknown>;
   requestHeaders?: Record<string, string>;
+  querySerialization?: Record<string, "json" | "comma" | "repeat">;
   providerRequest?: boolean;
   resultProjection?: { path: string; fields: string[]; excludedFields: string[] };
   unavailableReason?: string;
+  inputContract?: PublishedInput;
   replacementToolId?: string;
   docsUrl?: string;
+  documentation?: {
+    referenceUrl: string;
+    verification: "captured_contract_only" | "partial_upstream_review" | "legacy_contract_unverified";
+    upstream?: {
+      url: string;
+      scope: "reference" | "provider_reference" | "transport_reference" | "partial_contract";
+      reachability: "http_200" | "blocked" | "unresolved" | "access_required" | "not_reviewed";
+      checkedAt?: string;
+    };
+  };
   bodyType?: "json" | "form" | "multipart" | "binary";
   providerAsync?: Record<string, unknown>;
   pricingModel?: Record<string, unknown>;
@@ -66,13 +96,21 @@ export interface ToolDefinition {
   effect?: "read" | "write";
   credentialProvider?: string;
   credentialFields?: string[];
+  authorization?: ProviderAuthorizationRequirement;
+  billing?: ProviderBilling;
   price: {
     micros: string | null;
     basis: "free" | "call" | "variable";
     evidence: string;
     requiresSupplierRate?: boolean;
+    supplierQuoteAtExecution?: boolean;
+    supplierReference?: SupplierPriceReference;
+    modelTokenPricing?: { directoryToolId: string; sourceUrl: string; formula: string };
+    tariff?: PublishedTariff;
+    pricingBasis?: "supplier_at_cost" | "published_tariff";
+    unavailableReason?: string;
     unit?: string;
-    rates?: { micros: string; unit: string; per: number }[];
+    rates?: z.infer<typeof tariffRateSchema>[];
   };
   lifecycle:
     | "http"
@@ -101,6 +139,10 @@ export interface ToolDefinition {
   recurring?: boolean;
   requiresCustomerCredentials?: boolean;
   platformAccountAvailable?: boolean;
+  platformAccountHealth?: PlatformAccountHealth;
+  health?: ToolHealth;
+  decisionEvidence?: DecisionEvidence;
+  platformAccountInstalled?: boolean;
   engineUnit?: Record<string, unknown>;
   creditRatesMicros?: Record<string, string>;
 }
@@ -119,7 +161,7 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
       name: z.enum(["o11", "treg", "agentmuxer", "custom"]),
       id: z.string(),
       revision: z.string(),
-      url: z.url(),
+      url: z.url().optional(),
       aliases: z.array(z.string()).optional(),
     }),
     auth: z.array(
@@ -148,11 +190,23 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
       .optional(),
     requestDefaults: z.record(z.string(), z.unknown()).optional(),
     requestHeaders: z.record(z.string(), z.string()).optional(),
+    querySerialization: z.record(z.string(), z.enum(["json", "comma", "repeat"])).optional(),
     providerRequest: z.boolean().optional(),
     resultProjection: z.object({ path: z.string(), fields: z.array(z.string()), excludedFields: z.array(z.string()) }).optional(),
     unavailableReason: z.string().optional(),
+    inputContract: publishedInputSchema.optional(),
     replacementToolId: z.string().optional(),
     docsUrl: z.url().optional(),
+    documentation: z.object({
+      referenceUrl: z.url(),
+      verification: z.enum(["captured_contract_only", "partial_upstream_review", "legacy_contract_unverified"]),
+      upstream: z.object({
+        url: z.url(),
+        scope: z.enum(["reference", "provider_reference", "transport_reference", "partial_contract"]),
+        reachability: z.enum(["http_200", "blocked", "unresolved", "access_required", "not_reviewed"]),
+        checkedAt: z.string().optional(),
+      }).optional(),
+    }).optional(),
     bodyType: z.enum(["json", "form", "multipart", "binary"]).optional(),
     providerAsync: z.record(z.string(), z.unknown()).optional(),
     pricingModel: z.record(z.string(), z.unknown()).optional(),
@@ -160,13 +214,21 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
     effect: z.enum(["read", "write"]).optional(),
     credentialProvider: z.string().optional(),
     credentialFields: z.array(z.string().min(1)).optional(),
+    authorization: providerAuthorizationRequirementSchema.optional(),
+    billing: providerBillingSchema.optional(),
     price: z.object({
       micros: moneySchema.nullable(),
       basis: z.enum(["free", "call", "variable"]),
       evidence: z.string(),
       requiresSupplierRate: z.boolean().optional(),
+      supplierQuoteAtExecution: z.boolean().optional(),
+      supplierReference: supplierPriceReferenceSchema.optional(),
+      modelTokenPricing: z.object({ directoryToolId: z.string().min(1), sourceUrl: z.url(), formula: z.string().min(1) }).optional(),
+      tariff: publishedTariffSchema.optional(),
+      pricingBasis: z.enum(["supplier_at_cost", "published_tariff"]).optional(),
+      unavailableReason: z.string().optional(),
       unit: z.string().optional(),
-      rates: z.array(z.object({ micros: moneySchema, unit: z.string(), per: z.number().positive() })).optional(),
+      rates: z.array(tariffRateSchema).optional(),
     }),
     lifecycle: z.enum([
       "http",
@@ -201,6 +263,10 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
     recurring: z.boolean().optional(),
     requiresCustomerCredentials: z.boolean().optional(),
     platformAccountAvailable: z.boolean().optional(),
+    platformAccountHealth: platformAccountHealthSchema.optional(),
+    health: toolHealthSchema.optional(),
+    decisionEvidence: decisionEvidenceSchema.optional(),
+    platformAccountInstalled: z.boolean().optional(),
     engineUnit: z.record(z.string(), z.unknown()).optional(),
     creditRatesMicros: z.record(z.string(), moneySchema).optional(),
   })
@@ -234,28 +300,3 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
     )
       ctx.addIssue({ code: "custom", message: "Parse listings are excluded" });
   });
-export function supportsCustomerAccount(
-  tool: Pick<
-    ToolDefinition,
-    "lifecycle" | "workflowOperation" | "customerAuth"
-  >,
-) {
-  return (
-    tool.lifecycle !== "workspace" &&
-    tool.workflowOperation !== "mind.send-email" &&
-    (tool.lifecycle !== "payment" || Boolean(tool.customerAuth?.length))
-  );
-}
-export function dollarsToMicros(value: string): bigint {
-  if (!/^(0|[1-9]\d*)(\.\d{1,6})?$/.test(value))
-    throw new Error("Invalid USD amount");
-  const [whole = "0", fraction = ""] = value.split(".");
-  return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, "0"));
-}
-export function formatMoney(micros: string): string {
-  const value = BigInt(moneySchema.parse(micros));
-  return `$${value / 1_000_000n}.${(value % 1_000_000n)
-    .toString()
-    .padStart(6, "0")
-    .replace(/0{1,4}$/, "")}`;
-}
