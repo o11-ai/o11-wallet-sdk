@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.1.35
+
+**Changed behavior: check scripts that call `o11` directly**
+- `o11 call` now waits up to 60 s for the result and prints the finished receipt. A call still running at 60 s exits 2 with a `wait` command. Earlier versions exited 0 with the queued receipt. Use `--no-wait` for the old output. Older CLIs reject that flag.
+- Results over 16 KB are written to `./o11-result-<id>.json`. The printed receipt then shows a preview and the file path in place of `result`. Use `-o FILE` to choose the path; `--overwrite` replaces an existing file.
+- `history --limit` lists at most 25 rows and says so when you asked for more.
+- The `find` alias for `discover` is removed.
+
+**New**
+- `history --since` and spend `totals`, and `run-status` with no ID for the current run. A `call` without `--run-id` or `O11_RUN_ID` returns a `runHint` with the run ID it used.
+- `discover --providers` lists each provider's name and tool count.
+- `--input FILE` works without `@`.
+- `keys add` checks the key with the server before saving it.
+- When a result is not ready, the client re-reads at 1 s, growing ×1.5 up to 10 s.
+
+**Clearer output**
+- `inspect` prints flat, runnable call examples with each field's location.
+- Errors carry the server's message and the next step. `retryable` is set only when certain. An unavailable tool points to `o11 discover`. A write tool without `--allow-write` says to add it. A tool that needs your own account names `--credential-mode customer --connection ID`. BUSY shows `retryAfterSeconds`.
+- A call held for approval shows its approval link and a `wait.resumeCommand` to run after approval, not a `nextCommand`.
+- `nextCommand` uses `o11` when it is on PATH. Succeeded receipts omit a leftover `failure`. `search` is no longer listed in `--help --all`.
+- Server messages keep long tool IDs, so a not-found error shows the closest IDs in full. Token-like strings are still redacted.
+- A lost connection or timeout prints a short message and the next step, not the runtime's internal error text.
+
+## 0.1.34
+
+- Remove Bun’s stale Wallet alias symlink when the upgraded `o11` first runs.
+
+## 0.1.33
+
+- Preserve the newest verified Wallet runtime during upgrades and remove the old Wallet launcher.
+
+## 0.1.32
+
+- Install one wallet command, `o11`.
+
+## 0.1.31
+
+- Run wallet commands directly under `o11`. Accept the earlier `o11 wallet` prefix for compatibility.
+
+## 0.1.30
+
+- Use the primary `o11` command in help and call examples when available.
+
+## 0.1.29
+
+- Show short help at launch and suggest a command after a typo. Use `--help --all` for the command list.
+- Return compact JSON. `inspect` includes a call example. Use `inspect --detailed` for the full contract.
+- Pass the same provider input to `quote` and `call`.
+- With `-o`, save the result privately and print a short receipt. Add `--detailed` for the full receipt.
+
+## 0.1.28
+
+- Show up to 10 discovery matches on the first page and up to 50 on later pages. Follow the returned cursor to continue the same search.
+- Show the capability query in compact results when o11 rewrites a search.
+
+## 0.1.27
+
+- Accept the card flag before the command, as shown in the bulk example.
+
+## 0.1.26
+
+- Teach one CLI workflow with discover, inspect, call and wait. Older command and flag spellings remain callable.
+- Return nextCommand for pending work and wait timeouts. Keep the output path and call scope when resuming. Completed waits and receipts that need action do not suggest another command.
+
+## 0.1.24
+
+- Return a bounded wait command for pending calls and timed-out waits. The command carries the run ID, selected card and profile.
+- Start the bulk example with one session ID and use a fresh request key for each lead and operation.
+
+## 0.1.23
+
+- Check for verified updates before authenticated commands and new MCP bridges, with bounded checks and offline fallback.
+- Preserve stdin, selected keys, profiles and invocation recovery when switching to the verified runtime before a request.
+- Stage complete installations before publishing a version directory so interrupted updates remain retryable.
+
+## 0.1.22
+
+- Keep canonical invocation IDs in resume commands so short-ID collisions do not break timeout recovery; preserve the SDK-selected card.
+- Bind CLI status and report recovery commands to the installed runtime, including when another program owns the `o11` command.
+- Add focused help for discovery, inspection and reports.
+
 ## 0.1.21
 
 - Use `o11` as the primary command and retain `o11-wallet` as a compatibility alias, including stable installer launchers.

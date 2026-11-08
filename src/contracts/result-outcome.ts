@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { catalogToolIds, matchesToolId, recordOutcome } from "./record-output-contracts.js";
+export { recordOutputContracts, recordOutcome, emailPattern, missPlaceholders, matchesToolId } from "./record-output-contracts.js";
+export { emailConfidence, emailConfidenceSchema, type EmailConfidence } from "./email-confidence.js";
 
 export const resultOutcomeSchema = z.object({
   status: z.enum(["partial", "failed"]), successfulItems: z.number().int().nonnegative(),
@@ -37,13 +40,17 @@ export const exaContentsToolIds = [
 
 /** Reviewed response containers only. These fields establish output shape, never contact verification. */
 export const arrayOutputContracts = [
-  { toolIds: exaSearchToolIds, field: "results", rowFields: ["url"], sourceUrl: "https://exa.ai/docs/reference/search" },
-  { toolIds: ["o11:apollo:apollo#mixed_people/api_search", "apollo:apollo#mixed_people/api_search"],
-    field: "people", rowFields: ["id"], sourceUrl: "https://docs.apollo.io/reference/people-api-search" },
+  { toolIds: exaSearchToolIds, path: ["results"], rowFields: ["url"], sourceUrl: "https://exa.ai/docs/reference/search" },
+  // apollo.people.search is the catalog's name for the same mixed_people/api_search endpoint.
+  { toolIds: ["o11:apollo:apollo#mixed_people/api_search", "apollo:apollo#mixed_people/api_search", ...catalogToolIds("apollo", "apollo.people.search")],
+    path: ["people"], rowFields: ["id"], sourceUrl: "https://docs.apollo.io/reference/people-api-search" },
   { toolIds: ["o11:apollo:apollo#mixed_companies/search", "apollo:apollo#mixed_companies/search"],
-    field: "organizations", rowFields: ["id"], sourceUrl: "https://docs.apollo.io/reference/organization-search" },
+    path: ["organizations"], rowFields: ["id"], sourceUrl: "https://docs.apollo.io/reference/organization-search" },
   { toolIds: ["o11:apollo:apollo#organizations/{organization_id}/job_postings", "apollo:apollo#organizations/{organization_id}/job_postings"],
-    field: "organization_job_postings", rowFields: ["id", "title", "url"], sourceUrl: "https://docs.apollo.io/reference/organization-jobs-postings" },
+    path: ["organization_job_postings"], rowFields: ["id", "title", "url"], sourceUrl: "https://docs.apollo.io/reference/organization-jobs-postings" },
+  // Lead ids are numbers; fullName is the string every returned lead carries.
+  { toolIds: catalogToolIds("dropleads", "dropleads.people.search"), path: ["data", "leads"], rowFields: ["fullName"],
+    sourceUrl: "https://dropleads.readme.io/reference" },
 ] as const;
 
 const resultRows = z.object({ results: z.array(z.object({ url: z.string().min(1) })) });
@@ -75,18 +82,22 @@ export function outputQuality(input: {
     successfulItems: outcome.successfulItems, failedItems: outcome.failedItems,
   };
   if (stored) return unknown();
+  // A reviewed single-record miss is a legitimate "nothing found" even when the provider answered 404.
+  const record = recordOutcome(input.toolId, input.state, input.result);
+  if (record) return { status: record, basis: "provider_contract", successfulItems: record === "complete" ? 1 : 0, failedItems: 0 };
   if (input.state === "failed") {
     // Caller input, credentials, rate limits and an unclassified 404 do not establish endpoint failure.
     return input.upstreamStatus === 408 || Number.isInteger(input.upstreamStatus) && input.upstreamStatus! >= 500 && input.upstreamStatus! <= 599
       ? { status: "failed", basis: "upstream_failure" } : unknown();
   }
   const contents = exaContentsToolIds.some(id => id === input.toolId);
-  const contract = arrayOutputContracts.find(item => item.toolIds.some(id => id === input.toolId));
+  const contract = arrayOutputContracts.find(item => matchesToolId(item.toolIds, input.toolId));
   if (contract) {
     const body = z.record(z.string(), z.unknown()).safeParse(input.result);
     if (!body.success || body.data.error !== undefined) return unknown();
     const row = z.object(Object.fromEntries(contract.rowFields.map(field => [field, z.string().min(1)])));
-    const rows = z.array(row).safeParse(body.data[contract.field]);
+    const rows = z.array(row).safeParse(contract.path.reduce<unknown>((value, key) =>
+      value !== null && typeof value === "object" && !Array.isArray(value) ? Reflect.get(value, key) : undefined, body.data));
     if (!rows.success) return unknown();
     return { status: rows.data.length ? "complete" : "empty", basis: "provider_contract",
       successfulItems: rows.data.length, failedItems: 0 };

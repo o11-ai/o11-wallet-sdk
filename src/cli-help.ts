@@ -1,123 +1,140 @@
-const selection = '\nUse --profile PROFILE and --card ID when needed. Output is JSON.';
-const call = `o11 call TOOL_ID [-i JSON | -f FILE] [-w [SECONDS]] [-o NEW_FILE]
+import { discoveryFirstPageSize, discoveryPageSize } from './contracts/public-api.js';
 
-Use the short tool ID from discover and provider parameters from inspect.
-o11 handles pricing, request keys and the card's existing spending limits.
+const providerInput = '[--input JSON|@FILE|@-]';
+const executionInput = `TOOL_ID ${providerInput}`;
+const commands = {
+  login: ['--server URL', 'Connect a wallet'],
+  logout: ['', 'End saved access'],
+  doctor: ['', 'Check access and readiness'],
+  setup: ['[--verify-mcp]', 'Check access and optionally MCP'],
+  keys: ['add|list|activate|remove', 'Manage saved keys'],
+  cards: ['[--cursor CURSOR]', 'List available cards'],
+  permissions: ['', 'Read approved permissions'],
+  'create-card': ['--input FILE|-', 'Create an authorized card'],
+  'update-card': ['--input FILE|-', 'Update an authorized card'],
+  'api-keys': ['[--cursor CURSOR]', 'List delegated keys'],
+  'create-api-key': ['--input FILE|- --output NEW_FILE', 'Save a delegated key privately'],
+  'revoke-api-key': ['ID', 'Revoke a delegated key'],
+  update: ['[--check]', 'Check or install a verified update'],
+  mcp: ['', 'Serve MCP using this profile'],
+  discover: ['[QUERY]', 'Find tools'],
+  search: ['TASK', 'Rank tools where task search is enabled; otherwise use discover'],
+  inspect: ['TOOL_ID [--detailed]', 'Get inputs and a call example'],
+  quote: [executionInput, 'Estimate a call price'],
+  call: [`${executionInput} [-o NEW_FILE [--overwrite]]`, 'Run a tool'],
+  invoke: ['--input FILE|- | JSON', 'Submit a full request with your own key and spending cap'],
+  status: ['ID [-o NEW_FILE [--overwrite]]', 'Read a call receipt'],
+  wait: ['ID [--timeout MS] [-o NEW_FILE [--overwrite]]', 'Wait for a call'],
+  cancel: ['ID', 'Request cancellation'],
+  history: ['[--limit 1-25] [--since 30m|ISO] [--cursor CURSOR]', 'List recent calls with totals'],
+  'session-id': ['[-j]', 'Generate a task UUID'],
+  generate_session_id: ['[-j]', 'Alias for session-id'],
+  'run-status': ['[RUN_UUID]', 'Total a task\'s calls, charges and holds'],
+  wallet: ['balance|topup', 'Read or fund the wallet'],
+  balance: ['', 'Read wallet funds and card allowance'],
+  topup: ['[AMOUNT] [--no-open]', 'Read funding limits or open checkout'],
+  connections: ['[PROVIDER]', 'List connected accounts'],
+  configuration: ['TOOL_ID', 'Read saved tool choices'],
+  resources: ['list|get|events|release', 'Manage provisioned services'],
+  events: ['RESOURCE_ID', 'Read service events'],
+  release: ['RESOURCE_ID', 'Request service release'],
+  retry: ['RESOURCE_ID', 'Retry service review'],
+  'configure-service': ['JSON', 'Set service renewal controls'],
+  report: ['-t TEXT | --input FILE|-', 'Send feedback or dispute a charge'],
+  reports: ['[--input FILE|-]', 'List reports'],
+  'report-status': ['ID [--history-cursor CURSOR]', 'Read report updates'],
+  'report-info': ['--input FILE|-', 'Add report context'],
+  version: ['', 'Show the installed version'],
+  '--version': ['', 'Show the installed version'],
+} as const;
 
-  -i, --input JSON         Provider parameters as JSON
-  -f, --input-file FILE    Read provider JSON from a file; - reads stdin
-  --data JSON|@FILE|@-     Alternative input syntax
-  --query KEY=VALUE       Query parameter; repeat for multiple values
-  --path KEY=VALUE        Path parameter
-  --header 'NAME: VALUE'  Allowed request header
-  -w, --wait [SECONDS]    Poll this call; bare -w waits up to 60 seconds
-  -o, --output NEW_FILE   Save final result JSON in a new private file
-  --idempotency-key KEY   Reuse the same key and inputs after an uncertain submission
-  --max-cost-micros N     Optional lower ceiling in micro-USD
-  --allow-write          Confirm an authorized write
-  --accept-recurring     Confirm an authorized recurring service
-  --credential-mode customer --connection ID  Use an explicitly chosen account
+const quickCommands = ['login', 'discover', 'inspect', 'quote', 'call', 'wait', 'session-id', 'run-status', 'history'] as const;
+const inputFlags = '  --query KEY=VALUE, --path KEY=VALUE, --header "NAME: VALUE"\n  --credential-mode customer --connection ID, --max-cost-micros N';
+const details: Partial<Record<keyof typeof commands, string>> = {
+  login: '  --auth email|browser, --no-browser, --key-stdin, --reauth\n  --client APP, --name NAME, --card ID, --email EMAIL, --task TEXT',
+  discover: `  --provider KEY, --cursor CURSOR, --limit N, --detailed\n  --providers lists provider keys for --provider.
+  Compact results[] vs --detailed items[]: id and endpoint_id = id; usd_per_call = price.micros / 1000000
+    (null for variable prices); name, provider and score match. works, samples, usable_rate, usable_samples
+    and no_key_needed appear only in compact rows.\n  Up to ${discoveryFirstPageSize} results on the first page and ${discoveryPageSize} with a cursor.`,
+  search: '  --preference 0-10, --max-effective-price-micros N, --limit N',
+  inspect: '  --detailed  Show the full tool contract.',
+  quote: `${inputFlags}\n  Accepts the same provider input as call. Positional JSON and --input FILE|- also accept the legacy input envelope.`,
+  call: `  Group a task's calls: export O11_RUN_ID=$(o11 session-id), then o11 run-status totals them.
+  --input JSON|@FILE|@-  Provider fields, flat: --input '{"per_page":5,"person_titles[]":["Founder"]}'.
+    o11 puts each field in the query, path or body, as inspect's fields[].in shows. Do not nest them under queryParams or body.
+  --query KEY=VALUE  One query field. Repeat it to build a list: --query 'tags[]=a' --query 'tags[]=b'.
+${inputFlags.split('\n')[0]!.replace('--query KEY=VALUE, ', '')}\n${inputFlags.split('\n')[1]}
+  --wait [SECONDS]  How long to wait for the result (default 60). Calls wait by default.
+                    A provider call already running in this request can run past SECONDS, until the provider answers.
+  --no-wait  Print the queued receipt at once; follow it with o11 wait ID.
+  --idempotency-key KEY, --allow-write (tools inspect marks effect: write), --accept-recurring
+  -o NEW_FILE saves the result and prints a short receipt. Add --detailed for the full receipt.
+  -o refuses an existing file before submitting; --overwrite replaces it once the result is saved.
+  Results over 16 KB are saved to a new o11-result-ID.json file; the receipt shows a preview. --detailed prints them.
+  If a call is stopped before it answers, do not call again: o11 history --since 10m finds it, then o11 wait ID.
+  Example: o11 call crustdata.companies.identify --input '{"domains":["stripe.com"]}'`,
+  invoke: `  The request is JSON (inline, a file, or - for stdin) with these fields:
+    toolId          Tool ID from o11 discover.
+    idempotencyKey  Your key, 1-200 characters. Reuse it to retry the same call without paying twice.
+    input           {"queryParams":{},"pathParams":{},"headers":{},"body":...}, as o11 inspect --detailed shows.
+    maxCostMicros   Spending cap in integer USD micros ("50000" is $0.05).
+    allowWrite, acceptRecurring  true only for tools that write or renew. Both default to false.
+    credentialMode, connectionId  "customer" with a connection ID uses your own provider account.
+    runId           Optional task UUID; o11 run-status totals it. searchId and quoteContext are optional.
+  Example: o11 invoke '{"toolId":"crustdata.companies.identify","idempotencyKey":"lead-42",
+    "input":{"body":{"domains":["stripe.com"]}},"maxCostMicros":"50000"}'
+  Most calls are simpler with o11 call, which takes flat fields and sets the key and cap for you.`,
+  status: '  --wait [SECONDS], --detailed with -o, --overwrite to replace an existing -o file',
+  wait: '  --timeout MS defaults to 60000. Follow nextCommand on timeout.\n  -o NEW_FILE saves the result; --overwrite replaces an existing file. Add --detailed for the full receipt.',
+  history: `  --limit 1-25 (default 10), --state STATE, --tool TOOL_ID, --run-id UUID, --input FILE|-
+  --since 30m|2h|1d|ISO  Only calls from that time on.
+  totals sums the listed calls; complete is false when --cursor has more.
+  --limit above 25 lists 25 and says so; follow cursor for more.
+  History covers the whole card. With O11_RUN_ID or --run-id set, it lists only that task's calls.`,
+  'run-status': `  Defaults to --run-id or O11_RUN_ID. Each o11 command makes a new run ID unless given one,
+  so pass the same one to every call in a task: O11_RUN_ID=UUID o11 call ...
+  Take it from o11 session-id or from your first call's runId.`,
+  keys: '  add -l LABEL --server URL --key-stdin\n  list\n  activate -l LABEL\n  remove -l LABEL [-f]',
+  resources: '  list [-p PROVIDER] [-t TYPE] [-s STATE] [-l LIMIT] [--cursor CURSOR]\n  get RESOURCE_ID\n  events RESOURCE_ID [-l LIMIT] [--cursor CURSOR]\n  release RESOURCE_ID [-y]',
+  report: '  --invocation ID, --run UUID, --note FILE, --request-id UUID\n  --retry REQUEST_UUID resumes the saved report.',
+  topup: '  --request-id UUID retries the same checkout. An amount is in USD.',
+};
 
-Example, after replacing TOOL_ID and fields with the inspected contract:
-  o11 call TOOL_ID -i '{"query":"AI"}' -w 30 -o result.json
-
-Timeout stops waiting; the call keeps running. Resume with the returned
-wait.resumeCommand. Do not submit another call to poll.${selection}`;
-function invocation(command: 'status' | 'wait') {
-  return `o11 ${command} CALL_ID ${command === 'wait' ? '[--timeout MS]' : '[-w [SECONDS]]'} [-o NEW_FILE]
-
-CALL_ID accepts the receipt's 8-character shortId or full UUID.
-If the short ID is ambiguous, use the full id from its receipt or history.
-${command === 'wait' ? 'Poll this existing call for up to 60 seconds by default.' : 'Read this existing call once; add -w to poll for up to 60 seconds.'}
-
-  -w, --wait [SECONDS]    Set a wait in seconds${command === 'wait' ? '\n  --timeout MS           Set a wait in milliseconds instead' : ''}
-  -o, --output NEW_FILE   Save final result JSON in a new private file
-
-  o11 ${command} a1b2c3d4 ${command === 'wait' ? '--timeout 30000' : '-w 30'} -o result.json
-
-A timeout keeps the call running. Check state and result before claiming success.
-Exit 2 means waiting stopped before success or the result needs attention.${selection}`;
+export function isWalletCommand(value: string): value is keyof typeof commands {
+  return Object.hasOwn(commands, value);
 }
-const history = `o11 history [--limit N] [--cursor CURSOR] [--state STATE] [--tool ID]
 
-  -l, --limit 1-25        Maximum calls returned; default 10
-  --cursor CURSOR        Continue the previous page with the same filters
-  --state STATE          queued, executing, waiting, succeeded, failed,
-                         cancelled, unknown or awaiting_approval
-  --tool ID              Filter by tool ID
-  --run-id UUID          Filter by a task session; O11_RUN_ID also works
-  --input FILE|-         Read advanced filters from JSON instead of flags
-
-  o11 history --state waiting --limit 5
-
-Use the returned shortId with status, wait or cancel. History covers the selected
-card, including calls from other authorized connections sharing that card.${selection}`;
-const keys = `o11 keys add|list|activate|remove
-
-  keys add -l LABEL --server URL --key-stdin  Save a supplied API key from stdin
-  keys add -l LABEL --server URL -k KEY      Alternative key input
-  keys list                                 Show labels and active selection
-  keys activate -l LABEL                    Select a saved key
-  keys remove -l LABEL [-f]                 Remove locally; -f skips confirmation
-
-Keep secrets out of shell history and logs; prefer --key-stdin.
-The first saved key becomes active. Removing it clears selection.
-Explicit --profile and environment credentials take precedence over selection.
-Removing a saved key does not revoke it on the server. Output is JSON.`;
-const topup = `o11 topup [AMOUNT | -a AMOUNT] [--no-open]
-
-Without an amount, read current USD limits and the Billing link.
-With an amount, create a one-time checkout link. Payment is completed by the user.
-
-  -a, --amount AMOUNT     US dollars; extra decimals round to the nearest cent
-  --no-open              Print the checkout link without opening a browser
-  --no-browser           Alias for --no-open
-  --request-id UUID      Recover an uncertain checkout with the same amount
-
-  o11 topup
-  o11 topup 7.25 --no-open
-
-Use the returned Billing URL if this connection cannot create a checkout link.
-Funding does not increase card allowances. wallet topup is also supported.${selection}`;
-const resources = `o11 resources list|get|events|release
-
-  resources list [-p PROVIDER] [-t TYPE] [-s STATE] [-l LIMIT] [--cursor CURSOR]
-  resources get RESOURCE_ID [--no-external]
-  resources events RESOURCE_ID [-l LIMIT] [--cursor CURSOR]
-  resources release RESOURCE_ID [-y]
-
-List filters also accept --provider, --resource-type, --state and --limit.
-TYPE requires PROVIDER. LIMIT is 1-100. -r/--resource-id can supply a resource ID.
-Get reads saved service details; live external-link details are unsupported.
-Events are oldest first. Follow the returned cursor with the same filters.
-Release can affect billing and needs confirmation; -y confirms it for scripts.
-A release request is asynchronous. Check the resource again to confirm cleanup.
-
-A resource is a service that outlives its creating call. Use status CALL_ID for
-call results; use resources get RESOURCE_ID for the service.${selection}`;
-const session = `o11 session-id [-j]
-
-Generate a task UUID without signing in. generate_session_id is an alias.
-Plain output is the UUID; -j/--json returns {"sessionId":"..."}.
-
-Optional for grouping several calls and reading their total charges:
-  o11 session-id
-  o11 --run-id UUID call TOOL_ID -i '{"query":"AI"}'
-  o11 run-status UUID
-
-Reuse the UUID with --run-id or O11_RUN_ID for the task. A session label creates
-no budget. Single calls need no session setup; each returns an 8-character shortId.`;
-
-export function commandHelp(command: string | undefined, args: string[]): string | undefined {
-  if (command === 'wallet' && args[0] === 'topup') return topup;
-  switch (command) {
-    case 'call': return call;
-    case 'status': case 'wait': return invocation(command);
-    case 'history': return history;
-    case 'keys': return keys;
-    case 'topup': return topup;
-    case 'resources': return resources;
-    case 'session-id': case 'generate_session_id': return session;
-    default: return undefined;
-  }
+export function commandSynopsis(program: string, command: string) {
+  return isWalletCommand(command) ? `${program} ${command} ${commands[command][0]}`.trimEnd() : `${program} COMMAND`;
 }
+
+export function unknownCommand(program: string, value: string) {
+  if (!/^[a-z0-9_-]{1,40}$/i.test(value)) return `Unknown command. Run ${program} --help.`;
+  const alternatives = Object.keys(commands).filter(name => name.startsWith(value.toLowerCase()));
+  const suggestion = value === 'list' || value === 'ls' || value === 'find' ? 'discover' : value === 'run' ? 'call'
+    : alternatives.length === 1 ? alternatives[0] : undefined;
+  return `Unknown command "${value}". ${suggestion ? `Try ${program} ${suggestion}.` : `Run ${program} --help.`}`;
+}
+
+export function commandHelp(program: string, command: string | undefined, args: string[]): string {
+  const walletCommand = command === 'wallet' ? args.find(arg => arg === 'balance' || arg === 'topup') : undefined;
+  if (walletCommand) return commandHelp(program, walletCommand, []);
+  if (command && isWalletCommand(command))
+    return [commandSynopsis(program, command), commands[command][1], details[command]].filter(Boolean).join('\n');
+
+  const all = args.includes('--all');
+  // search works only where task search is enabled; discover is the dependable entry point.
+  const names = all ? Object.keys(commands).filter(isWalletCommand).filter(name => name !== 'wallet' && name !== 'search') : quickCommands;
+  const heading = `${program} [--profile PROFILE] [--card ID] COMMAND`;
+  const rows = names.map(name => `  ${name.padEnd(all ? 19 : 11)} ${commands[name][1]}`);
+  const footer = all ? `Use ${program} COMMAND --help for flags.` : `Use ${program} COMMAND --help for flags or ${program} --help --all for all commands.`;
+  return [heading, ...rows, footer].join('\n');
+}
+
+export function inspectArguments(args: string[]) {
+  if (!args[0] || args[0].startsWith('-') || args.length > 2 || args[1] !== undefined && args[1] !== '--detailed')
+    throw new Error('Use o11 inspect TOOL_ID [--detailed].');
+  return { id: args[0], detailed: args[1] === '--detailed' };
+}
+
+export { compactInspection } from './cli-inspect.js';

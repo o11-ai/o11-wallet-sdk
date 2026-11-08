@@ -45,8 +45,8 @@ export const reportEvidenceSchema = z.object({ discoverQueries: z.array(z.string
     truncated: z.boolean() })).default([]),
   requests: z.array(reportRequestSchema).default([]) });
 export const reportSummarySchema = z.object({ id: z.uuid(), kind: reportKindSchema, status: reportStatusSchema,
-  revision: z.number().int().positive(), reason: z.string(), intent: z.string().nullable(), organizationId: z.string(),
-  cardId: z.uuid(), reporterId: z.string(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
+  revision: z.number().int().positive(), reason: z.string(), intent: z.string().nullable(), organizationId: z.string().optional(),
+  cardId: z.uuid(), reporterId: z.string().optional(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
   publicResolution: z.string().nullable(), outcome: reportOutcomeSchema, invocationCount: z.number().int().nonnegative(),
   workspaceName: z.string().nullable().optional(), cardName: z.string().nullable().optional(), reporterName: z.string().nullable().optional() });
 export const reportEventSchema = z.object({ id: z.uuid(), kind: z.enum(['created', 'context_added', 'moderated']),

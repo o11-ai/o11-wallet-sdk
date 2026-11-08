@@ -12,8 +12,8 @@ export function searchArguments(args: string[]) {
         throw new Error(`Supply ${flag} once, followed by its value`);
       if (name === 'maxEffectivePriceMicros') options[name] = value;
       else options[name] = Number(value);
-    } else if (flag.startsWith('--')) throw new Error(`Unknown search flag: ${flag}. Use discover --provider for a named provider.`);
+    } else if (flag.startsWith('--')) throw new Error(`Unknown search flag: ${flag}. Use o11 discover --provider KEY for a named provider.`);
     else words.push(flag);
   }
-  return publicOperationSchemas.search_items.parse({ request: words.join(' '), ...options });
+  return publicOperationSchemas.search_tools.parse({ request: words.join(' '), ...options });
 }

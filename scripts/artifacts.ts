@@ -5,9 +5,9 @@ import { assertPublicText } from './public-artifacts';
 
 export const packageName = '@o11/sdk';
 export const contractFiles = ['index', 'money', 'accounts', 'receipts', 'resource-plan', 'public-api', 'card-access', 'agent-permissions',
-  'execution-account', 'provider-authorization', 'supplier-capacity', 'supplier-price-reference', 'published-tariff', 'published-input', 'purchases', 'agent-guidance', 'reports', 'report-values',
-  'invocation-lifecycle', 'invocation-run', 'result-outcome', 'health', 'decision-evidence', 'onboarding'] as const;
-export const sdkSourceFiles = ['client', 'cli', 'cli-help', 'cli-call', 'cli-wallet', 'cli-keys', 'cli-execution', 'cli-report', 'cli-resources', 'cli-search', 'invocation-wait', 'config', 'browser-login', 'access-tokens', 'token-provider', 'mcp', 'login-lock', 'login-terminal', 'email-login', 'setup', 'cli-update'] as const;
+  'execution-account', 'provider-authorization', 'supplier-capacity', 'supplier-price-reference', 'published-tariff', 'published-input', 'purchases', 'product-search', 'agent-guidance', 'reports', 'report-values',
+  'invocation-lifecycle', 'invocation-run', 'result-outcome', 'record-output-contracts', 'email-confidence', 'health', 'decision-evidence', 'onboarding'] as const;
+export const sdkSourceFiles = ['client', 'cli', 'cli-help', 'cli-inspect', 'cli-call', 'cli-wallet', 'cli-keys', 'cli-execution', 'cli-result-file', 'cli-report', 'cli-resources', 'cli-search', 'invocation-wait', 'config', 'browser-login', 'access-tokens', 'token-provider', 'mcp', 'login-lock', 'login-terminal', 'email-login', 'setup', 'cli-update', 'cli-auto-update'] as const;
 export const reviewedFiles = ['client.js', 'cli.js', 'wallet-cli.js', 'package.json', 'LICENSE', 'README.md', 'CHANGELOG.md',
   ...sdkSourceFiles.map(name => `src/${name}.ts`),
   ...contractFiles.map(name => `src/contracts/${name}.ts`)];
@@ -64,7 +64,7 @@ export function inspectArchive(bytes: Uint8Array, version: string, expectedFiles
     name?: string; version?: string; private?: boolean; bin?: Record<string, string>; dependencies?: Record<string, string>;
   };
   if (manifest.name !== packageName || manifest.version !== version || manifest.private === true
-    || manifest.bin?.o11 !== './cli.js' || manifest.bin?.['o11-wallet'] !== './wallet-cli.js' || manifest.dependencies?.zod !== '4.6.5'
+    || manifest.bin?.o11 !== './cli.js' || Object.keys(manifest.bin ?? {}).length !== 1 || manifest.dependencies?.zod !== '4.6.5'
     || Object.values(manifest.dependencies).some(value => value.startsWith('workspace:'))) throw new Error('Wallet package identity mismatch.');
   return { files, digest: sha256(JSON.stringify([...files].sort(([a], [b]) => a.localeCompare(b)).map(([path, content]) => [path, sha256(content)]))) };
 }

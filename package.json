@@ -1,6 +1,6 @@
 {
   "name": "@o11/sdk",
-  "version": "0.1.21",
+  "version": "0.1.35",
   "type": "module",
   "description": "o11 Wallet TypeScript client and o11 command",
   "license": "MIT",
@@ -23,8 +23,7 @@
     }
   },
   "bin": {
-    "o11": "./cli.js",
-    "o11-wallet": "./wallet-cli.js"
+    "o11": "./cli.js"
   },
   "dependencies": {
     "zod": "4.6.5"

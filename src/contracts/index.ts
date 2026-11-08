@@ -42,7 +42,8 @@ export type InvocationRequest = z.infer<typeof invocationSchema>;
 export type ToolInput = z.infer<typeof inputSchema>;
 export type Json =
   null | boolean | number | string | Json[] | { [key: string]: Json };
-export type ToolSource = "o11" | "treg" | "agentmuxer" | "custom";
+/** Catalog import sources stay private; public definitions report "o11", and clients accept any name. */
+export type ToolSource = string;
 export interface ToolDefinition {
   id: string;
   provider: string;
@@ -158,7 +159,7 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
     input: z.record(z.string(), z.unknown()),
     example: z.record(z.string(), z.unknown()),
     source: z.object({
-      name: z.enum(["o11", "treg", "agentmuxer", "custom"]),
+      name: z.string().min(1),
       id: z.string(),
       revision: z.string(),
       url: z.url().optional(),

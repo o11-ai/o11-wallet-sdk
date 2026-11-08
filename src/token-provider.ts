@@ -4,6 +4,11 @@ export interface AccessTokenProvider {
   refreshAccessToken?(rejectedToken: string): Promise<string>;
 }
 
+/** The rejected token has no refresh path (an API key), so the server's 401 is the answer. */
+export class TokenNotRenewableError extends Error {
+  constructor(message: string) { super(message); this.name = "TokenNotRenewableError"; }
+}
+
 /** Serializes refresh for clients (including withCard copies) sharing one provider. */
 export function serializedTokenProvider(provider: AccessTokenProvider): AccessTokenProvider {
   let pending: Promise<string> | undefined;

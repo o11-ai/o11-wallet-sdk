@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { productSearchInputSchema } from "./product-search.js";
 
 export const purchaseToolId = "o11:commerce:purchase";
 const shortText = z.string().trim().min(1).max(500);
@@ -77,6 +78,7 @@ export const purchaseDetailSchema = purchaseSummarySchema.extend({
   events: z.array(z.object({ id: z.uuid(), kind: z.string(), data: z.record(z.string(), z.unknown()), observedAt: z.iso.datetime() })),
 });
 export const purchaseOperationSchemas = {
+  search_products: productSearchInputSchema,
   purchase: purchaseRequestSchema,
   get_purchase: z.strictObject({ id: z.uuid() }),
   list_purchases: z.strictObject({ cursor: z.string().max(500).optional() }),
@@ -85,6 +87,7 @@ export const purchaseOperationSchemas = {
   purchase_document: z.strictObject({ id: z.uuid(), documentId: z.uuid() }),
 };
 export const purchaseOperationDescriptions: Record<keyof typeof purchaseOperationSchemas, string> = {
+  search_products: "Find products across thousands of online stores. Each offer names its store, price in USD cents and productUrl. For checkout shopify pass productUrl to purchase; for checkout browser pass storeUrl with the offer's exact title as item.",
   purchase: "Prepare a US/USD purchase within this card's existing permissions and spending limits. Amounts are integer USD cents. Card issuing is stubbed: no order or payment is submitted. Returns a durable purchase ID; poll get_purchase, never create another purchase to poll.",
   get_purchase: "Read this card's purchase, checkout quote, payment state, documents and next action. A prepared checkout is not a completed purchase.",
   list_purchases: "List purchases belonging to this card, newest first. Follow the cursor for more.",

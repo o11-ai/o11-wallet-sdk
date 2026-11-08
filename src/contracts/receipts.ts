@@ -6,13 +6,20 @@ import { publishedTariffSchema, tariffRateSchema } from "./published-tariff.js";
 import { publishedInputSchema } from "./published-input.js";
 import { executionFailureSchema, invocationLifecycleSchema, invocationShortIdSchema, invocationShortId } from "./invocation-lifecycle.js";
 import { toolHealthSummarySchema } from "./health.js";
-import { resultOutcomeSchema, providerResultOutcome, outputQualitySchema } from "./result-outcome.js";
+import { resultOutcomeSchema, providerResultOutcome, outputQualitySchema, emailConfidenceSchema } from "./result-outcome.js";
 export { resultOutcomeSchema, providerResultOutcome, type ResultOutcome } from "./result-outcome.js";
+/** Why a settled call cost what it did: charged, answered from a cached identical request, or free. */
+export const receiptBillingSchema = z.object({
+  basis: z.enum(["charged", "cached", "no_charge"]),
+  note: z.string(),
+});
+export type ReceiptBilling = z.infer<typeof receiptBillingSchema>;
 export const receiptSchema = z.object({
   ...invocationLifecycleSchema.partial().shape,
   id: z.string().uuid(),
   shortId: invocationShortIdSchema.optional(),
   runId: z.uuid().optional(),
+  cardId: z.uuid().optional(),
   toolId: z.string(),
   toolName: z.string(),
   state: z.enum([
@@ -32,6 +39,8 @@ export const receiptSchema = z.object({
     .enum(["catalog", "provider", "operator", "none"])
     .nullable(),
   supplierCostMicros: moneySchema.nullable().optional(),
+  /** Settled calls only; optional so older servers and clients stay compatible. */
+  billing: receiptBillingSchema.optional(),
   executionAccount: executionAccountSchema.nullable().optional(),
   providerJobId: z.string().nullable(),
   result: z.unknown(),
@@ -39,6 +48,11 @@ export const receiptSchema = z.object({
   failure: executionFailureSchema.optional(),
   resultOutcome: resultOutcomeSchema.optional(),
   outputQuality: outputQualitySchema.optional(),
+  /** Email results only: the provider's verification label on one documented scale (see email-confidence.ts). */
+  emailConfidence: emailConfidenceSchema.optional(),
+  /** awaiting_approval only: what a person must approve, where, and by when. */
+  message: z.string().optional(),
+  approval: z.object({ status: z.literal("pending"), expiresAt: z.iso.datetime(), url: z.url() }).optional(),
   createdAt: z.iso.datetime(),
 });
 export type InvocationReceipt = z.infer<typeof receiptSchema>;
@@ -56,28 +70,41 @@ export const balanceSchema = z.object({
   spending: spendingEligibilitySchema.optional(),
   execution: z.object({ ready: z.boolean(), reason: z.literal("runtime_upgrade_required").optional() }).optional(),
 });
+const discoveryMatchingSchema = z.object({ method: z.literal("capability_rewrite"), query: z.string() });
+
 export const compactDiscoverySchema = z.object({
   query: z.string(),
   count: z.number().int().nonnegative(),
   total_matches: z.number().int().nonnegative(),
+  matching: discoveryMatchingSchema.optional(),
   results: z.array(z.object({
-    endpoint_id: z.string(), name: z.string(), provider: z.string(),
+    endpoint_id: z.string(), name: z.string(), provider: z.string(), bulk: z.literal(true).optional(),
     usd_per_call: z.number().nonnegative().nullable(), no_key_needed: z.boolean(),
     score: z.number().nonnegative().nullable(), works: z.number().min(0).max(1).nullable(),
     samples: z.number().int().nonnegative().nullable(),
+    usable_rate: z.number().min(0).max(1).nullable().optional(),
+    usable_samples: z.number().int().nonnegative().nullable().optional(),
   })),
   cursor: z.string().optional(),
   access: z.object({ availableToolCount: z.number().int().nonnegative(), unavailableToolIds: z.array(z.string()) }).optional(),
   next: z.string(),
 });
 export const discoverySchema = z.object({
-  matching: z.object({ method: z.literal("capability_rewrite"), query: z.string() }).optional(),
+  // Optional: wallets before these fields still parse.
+  query: z.string().optional(),
+  total_matches: z.number().int().nonnegative().optional(),
+  fallback: z.literal("discover").optional(),
+  notices: z.array(z.string()).optional(),
+  matching: discoveryMatchingSchema.optional(),
   access: z.object({ availableToolCount: z.number().int().nonnegative(), unavailableToolIds: z.array(z.string()) }).optional(),
   items: z.array(
     z.object({
       id: z.string(),
+      endpoint: z.string().optional(),
       name: z.string(),
       provider: z.string(),
+      score: z.number().nullable().optional(),
+      bulk: z.literal(true).optional(),
       description: z.string().optional(),
       availability: z.enum(["configured", "requires_adapter"]).optional(),
       unavailableReason: z.string().optional(),

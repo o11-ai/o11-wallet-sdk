@@ -8,8 +8,9 @@ export type PollableInvocation = {
 };
 export type InvocationWaitOptions = {
   timeoutMs?: number;
+  /** First delay between status reads. Later reads grow 1.5x up to maxIntervalMs. */
   intervalMs?: number;
-  /** Caps client backoff, including jitter. Server retry/cadence advice can require a longer delay. */
+  /** Caps backoff after failed reads, including jitter. Server Retry-After can require a longer delay. */
   maxIntervalMs?: number;
 };
 export type InvocationWaitResult<T> = {
@@ -85,7 +86,7 @@ export async function waitForInvocationReceipt<T extends PollableInvocation>(
   runtime: Runtime,
 ): Promise<InvocationWaitResult<T>> {
   const timeoutMs = options.timeoutMs ?? 60_000;
-  const intervalMs = options.intervalMs ?? 2_000;
+  const intervalMs = options.intervalMs ?? 1_000;
   const maxIntervalMs = options.maxIntervalMs ?? Math.max(intervalMs, 10_000);
   const requestLimit = runtime.requestTimeoutMs ?? 30_000;
   if (![timeoutMs, intervalMs, maxIntervalMs, requestLimit].every(positive) || maxIntervalMs < intervalMs)
@@ -96,9 +97,8 @@ export async function waitForInvocationReceipt<T extends PollableInvocation>(
   const deadline = now() + timeoutMs;
   let receipt: T | undefined;
   let lastReadError: unknown;
-  let previousState: string | undefined;
-  let unchanged = 0;
   let failures = 0;
+  let pendingReads = 0;
   const timedOut = (): InvocationWaitResult<T> => ({
     invocationId, outcome: "timed_out", ...(receipt ? { receipt } : {}),
     ...(lastReadError === undefined ? {} : { lastReadError }),
@@ -124,9 +124,11 @@ export async function waitForInvocationReceipt<T extends PollableInvocation>(
       if (!pending.has(current.state) && media !== "pending") return {
         invocationId, outcome: terminal.has(current.state) ? "completed" : "action_required", receipt,
       };
-      unchanged = previousState === current.state ? unchanged + 1 : 0;
-      previousState = current.state;
-      nextDelay = delay(unchanged, current.polling?.recommendedAfterMs);
+      // Polling is only the fallback: 1s, then 1.5x per read up to the cap. A longer server cadence, such as a
+      // scheduled retry, still sets the floor. Backoff with jitter applies only to failed reads.
+      const advised = current.polling?.recommendedAfterMs;
+      const schedule = Math.min(maxIntervalMs, Math.round(intervalMs * 1.5 ** Math.min(pendingReads++, 20)));
+      nextDelay = Math.max(schedule, advised !== undefined && positive(advised) ? advised : 0);
     } catch (error) {
       lastReadError = error;
       if (signal.aborted && now() >= deadline) return timedOut();

@@ -20,10 +20,16 @@ export const executionFailureSchema = z.object({
     'observe-result', 'result-storage', 'billing-finalization']),
   codes: z.array(z.string().regex(/^[A-Z0-9_]{2,50}$/)).max(4),
   occurredAt: z.iso.datetime(),
+  /** Set when nothing reached a supplier and the same call can simply be made again (a busy wallet at dispatch). */
+  retryable: z.boolean().optional(),
 });
 export type ExecutionFailure = z.infer<typeof executionFailureSchema>;
+/** The longest get_invocation wait one request can hold (MCP and HTTP `waitSeconds`). */
+export const maxInvocationWaitSeconds = 25;
 export const invocationLifecycleSchema = z.object({
   polling: z.object({ recommendedAfterMs: z.number().int().nonnegative() }).optional(),
+  /** Pending calls: wait in get_invocation instead of polling on a timer; repeat only while still pending. */
+  wait: z.object({ operation: z.literal("get_invocation"), waitSeconds: z.number().int().min(1).max(maxInvocationWaitSeconds) }).optional(),
   completedAt: z.iso.datetime().nullable(),
   cancellation: z.object({ supported: z.boolean(), requested: z.boolean() }),
   nextAction: z.enum(["poll", "inspect_result", "request_approval", "request_manager_review", "none"]),
@@ -35,6 +41,8 @@ export const invocationHistoryInputSchema = z.strictObject({
   state: invocationStateSchema.optional(),
   toolId: z.string().min(1).max(250).optional(),
   runId: z.uuid().optional(),
+  /** Only calls created at or after this instant. */
+  since: z.iso.datetime({ offset: true }).optional(),
 });
 export type InvocationHistoryInput = z.input<typeof invocationHistoryInputSchema>;
 export const invocationSummarySchema = z.object({

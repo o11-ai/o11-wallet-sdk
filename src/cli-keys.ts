@@ -118,6 +118,18 @@ export async function manageKeys(args: string[]) {
     try { if (!/^y(es)?$/i.test(await prompt.question(`Remove saved key "${options.label}"? [y/N] `))) return { removed: false }; }
     finally { prompt.close(); }
   }
+  let added: { key: string; origin: string } | undefined;
+  if (options.operation === 'add') {
+    const key = options.stdin ? (await Bun.stdin.text()).trim() : options.key!;
+    if (!/^o11_[A-Za-z0-9_-]+$/.test(key)) throw new Error('Expected an o11 API key');
+    const server = options.server ?? process.env.O11_TOOLS_URL;
+    if (!server) throw new Error('Supply --server URL (or O11_TOOLS_URL) for this key');
+    const origin = walletOrigin(server);
+    // Like login --key-stdin: save only a key the server accepts. Checked before the store lock.
+    const { ToolClient } = await import('./client.js');
+    await new ToolClient({ baseUrl: origin, apiKey: key }).cards();
+    added = { key, origin };
+  }
   return locked(async () => {
     const saved: Registry = await registry() ?? { labels: [], active: null };
     if (options.operation === 'list') {
@@ -134,12 +146,7 @@ export async function manageKeys(args: string[]) {
         throw error;
       });
       if (saved.labels.includes(label) || profiles.includes(label)) throw new Error('That label already exists. Choose another label.');
-      const key = options.stdin ? (await Bun.stdin.text()).trim() : options.key!;
-      if (!/^o11_[A-Za-z0-9_-]+$/.test(key)) throw new Error('Expected an o11 API key');
-      const server = options.server ?? process.env.O11_TOOLS_URL;
-      if (!server) throw new Error('Supply --server URL (or O11_TOOLS_URL) for this key');
-      const origin = walletOrigin(server);
-      await saveConfig({ baseUrl: origin, apiKey: key }, label);
+      await saveConfig({ baseUrl: added!.origin, apiKey: added!.key }, label);
       saved.labels.push(label);
       if (saved.labels.length === 1) { saved.active = label; saved.useDefault = false; }
     } else {

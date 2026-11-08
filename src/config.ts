@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { tokenRequest, walletOrigin } from "./access-tokens.js";
-import { serializedTokenProvider, type AccessTokenProvider } from "./token-provider.js";
+import { serializedTokenProvider, TokenNotRenewableError, type AccessTokenProvider } from "./token-provider.js";
 
 const schema = z.object({ baseUrl: z.url(), apiKey: z.string().startsWith("o11_"), resource: z.url().optional(), refreshToken: z.string().min(40).optional(), expiresAt: z.number().int().positive().optional(), refreshState: z.enum(["uncertain", "ended"]).optional() });
 export type ToolConfig = z.infer<typeof schema>;
@@ -51,14 +51,14 @@ export function renewConfig(profile?: string, rejectedToken?: string): Promise<T
   return withConfigLock(profile, async () => {
     // Environment API keys are deliberately not exchanged or written into a saved profile.
     if (!(profile ?? process.env.O11_TOOLS_PROFILE) && (process.env.O11_API_KEY || process.env.O11_TOOLS_URL))
-      throw new Error("An environment API key cannot refresh. Check its server and permissions.");
+      throw new TokenNotRenewableError("An environment API key cannot refresh. Check its server and permissions.");
     const file = path(profile), stat = await regularFile(file);
     if (!stat || process.platform !== "win32" && (stat.mode & 0o077) !== 0) throw new Error("The saved wallet key must be an owner-only regular file");
     const current = schema.parse(JSON.parse(await readFile(file, "utf8")));
     assertRefreshState(current);
     if (rejectedToken && current.apiKey !== rejectedToken) return current;
     if (!rejectedToken && (!current.expiresAt || current.expiresAt >= Date.now() + 60000)) return current;
-    if (!current.refreshToken) throw new Error("This saved API key cannot refresh. Check access or sign in again.");
+    if (!current.refreshToken) throw new TokenNotRenewableError("This saved API key cannot refresh. Check access or sign in again.");
     const result = await tokenRequest(current.baseUrl, { grant_type: "refresh_token", client_id: "o11-wallet-cli", refresh_token: current.refreshToken }, current.resource);
     if (!result.tokens) {
       if (result.ambiguous || result.error === "invalid_grant")

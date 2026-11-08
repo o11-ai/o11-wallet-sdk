@@ -40,9 +40,11 @@ export async function openCheckout(value: string, noBrowser: boolean) {
   if (noBrowser) return false;
   try {
     const child = Bun.spawn(command, { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
-    return await Promise.race([child.exited.then(code => code === 0), new Promise<boolean>(resolve => {
-      const timer = setTimeout(() => resolve(true), 1500);
-      timer.unref();
-    })]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([child.exited.then(code => code === 0), new Promise<boolean>(resolve => {
+        timer = setTimeout(() => { child.unref(); resolve(true); }, 1500);
+      })]);
+    } finally { clearTimeout(timer); }
   } catch { return false; }
 }

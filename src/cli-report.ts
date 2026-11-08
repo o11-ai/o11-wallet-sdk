@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { createReportSchema, type CreateReport, type ReportDetail } from './contracts/reports.js';
 import { credentialDirectory, readConfig, profileTokenProvider } from './config.js';
 import { ToolClient, ToolClientError } from './client.js';
+import { cliRecoveryCommand } from './cli-execution.js';
 
 const usage = 'Use report -t "short symptom" [-r RUN_UUID] [--invocation CALL_ID] [--note FILE] [--request-id UUID], report --retry UUID, or report --input FILE|-';
 type ReportArguments = { mode: 'input' } | { mode: 'retry'; requestId: string } |
@@ -39,7 +40,7 @@ function redact(value: string) {
   return value.replace(/\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key)\s*:\s*[^\r\n]*/gi, '$1: [redacted]')
     .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
     .replace(/https?:\/\/[^\s<>"']+/gi, raw => { try { return new URL(raw).origin + '/[url redacted]'; } catch { return '[url redacted]'; } })
-    .replace(/\b(?:(?:bearer|basic)\s+[^\s,;]+|(?:o11_|monid_|sk-)[a-z0-9_-]+|(?:api[ _-]?key|access[_-]?token|refresh[_-]?token|session[_-]?(?:token|id)|password|secret|token)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+))/gi, '[redacted]')
+    .replace(/\b(?:(?:bearer|basic)\s+[^\s,;]+|(?:o11_|sk-)[a-z0-9_-]+|[a-z]{3,10}_[a-z0-9]{16,}|(?:api[ _-]?key|access[_-]?token|refresh[_-]?token|session[_-]?(?:token|id)|password|secret|token)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+))/gi, '[redacted]')
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email redacted]');
 }
 function sanitizedRequest(raw: unknown) {
@@ -53,7 +54,7 @@ const diagnosticSchema = z.object({ version: z.literal(1), request: createReport
   state: z.enum(['pending', 'submitted', 'not_confirmed']), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
   rootCause: z.literal('unknown'), report: safeReportSchema.optional(), failure: z.object({ code: z.string(), status: z.number().optional() }).optional() });
 type Diagnostic = z.infer<typeof diagnosticSchema>;
-type Options = { profile?: string; cardId?: string; runId?: string; version: string; input?: unknown };
+type Options = { profile?: string; cardId?: string; runId?: string; version: string; input?: unknown; invocation?: readonly string[] };
 export class ReportSubmissionError extends Error {
   constructor(readonly details: { error: string; requestId: string; diagnosticFile: string; retryCommand: string; status?: number },
     message = 'Report submission was not confirmed. Retry the saved request.') {
@@ -150,8 +151,8 @@ export async function fileReport(args: string[], options: Options) {
   if (saved && JSON.stringify(saved.request) !== JSON.stringify(request)) throw new Error('This request ID already has different report content; retry the saved request or use a new request ID');
   if (saved?.context.cardId && options.cardId && saved.context.cardId !== options.cardId) throw new Error('Retry the report using its original card');
   if (saved?.context.runId && options.runId && saved.context.runId !== options.runId) throw new Error('Retry the report using its original request correlation run');
-  const retryCommand = ['o11', ...(profile ? ['--profile', profile] : []), 'report', '--retry', request.requestId,
-    ...(options.cardId ?? saved?.context.cardId ? ['--card', (options.cardId ?? saved?.context.cardId)!] : [])].join(' ');
+  const retryCommand = cliRecoveryCommand([...(profile ? ['--profile', profile] : []), 'report', '--retry', request.requestId,
+    ...(options.cardId ?? saved?.context.cardId ? ['--card', (options.cardId ?? saved?.context.cardId)!] : [])], options.invocation);
   const now = new Date().toISOString();
   const diagnostic: Diagnostic = saved ?? { version: 1, request, context: { cliVersion: options.version,
     ...(options.cardId ? { cardId: options.cardId } : {}), ...(options.runId ? { runId: z.uuid().parse(options.runId) } : {}) },

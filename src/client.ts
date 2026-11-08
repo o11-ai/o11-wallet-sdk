@@ -16,7 +16,7 @@ import { invocationRunInputSchema, invocationRunSchema } from "./contracts/invoc
 import { InvocationWaitTimeoutError, retryAfterMilliseconds, waitForInvocationReceipt, type InvocationWaitOptions } from "./invocation-wait.js";
 export { InvocationWaitTimeoutError } from "./invocation-wait.js";
 import { authorizationRemediationSchema, connectionSummarySchema, type AuthorizationRemediation } from "./contracts/provider-authorization.js";
-import { serializedTokenProvider, type AccessTokenProvider } from "./token-provider.js";
+import { serializedTokenProvider, TokenNotRenewableError, type AccessTokenProvider } from "./token-provider.js";
 export { serializedTokenProvider, type AccessTokenProvider } from "./token-provider.js";
 import {
   toolDefinitionSchema,
@@ -85,7 +85,14 @@ export class ToolClient {
     )
       throw new Error("Use HTTPS for o11 API access");
   }
-  private async call(operation: string, input: unknown, timeoutMs = this.options.timeoutMs ?? 30_000, signal = AbortSignal.timeout(Math.ceil(timeoutMs))): Promise<unknown> {
+  /** Wallets released before the rename answer 404 for find_tools; retry once as discover. Hidden search_tools also answers 404, so it is not retried. */
+  private async renamedCall(operation: string, legacy: string, input: unknown) {
+    try { return await this.call(operation, input); } catch (error) {
+      if (!(error instanceof ToolClientError) || error.status !== 404) throw error;
+      return this.call(legacy, input);
+    }
+  }
+  private async call(operation: string, input: unknown, timeoutMs = this.options.timeoutMs ?? 30_000, signal = AbortSignal.timeout(Math.ceil(timeoutMs)), extraHeaders: Record<string, string> = {}): Promise<unknown> {
     const clientCallId = crypto.randomUUID();
     const body = JSON.stringify(operation === "cards" ? input : { ...(input as Record<string, unknown>), ...(this.options.cardId ? { cardId: this.options.cardId } : {}) });
     let token = this.tokenProvider ? await this.tokenProvider.getAccessToken() : this.options.apiKey!;
@@ -101,6 +108,7 @@ export class ToolClient {
           "Content-Type": "application/json",
           "x-o11-run-id": this.runId,
           "x-o11-call-id": clientCallId,
+          ...extraHeaders,
         },
         body,
       },
@@ -108,10 +116,15 @@ export class ToolClient {
     let response = await send();
     // A wallet 401 precedes execution. Preserve the exact body and idempotency key on this one retry.
     if (response.status === 401 && this.tokenProvider?.refreshAccessToken) {
-      await response.body?.cancel();
-      token = await this.tokenProvider.refreshAccessToken(token);
-      if (!token || /[\r\n]/.test(token)) throw new Error("The wallet token provider returned an invalid token");
-      response = await send();
+      // A key that cannot refresh keeps the server's 401: a definite refusal, not an uncertain submission.
+      const renewed = await this.tokenProvider.refreshAccessToken(token)
+        .catch((error: unknown) => { if (error instanceof TokenNotRenewableError) return undefined; throw error; });
+      if (renewed !== undefined) {
+        await response.body?.cancel();
+        token = renewed;
+        if (!token || /[\r\n]/.test(token)) throw new Error("The wallet token provider returned an invalid token");
+        response = await send();
+      }
     }
     let result: unknown;
     try {
@@ -139,7 +152,7 @@ export class ToolClient {
       if (balance.execution?.ready === false)
         return { ...checked, ready: false, readinessKnown: true,
           message: "Saved access works, but this server’s execution runtime is not ready for this connection. Ask the operator to upgrade the runtime, then run doctor again." };
-      const discovery = await selected.discover("");
+      const discovery = await selected.findTools("");
       if (!discovery.items.length && discovery.access && discovery.access.availableToolCount > 0)
         return { ...checked, ready: false, readinessKnown: false, access: discovery.access,
           message: "Saved access works, but discovery returned no tools despite its availability count. Inspect an allowed tool before relying on readiness." };
@@ -166,7 +179,9 @@ export class ToolClient {
     return z.object({ id: z.uuid(), created: z.boolean() }).parse(await this.call("create_card", managementOperationSchemas.create_card.parse(input)));
   }
   async updateCard(input: z.input<typeof managementOperationSchemas.update_card>) {
-    return z.object({ id: z.uuid() }).parse(await this.call("update_card", managementOperationSchemas.update_card.parse(input)));
+    // Servers before the card echo return only the id.
+    return z.object({ id: z.uuid(), name: z.string().optional(), status: z.string().optional(), limitMicros: z.string().optional() })
+      .parse(await this.call("update_card", managementOperationSchemas.update_card.parse(input)));
   }
   async apiKeys(cursor?: string) { return this.call("api_keys", { cursor }); }
   async createApiKey(input: z.input<typeof managementOperationSchemas.create_api_key>) {
@@ -176,25 +191,43 @@ export class ToolClient {
   async cards(cursor?: string) {
     return z.object({ items: z.array(z.object({ id: z.uuid(), name: z.string(), walletId: z.uuid(), walletName: z.string(), status: z.string(), expiresAt: z.string().nullable() })), cursor: z.string().optional() }).parse(await this.call("cards", { cursor }));
   }
-  async discover(
+  async findTools(
     query: string,
     options?: { cursor?: string; provider?: string; limit?: number },
   ) {
-    const limit = options?.limit === undefined ? {} : { limit: publicOperationSchemas.discover.shape.limit.parse(options.limit) };
+    const limit = options?.limit === undefined ? {} : { limit: publicOperationSchemas.find_tools.shape.limit.parse(options.limit) };
     return discoverySchema.parse(
-      await this.call("discover", { query, ...options, ...limit }),
+      await this.renamedCall("find_tools", "discover", { query, ...options, ...limit }),
     );
   }
+  /** @deprecated Use findTools. */
+  async discover(query: string, options?: { cursor?: string; provider?: string; limit?: number }) { return this.findTools(query, options); }
   async inspect(id: string) {
     return toolDefinitionSchema.parse(await this.call("inspect", { id }));
   }
-  async discoverCompact(query: string, options?: { cursor?: string; provider?: string; limit?: number }) {
-    const input = publicOperationSchemas.discover.parse({ query, ...options, format: "compact" });
-    return compactDiscoverySchema.parse(await this.call("discover", input));
+  async findToolsCompact(query: string, options?: { cursor?: string; provider?: string; limit?: number }) {
+    const input = publicOperationSchemas.find_tools.parse({ query, ...options, format: "compact" });
+    return compactDiscoverySchema.parse(await this.renamedCall("find_tools", "discover", input));
   }
-  async searchItems(input: z.input<typeof publicOperationSchemas.search_items>) {
-    return this.call("search_items", publicOperationSchemas.search_items.parse(input));
+  /** Provider keys for find_tools' provider filter, from the wallet's public catalog listing (no key needed). */
+  async providers() {
+    const response = await (this.options.fetch ?? fetch)(new URL("/api/catalog/providers", this.baseUrl), {
+      redirect: "error", signal: AbortSignal.timeout(Math.ceil(this.options.timeoutMs ?? 30_000)) });
+    let result: unknown;
+    try { result = await response.json(); } catch { result = { error: "INVALID_RESPONSE" }; }
+    if (!response.ok) throw new ToolClientError(response.status, result);
+    const rows = z.array(z.object({ provider: z.string(), name: z.string().nullable(), availableCount: z.number() })).parse(result);
+    return { providers: rows.filter(row => row.availableCount > 0)
+      .map(row => ({ provider: row.provider, name: row.name ?? row.provider, tools: row.availableCount }))
+      .sort((a, b) => a.provider.localeCompare(b.provider)) };
   }
+  /** @deprecated Use findToolsCompact. */
+  async discoverCompact(query: string, options?: { cursor?: string; provider?: string; limit?: number }) { return this.findToolsCompact(query, options); }
+  async searchTools(input: z.input<typeof publicOperationSchemas.search_tools>) {
+    return this.call("search_tools", publicOperationSchemas.search_tools.parse(input));
+  }
+  /** @deprecated Use searchTools. */
+  async searchItems(input: z.input<typeof publicOperationSchemas.search_tools>) { return this.searchTools(input); }
   async createReport(input: z.input<typeof reportOperationSchemas.create_report>) {
     return reportDetailSchema.parse(await this.call("create_report", reportOperationSchemas.create_report.parse(input)));
   }
@@ -261,10 +294,19 @@ export class ToolClient {
       await this.call("invoke", publicOperationSchemas.invoke.parse(request)),
     );
   }
-  async callTool(request: ToolCallOptions) {
+  /**
+   * With waitMs, the wallet holds the request until the call finishes or the wait (at most 120 s) ends, and returns
+   * the finished receipt. For some calls it runs the provider attempt in this request, which then ends only when the
+   * provider answers (up to its 120 s timeout); the deadline stays long so this client never abandons a running
+   * attempt. Calls that park or are still running when the wait ends return pending.
+   */
+  async callTool(request: ToolCallOptions, options: { waitMs?: number } = {}) {
     const input = publicOperationSchemas.call.parse({ ...request, idempotencyKey: request.idempotencyKey ?? crypto.randomUUID() });
+    const waitSeconds = Math.min(120, Math.max(0, Math.floor((options.waitMs ?? 0) / 1000)));
     try {
-      const result = await this.call('call', input);
+      const result = waitSeconds > 0
+        ? await this.call('call', input, Math.max(180_000, (this.options.timeoutMs ?? 30_000) + waitSeconds * 1000), undefined, { Prefer: `wait=${waitSeconds}` })
+        : await this.call('call', input);
       return { ...parseReceipt(result), idempotencyKey: input.idempotencyKey! };
     } catch (error) {
       // Preserve the request identity on timeout; never submit a fresh purchase automatically.
@@ -299,7 +341,9 @@ export class ToolClient {
   }
   async waitForInvocationResult(id: string, options: InvocationWaitOptions = {}) {
     const { lastReadError: _lastReadError, ...result } = await this.invocationWait(id, options);
-    return { ...result, resumeCommand: `o11 status ${result.receipt?.shortId ?? result.invocationId}` };
+    const quote = (value: string) => /^[a-zA-Z0-9_-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
+    const card = this.options.cardId ? ` --card ${quote(this.options.cardId)}` : '';
+    return { ...result, resumeCommand: `o11 status ${result.invocationId}${card}` };
   }
   async waitForInvocation(
     id: string,
@@ -313,7 +357,7 @@ export class ToolClient {
     options: { credentialMode?: "platform" | "customer"; connectionId?: string; maxCostMicros?: string } = {},
   ) {
     return z
-      .object({ estimatedMicros: z.string(), variable: z.boolean(),
+      .object({ estimatedMicros: z.string(), typicalMicros: z.string().optional(), variable: z.boolean(),
         quoteContext: z.string().regex(/^[a-f0-9]{64}$/).optional(), executionAccount: executionAccountSchema.optional(),
         credentialMode: z.enum(["platform", "customer"]).optional(), chargeBasis: z.string().optional() })
       .parse(await this.call("quote", { toolId, input, ...options }));
