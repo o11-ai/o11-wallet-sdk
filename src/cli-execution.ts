@@ -127,6 +127,7 @@ function outputSummary(id: string, receipt: InvocationReceipt | undefined, idemp
         // Shown here only when it is not already the next command (a held call resumes after its approval).
         ...(followup.nextCommand ? {} : { resumeCommand: followup.wait.resumeCommand }) } } : {}),
     nextCommand: followup.nextCommand,
+    ...(receipt?.request ? { request: resultPreview(receipt.request) } : {}),
     outputFile,
   };
 }

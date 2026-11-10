@@ -17,16 +17,17 @@ const commands = {
   'revoke-api-key': ['ID', 'Revoke a delegated key'],
   update: ['[--check]', 'Check or install a verified update'],
   mcp: ['', 'Serve MCP using this profile'],
+  ostack: ['COMMAND', 'Outbound workflows for your coding agent (o11 ostack help)'],
   discover: ['[QUERY]', 'Find tools'],
   search: ['TASK', 'Rank tools where task search is enabled; otherwise use discover'],
   inspect: ['TOOL_ID [--detailed]', 'Get inputs and a call example'],
   quote: [executionInput, 'Estimate a call price'],
   call: [`${executionInput} [-o NEW_FILE [--overwrite]]`, 'Run a tool'],
   invoke: ['--input FILE|- | JSON', 'Submit a full request with your own key and spending cap'],
-  status: ['ID [-o NEW_FILE [--overwrite]]', 'Read a call receipt'],
+  status: ['ID [-o NEW_FILE [--overwrite]]', 'Show a call: inputs, state and output'],
   wait: ['ID [--timeout MS] [-o NEW_FILE [--overwrite]]', 'Wait for a call'],
   cancel: ['ID', 'Request cancellation'],
-  history: ['[--limit 1-25] [--since 30m|ISO] [--cursor CURSOR]', 'List recent calls with totals'],
+  history: ['[--limit 1-25] [--since 30m|ISO] [--cursor CURSOR]', 'List running and past calls with totals'],
   'session-id': ['[-j]', 'Generate a task UUID'],
   generate_session_id: ['[-j]', 'Alias for session-id'],
   'run-status': ['[RUN_UUID]', 'Total a task\'s calls, charges and holds'],
@@ -84,9 +85,12 @@ ${inputFlags.split('\n')[0]!.replace('--query KEY=VALUE, ', '')}\n${inputFlags.s
   Example: o11 invoke '{"toolId":"crustdata.companies.identify","idempotencyKey":"lead-42",
     "input":{"body":{"domains":["stripe.com"]}},"maxCostMicros":"50000"}'
   Most calls are simpler with o11 call, which takes flat fields and sets the key and cap for you.`,
-  status: '  --wait [SECONDS], --detailed with -o, --overwrite to replace an existing -o file',
+  status: `  Works on running and finished calls: request shows the inputs (secrets redacted), state the progress,
+  result the output once it finishes. Generated files are in result.media; fetch a ready one from its downloadUrl.
+  --wait [SECONDS], --detailed with -o, --overwrite to replace an existing -o file`,
   wait: '  --timeout MS defaults to 60000. Follow nextCommand on timeout.\n  -o NEW_FILE saves the result; --overwrite replaces an existing file. Add --detailed for the full receipt.',
-  history: `  --limit 1-25 (default 10), --state STATE, --tool TOOL_ID, --run-id UUID, --input FILE|-
+  history: `  Lists running and finished calls, newest first. Pass a row's shortId or id to status.
+  --limit 1-25 (default 10), --state STATE (queued, executing or waiting for running calls), --tool TOOL_ID, --run-id UUID, --input FILE|-
   --since 30m|2h|1d|ISO  Only calls from that time on.
   totals sums the listed calls; complete is false when --cursor has more.
   --limit above 25 lists 25 and says so; follow cursor for more.

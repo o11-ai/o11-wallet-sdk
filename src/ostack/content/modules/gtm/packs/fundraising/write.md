@@ -1,0 +1,1 @@
+One line on the company, the single strongest real metric, why this investor specifically (name their relevant past investment), and an ask for 20 minutes. No attachments in the first email, and no projections presented as results. Follow-ups bring one new milestone each.

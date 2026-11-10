@@ -1,0 +1,128 @@
+import { optional, required, type Args } from "../lib/args.js";
+import { readContent } from "../lib/content.js";
+import { OstackError } from "../lib/errors.js";
+import { moduleNotes, stepAliases } from "../lib/layers.js";
+import { print } from "../lib/output.js";
+import { remote, requireManager, requireOnline, type SettingsPatch } from "../lib/remote.js";
+import { writeState } from "../lib/state.js";
+import { loadQuestions, loadSteps, type SetupQuestion } from "../lib/steps.js";
+import { compareVersions, VERSION } from "../lib/version.js";
+import { enabledModules, loadWorkspace, type Workspace } from "../lib/workspace.js";
+import { importCommand, legacyFiles } from "./setup-import.js";
+import { teamSummary } from "./customize.js";
+
+export type SetupStatus = Awaited<ReturnType<typeof setupStatus>>;
+
+/**
+ * What the setup interview still needs to cover. Team questions are for owners and admins and are answered once
+ * for everyone; personal questions are answered by each teammate. Also lists customized steps whose default changed
+ * since this person last reviewed, and notes that need attention.
+ */
+export async function setupStatus(workspace: Workspace) {
+  const modules = enabledModules(workspace);
+  const { team, mine } = workspace.setup.settings;
+  const reviewed = workspace.state.reviewed;
+  const unanswered = loadQuestions(modules)
+    .filter((question) => !(question.scope === "team" ? team.answered : mine.answered)[question.id])
+    .map((question) => ({ ...question, new_since_setup: compareVersions(question.since, reviewed) > 0 }));
+  const changed: { step: string; changed: string; change: string }[] = [];
+  const unknown: { layer: string; path: string; step: string }[] = [];
+  const renamed: { layer: string; path: string; old: string; current: string }[] = [];
+  const misplaced: { layer: string; path: string; move_to: string }[] = [];
+  for (const module of modules) {
+    const steps = loadSteps(module);
+    const ids = new Set(steps.map((step) => step.id));
+    const aliases = stepAliases(steps);
+    const notes = (await moduleNotes(workspace, module, "main", steps)).filter(({ note }) => note.source !== "pack");
+    const customized = new Set(notes.flatMap(({ target }) => ("step" in target ? [target.step] : [])));
+    for (const step of steps) {
+      if (customized.has(step.id) && compareVersions(step.changed, reviewed) > 0) changed.push({ step: step.ref, changed: step.changed, change: step.change });
+    }
+    for (const { note, target, legacy } of notes) {
+      if ("step" in target && !ids.has(target.step)) unknown.push({ layer: note.layer, path: note.path, step: `${module}/${target.step}` });
+      const old = note.file.slice(0, -3).replace(/^(before|after)-/, "");
+      const current = aliases.get(old);
+      if (current) renamed.push({ layer: note.layer, path: note.path, old, current });
+      if (legacy) misplaced.push({ layer: note.layer, path: note.path, move_to: `${module}/${note.file}` });
+    }
+  }
+  const legacy = await legacyFiles(workspace.root);
+  return {
+    version: VERSION,
+    reviewed,
+    release_notes: releaseNotes(reviewed),
+    team: teamSummary(workspace),
+    modules,
+    timezone: workspace.timezone,
+    pending_questions: unanswered.filter((question) => question.scope === "personal" || workspace.setup.canManage),
+    // Team questions an owner or admin still has to answer. Teammates cannot answer them.
+    team_pending: workspace.setup.canManage ? [] : unanswered.filter((question) => question.scope === "team").map((question) => question.id),
+    changed_defaults: changed,
+    // Notes around a step that does not exist (a typo, or a step a release removed).
+    unknown_steps: unknown,
+    // Notes still named for a step's old name. They keep working; saving them under the new name keeps things tidy.
+    renamed_steps: renamed,
+    // Step notes from before modules at the top level. They keep working; saving them under move_to keeps things tidy.
+    misplaced_notes: misplaced,
+    // Notes and settings this folder kept before teams (0.6 and older). `setup import` copies them to the wallet.
+    local_setup_to_import: legacy.length,
+  };
+}
+
+/** The changelog sections newer than the version this person last reviewed. */
+function releaseNotes(reviewed: string): { version: string; notes: string }[] {
+  return (readContent("CHANGELOG.md") ?? "")
+    .split(/^## /m)
+    .slice(1)
+    .map((section) => {
+      const [heading = "", ...rest] = section.split("\n");
+      return { version: heading.trim(), notes: rest.join("\n").trim() };
+    })
+    .filter((entry) => compareVersions(entry.version, reviewed) > 0);
+}
+
+function findQuestion(workspace: Workspace, id: string): SetupQuestion {
+  const questions = loadQuestions(enabledModules(workspace));
+  const matches = questions.filter((question) => question.id === id || (!id.includes("/") && question.id.endsWith(`/${id}`)));
+  const exact = matches.find((question) => question.id === id);
+  if (exact) return exact;
+  if (matches.length === 1) return matches[0]!;
+  throw new OstackError("unknown_question", `No single setup question "${id}".`, { questions: questions.map((question) => question.id) });
+}
+
+async function saveAnswers(workspace: Workspace, scope: "team" | "me", answered: NonNullable<SettingsPatch["answered"]>): Promise<void> {
+  if (Object.keys(answered).length === 0) return;
+  if (scope === "team") requireManager(workspace.setup, "answer team setup questions");
+  await remote().saveSettings({ scope, values: { answered } });
+}
+
+export async function setupCommand(args: Args): Promise<void> {
+  const sub = args.positionals[1] ?? "status";
+  if (sub === "import") return importCommand(args);
+  const workspace = await loadWorkspace();
+  if (sub === "status") return print(await setupStatus(workspace));
+  if (sub === "reviewed") {
+    workspace.state.reviewed = VERSION;
+    await writeState(workspace.root, workspace.state);
+    return print({ reviewed: VERSION });
+  }
+  requireOnline(workspace.setup, "recording setup answers");
+  if (sub === "answer") {
+    const question = findQuestion(workspace, args.positionals[2] ?? required(args, "question"));
+    const scope = question.scope === "team" ? "team" : "me";
+    await saveAnswers(workspace, scope, { [question.id]: { version: VERSION, skipped: args.flags.skip === true } });
+    return print({ answered: question.id, scope, skipped: args.flags.skip === true });
+  }
+  if (sub === "reset") {
+    const id = optional(args, "question");
+    const questions = id ? [findQuestion(workspace, id)] : loadQuestions(enabledModules(workspace));
+    const { team, mine } = workspace.setup.settings;
+    const mineReset = Object.fromEntries(questions.filter((question) => question.scope === "personal" && mine.answered[question.id]).map((question) => [question.id, null]));
+    const teamReset = Object.fromEntries(questions.filter((question) => question.scope === "team" && team.answered[question.id]).map((question) => [question.id, null]));
+    // Teammates reset only their own answers; resetting everything never touches the team's unless you manage it.
+    await saveAnswers(workspace, "me", mineReset);
+    if (id || workspace.setup.canManage) await saveAnswers(workspace, "team", teamReset);
+    return print({ reset: id ?? "all", questions: [...Object.keys(mineReset), ...(id || workspace.setup.canManage ? Object.keys(teamReset) : [])] });
+  }
+  throw new OstackError("unknown_command", "Use: o11 ostack setup status|answer <question> [--skip]|reviewed|reset [--question <id>]|import [--dry-run].");
+}

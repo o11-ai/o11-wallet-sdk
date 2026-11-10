@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.36
+
+- Add `o11 ostack`: outbound workflows for coding agents, with the team's setup kept in your workspace. `o11 ostack skills install` adds the skills to Claude Code, Codex, Cursor or Gemini, and updates refresh them.
+
 ## 0.1.35
 
 **Changed behavior: check scripts that call `o11` directly**

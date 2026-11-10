@@ -1,0 +1,1 @@
+Default sequence for candidates: a LinkedIn connection note under 200 characters first, then email two days later, then two email follow-ups 5 and 7 days apart. On LinkedIn, if you are already connected, send a message instead of a connection request.

@@ -1,0 +1,1 @@
+Good places to look: recent seed and pre-seed announcements, Product Hunt and Show HN launches, accelerator demo days, founder posts about hiring their first salespeople, and niche directories for the user's market.

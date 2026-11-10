@@ -341,7 +341,8 @@ try {
   const rootHelp = !command || ['help', '--help', '-h'].includes(command);
   const helpTarget = command === 'help' ? args.find(value => !value.startsWith('-')) : rootHelp ? undefined : command;
   if (helpTarget && !isWalletCommand(helpTarget)) throw new Error(unknownCommand(program, helpTarget));
-  const help = rootHelp || args.includes('--help') || args.includes('-h');
+  // ostack prints its own help: `o11 ostack help`, `o11 ostack <command> --help`.
+  const help = command !== 'ostack' && (rootHelp || args.includes('--help') || args.includes('-h'));
   if (!help) validateArguments();
   let cliUpdate: import('./cli-update.js').CliUpdateCheck | undefined;
   if (!help && !['--version', 'version', 'keys', 'generate_session_id', 'session-id', 'update', 'login', 'logout'].includes(command!)) {
@@ -381,6 +382,11 @@ try {
     const parsed = reportArguments(args);
     print(await fileReport(args, { profile, cardId, runId, version, invocation: recoveryInvocation,
       ...(parsed.mode === 'input' ? { input: await jsonInput() } : {}) }));
+  } else if (command === 'ostack') {
+    profile ??= process.env.O11_TOOLS_PROFILE ?? (process.env.O11_TOOLS_URL || process.env.O11_API_KEY || process.env.O11_CLI_DEFAULT_PROFILE ? undefined : await activeKeyProfile());
+    if (cardId) throw new Error('Use ostack without --card. Runs use the card your login allows.');
+    const { ostackCommand } = await import('./cli-ostack.js');
+    process.exitCode = await ostackCommand(args, profile);
   } else if (command === 'mcp') {
     profile ??= process.env.O11_TOOLS_PROFILE ?? (process.env.O11_TOOLS_URL || process.env.O11_API_KEY || process.env.O11_CLI_DEFAULT_PROFILE ? undefined : await activeKeyProfile());
     if (cardId || runId) throw new Error('Use mcp with --profile only; pass cardId and runId in tool arguments.');

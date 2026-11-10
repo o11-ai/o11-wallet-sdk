@@ -1,0 +1,1 @@
+Name one specific piece of their work. State the role, team, location and (if the user allows) the salary range plainly. Make it easy to say no. Never use "rockstar", "ninja" or "exciting opportunity".

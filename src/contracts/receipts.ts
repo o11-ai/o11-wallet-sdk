@@ -53,6 +53,13 @@ export const receiptSchema = z.object({
   /** awaiting_approval only: what a person must approve, where, and by when. */
   message: z.string().optional(),
   approval: z.object({ status: z.literal("pending"), expiresAt: z.iso.datetime(), url: z.url() }).optional(),
+  /** Status reads only: the stored request, secrets redacted. Optional so older servers stay compatible. */
+  request: z.object({
+    input: z.object({ pathParams: z.record(z.string(), z.unknown()), queryParams: z.record(z.string(), z.unknown()),
+      headers: z.record(z.string(), z.unknown()), body: z.unknown().optional() }),
+    credentialMode: z.enum(["platform", "customer"]), connectionId: z.string().optional(),
+    maxCostMicros: moneySchema, allowWrite: z.boolean(), acceptRecurring: z.boolean(),
+  }).optional(),
   createdAt: z.iso.datetime(),
 });
 export type InvocationReceipt = z.infer<typeof receiptSchema>;

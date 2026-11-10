@@ -1,0 +1,1 @@
+Founders are busy and get many cold emails. Keep it under 100 words, casual and specific. Open with something they did recently, connect it to one concrete task they own (hiring, selling, shipping), and ask for 15 minutes. No links or attachments in the first email.
