@@ -6,17 +6,23 @@ import {
   type InvocationReceipt,
 } from "./contracts/receipts.js";
 import { z } from "zod";
-import { publicOperationSchemas, topUpResultSchema, topUpLimitsSchema } from "./contracts/public-api.js";
+import { publicOperationSchemas, topUpResultSchema, topUpLimitsSchema, topUpStatusSchema } from "./contracts/public-api.js";
 import { reportOperationSchemas, reportDetailSchema, reportPageSchema } from "./contracts/reports.js";
 import { agentPermissionsSchema, managementOperationSchemas } from "./contracts/agent-permissions.js";
 import { purchaseRequestSchema, purchaseOperationSchemas, purchaseSummarySchema, purchaseDetailSchema } from "./contracts/purchases.js";
 import { executionAccountSchema } from "./contracts/execution-account.js";
 import { invocationReferenceSchema, invocationReferenceMatches, invocationHistoryInputSchema, invocationHistoryPageSchema, type InvocationHistoryInput } from "./contracts/invocation-lifecycle.js";
 import { invocationRunInputSchema, invocationRunSchema } from "./contracts/invocation-run.js";
-import { InvocationWaitTimeoutError, retryAfterMilliseconds, waitForInvocationReceipt, type InvocationWaitOptions } from "./invocation-wait.js";
+import { InvocationWaitTimeoutError, mediaWaitState, retryAfterMilliseconds, waitForInvocationReceipt, type InvocationWaitOptions } from "./invocation-wait.js";
 export { InvocationWaitTimeoutError } from "./invocation-wait.js";
-import { authorizationRemediationSchema, connectionSummarySchema, type AuthorizationRemediation } from "./contracts/provider-authorization.js";
+import { waitForTopUp, type TopUpWaitOptions } from "./topup-wait.js";
+export { type TopUpStatus, type TopUpWaitOptions, type TopUpWaitResult } from "./topup-wait.js";
+import { connectionSummarySchema } from "./contracts/provider-authorization.js";
+import { ToolCallError, ToolClientError, TopUpRequestError, type TopUpFailureField } from "./client-errors.js";
+export { ToolCallError, ToolClientError, TopUpRequestError } from "./client-errors.js";
 import { serializedTokenProvider, TokenNotRenewableError, type AccessTokenProvider } from "./token-provider.js";
+import { lostSubmission, streamToolCall, type StreamToolOptions } from "./call-streamed.js";
+export { streamCall, CallStreamError, type CallStreamEvent, type CallStreamOptions } from "./call-stream.js";
 export { serializedTokenProvider, type AccessTokenProvider } from "./token-provider.js";
 import {
   toolDefinitionSchema,
@@ -26,33 +32,28 @@ import {
 export type { InvocationOptions, ToolInputOptions } from "./contracts/index.js";
 export type { InvocationReceipt } from "./contracts/receipts.js";
 
-export class ToolClientError extends Error {
-  readonly authorization?: AuthorizationRemediation;
-  constructor(
-    public readonly status: number,
-    public readonly response: unknown,
-    public readonly retryAfterMs?: number,
-  ) {
-    super(`o11 returned HTTP ${status}`);
-    this.name = "ToolClientError";
-    const parsed = typeof response === "object" && response !== null && "authorization" in response
-      ? authorizationRemediationSchema.safeParse(response.authorization) : undefined;
-    if (parsed?.success) this.authorization = parsed.data;
-  }
-}
-export class ToolCallError extends Error {
-  constructor(public readonly idempotencyKey: string, public readonly cause: unknown) {
-    super('Tool call failed. Reuse the idempotency key if the submission outcome is uncertain.');
-    this.name = 'ToolCallError';
-  }
-}
-export class TopUpRequestError extends Error {
-  constructor(public readonly requestId: string, public readonly cause: unknown) {
-    super("Checkout request failed. Reuse this request ID and amount to retry.");
-    this.name = "TopUpRequestError";
-  }
-}
+/**
+ * A route quote's plan: `order` is the providers a call made now would try, in that order; `compare` is one row per
+ * provider in the same order (price, recorded calls, success and hit rates, answer time, checks passed). Present only when
+ * the quoted tool is a route. Fields the server adds later are kept as sent.
+ */
+export const quoteRouteSchema = z.looseObject({
+  capMicros: z.string().optional(), cheapestMicros: z.string().optional(), routeOrder: z.string().optional(),
+  order: z.array(z.looseObject({ toolId: z.string(), vendor: z.string().optional(), quoteMicros: z.string(), free: z.boolean().optional(),
+    hitRate: z.number().optional(), expectedCostMicros: z.string().optional() })).optional(),
+  compare: z.array(z.looseObject({ toolId: z.string(), priceMicros: z.number(), priceBasis: z.string().optional(), calls: z.number(),
+    successRate: z.number(), hitRate: z.number(), medianSeconds: z.number(), timedCalls: z.number().optional(),
+    daysSinceLastSuccess: z.number().nullable().optional(),
+    verified: z.object({ checked: z.number(), passed: z.number() }).nullable().optional() })).optional(),
+  dropped: z.array(z.looseObject({ toolId: z.string(), why: z.string() })).optional(),
+});
+export type QuoteRoute = z.infer<typeof quoteRouteSchema>;
+
 export type ToolCallOptions = z.input<typeof publicOperationSchemas.call>;
+/** How long callTool and o11 call wait for a result by default. */
+export const defaultCallWaitMs = 600_000;
+/** waitMs: 0 answers at once; reattach: false stops after the first answer; onPending sees a running call's receipt. */
+export type CallWaitOptions = { waitMs?: number; reattach?: boolean; onPending?: (receipt: InvocationReceipt) => void };
 export class ToolClient {
   readonly runId: string;
   private readonly baseUrl: URL;
@@ -87,6 +88,8 @@ export class ToolClient {
     )
       throw new Error("Use HTTPS for o11 API access");
   }
+  /** The wallet this client talks to. A batch journal records it, so its keys are never replayed against another wallet. */
+  get origin() { return this.baseUrl.origin; }
   /** Wallets released before the rename answer 404 for find_tools; retry once as discover. Hidden search_tools also answers 404, so it is not retried. */
   private async renamedCall(operation: string, legacy: string, input: unknown) {
     try { return await this.call(operation, input); } catch (error) {
@@ -268,15 +271,52 @@ export class ToolClient {
   async topUpLimits() {
     return topUpLimitsSchema.parse(await this.call("topup_limits", {}));
   }
+  async topUpStatus(requestId: string, options: { signal?: AbortSignal } = {}) {
+    const input = publicOperationSchemas.topup_status.parse({ requestId });
+    const response = await this.call("topup_status", input, undefined, options.signal);
+    const parsed = topUpStatusSchema.safeParse(response);
+    if (!parsed.success) {
+      const allowed = new Set<TopUpFailureField>(["requestId", "walletId", "cardId", "amountMicros", "currency", "status", "url"]);
+      const fields = [...new Set(parsed.error.issues.flatMap(issue =>
+        typeof issue.path[0] === "string" && allowed.has(issue.path[0] as TopUpFailureField) ? [issue.path[0] as TopUpFailureField] : []))];
+      throw new TopUpRequestError(requestId, parsed.error, { reason: "INVALID_CHECKOUT_RESPONSE", fields });
+    }
+    const status = parsed.data;
+    const fields: TopUpFailureField[] = [];
+    if (status.requestId !== requestId) fields.push("requestId");
+    if (this.options.cardId && status.cardId !== this.options.cardId) fields.push("cardId");
+    if (fields.length) throw new TopUpRequestError(requestId, new Error("The payment status does not match this request"),
+      { reason: "CHECKOUT_MISMATCH", fields });
+    return status;
+  }
+  async waitForTopUp(requestId: string, options: TopUpWaitOptions = {}) {
+    publicOperationSchemas.topup_status.parse({ requestId });
+    return waitForTopUp(requestId, signal => this.topUpStatus(requestId, { signal }), options);
+  }
   async topUp(amountCents: number, requestId: string = crypto.randomUUID()) {
     const input = publicOperationSchemas.topup.parse({ amountCents, requestId });
     try {
       const result = topUpResultSchema.parse(await this.call("topup", input));
-      if (result.requestId !== input.requestId || result.amountMicros !== (BigInt(input.amountCents) * 10_000n).toString()
-        || this.options.cardId && result.cardId !== this.options.cardId) throw new Error("The checkout does not match this request");
+      const fields: TopUpFailureField[] = [];
+      if (result.requestId !== input.requestId) fields.push("requestId");
+      if (result.amountMicros !== (BigInt(input.amountCents) * 10_000n).toString()) fields.push("amountMicros");
+      if (this.options.cardId && result.cardId !== this.options.cardId) fields.push("cardId");
+      if (fields.length) throw new TopUpRequestError(input.requestId, new Error("The checkout does not match this request"),
+        { reason: "CHECKOUT_MISMATCH", fields });
       return result;
+    } catch (error) {
+      if (error instanceof TopUpRequestError) throw error;
+      if (error instanceof z.ZodError) {
+        const allowed = new Set<TopUpFailureField>(["requestId", "walletId", "cardId", "amountMicros", "currency", "status", "url"]);
+        const fields = [...new Set(error.issues.flatMap(issue =>
+          typeof issue.path[0] === "string" && allowed.has(issue.path[0] as TopUpFailureField) ? [issue.path[0] as TopUpFailureField] : []))];
+        throw new TopUpRequestError(input.requestId, error, { reason: "INVALID_CHECKOUT_RESPONSE", fields });
+      }
+      const reason = error instanceof ToolClientError ? "HTTP_ERROR"
+        : error instanceof DOMException && ["TimeoutError", "AbortError"].includes(error.name) ? "TIMEOUT"
+        : error instanceof TypeError ? "NETWORK_ERROR" : "REQUEST_FAILED";
+      throw new TopUpRequestError(input.requestId, error, { reason });
     }
-    catch (error) { throw new TopUpRequestError(input.requestId, error); }
   }
   async purchase(request: z.input<typeof purchaseRequestSchema>) {
     return purchaseSummarySchema.parse(await this.call("purchase", purchaseRequestSchema.parse(request)));
@@ -298,23 +338,55 @@ export class ToolClient {
     );
   }
   /**
-   * With waitMs, the wallet holds the request until the call finishes or the wait (at most 120 s) ends, and returns
-   * the finished receipt. For some calls it runs the provider attempt in this request, which then ends only when the
-   * provider answers (up to its 120 s timeout); the deadline stays long so this client never abandons a running
-   * attempt. Calls that park or are still running when the wait ends return pending.
+   * Resolves with the finished receipt. The wallet holds the request while the call runs; if it answers pending, the
+   * client re-attaches to the same call (get_invocation held open on the server, no client sleeps) until it finishes or
+   * waitMs ends (default 10 minutes), then returns the latest receipt, which can still be pending. waitMs: 0 returns
+   * the first receipt at once. onPending runs once, with the pending receipt, before the client re-attaches.
+   * reattach: false returns the pending receipt after the first hold, for callers that read the call themselves.
    */
-  async callTool(request: ToolCallOptions, options: { waitMs?: number } = {}) {
+  async callTool(request: ToolCallOptions, options: CallWaitOptions = {}) {
     const input = publicOperationSchemas.call.parse({ ...request, idempotencyKey: request.idempotencyKey ?? crypto.randomUUID() });
-    const waitSeconds = Math.min(120, Math.max(0, Math.floor((options.waitMs ?? 0) / 1000)));
-    try {
-      const result = waitSeconds > 0
-        ? await this.call('call', input, Math.max(180_000, (this.options.timeoutMs ?? 30_000) + waitSeconds * 1000), undefined, { Prefer: `wait=${waitSeconds}` })
-        : await this.call('call', input);
-      return { ...parseReceipt(result), idempotencyKey: input.idempotencyKey! };
-    } catch (error) {
-      // Preserve the request identity on timeout; never submit a fresh purchase automatically.
-      throw new ToolCallError(input.idempotencyKey!, error);
+    const waitMs = options.waitMs ?? defaultCallWaitMs;
+    if (!Number.isFinite(waitMs) || waitMs < 0) throw new Error("waitMs must be 0 or a positive number");
+    const started = performance.now();
+    // The first hold is at most 60 s, so the pending receipt (and its ID) arrives before a typical 120 s shell timeout.
+    // A provider attempt already running in this request can answer later, so the deadline stays long.
+    const waitSeconds = Math.min(60, Math.floor(waitMs / 1000));
+    const idempotencyKey = input.idempotencyKey!;
+    let receipt: InvocationReceipt | undefined;
+    for (let attempt = 0; !receipt; attempt++) {
+      try {
+        // wait=0 also matters: newer wallets hold a call without the header. The key travels in the body and the header.
+        receipt = parseReceipt(await this.call('call', input, waitSeconds > 0
+          ? Math.max(180_000, (this.options.timeoutMs ?? 30_000) + waitSeconds * 1000) : undefined, undefined,
+          { Prefer: `wait=${waitSeconds}`, 'Idempotency-Key': idempotencyKey }));
+      } catch (error) {
+        // A cut connection or a client timeout leaves the submission unknown. Sending the identical body with the same key
+        // again returns the existing call (held like the first request), never a second charge. Server answers are final.
+        if (attempt < 2 && lostSubmission(error)) { await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); continue; }
+        throw new ToolCallError(idempotencyKey, error);
+      }
     }
+    return this.finishCall(receipt, idempotencyKey, waitMs - (performance.now() - started), options);
+  }
+  /** Like callTool, but progress events reach onEvent as they happen; see streamToolCall. */
+  async streamTool(request: ToolCallOptions, options: StreamToolOptions = {}) {
+    const input = publicOperationSchemas.call.parse({ ...request, idempotencyKey: request.idempotencyKey ?? crypto.randomUUID() });
+    return streamToolCall({ baseUrl: this.baseUrl, fetch: this.options.fetch, apiKey: this.options.apiKey, tokenProvider: this.tokenProvider,
+      runId: this.runId, customer: this.options.customer, read: id => this.getInvocation(id),
+      finish: (receipt, key, remaining) => this.finishCall(receipt, key, remaining, options) },
+    { ...input, ...(this.options.cardId ? { cardId: this.options.cardId } : {}) }, input.idempotencyKey!, options.waitMs ?? defaultCallWaitMs, options);
+  }
+  /** A receipt still running when its first answer came back is read until it finishes or the wait ends. */
+  private async finishCall(receipt: InvocationReceipt, idempotencyKey: string, remaining: number, options: CallWaitOptions) {
+    const running = ['queued', 'executing', 'waiting'].includes(receipt.state) ||
+      receipt.state === 'succeeded' && mediaWaitState(receipt.result) === 'pending';
+    if (!running || remaining < 1 || options.reattach === false) return { ...receipt, idempotencyKey };
+    options.onPending?.(receipt);
+    // The call exists now, so a failed read returns its pending receipt rather than a resubmission hint.
+    const waited = await this.invocationWait(receipt.id, { timeoutMs: remaining, holdSeconds: receipt.wait?.waitSeconds })
+      .catch(() => undefined);
+    return { ...(waited?.receipt ?? receipt), idempotencyKey };
   }
   async getInvocation(id: string) {
     const reference = invocationReferenceSchema.parse(id);
@@ -328,8 +400,9 @@ export class ToolClient {
   async runSummary(runId: string) { return invocationRunSchema.parse(await this.call("get_run", invocationRunInputSchema.parse({ runId }))); }
   private invocationWait(id: string, options: InvocationWaitOptions) {
     let resolved = invocationReferenceSchema.parse(id);
-    return waitForInvocationReceipt(resolved, async (timeout, signal) => {
-      const receipt = parseReceipt(await this.call("get_invocation", { id: resolved }, timeout, signal));
+    return waitForInvocationReceipt(resolved, async (timeout, signal, waitSeconds) => {
+      // waitSeconds: the server holds the read until the call changes (get_invocation long-poll), so no client sleep.
+      const receipt = parseReceipt(await this.call("get_invocation", { id: resolved, ...(waitSeconds ? { waitSeconds } : {}) }, timeout, signal));
       if (!invocationReferenceMatches(resolved, receipt.id)) throw new Error("Status response belongs to a different invocation");
       resolved = receipt.id;
       return receipt;
@@ -362,11 +435,19 @@ export class ToolClient {
     return z
       .object({ estimatedMicros: z.string(), typicalMicros: z.string().optional(), variable: z.boolean(),
         quoteContext: z.string().regex(/^[a-f0-9]{64}$/).optional(), executionAccount: executionAccountSchema.optional(),
-        credentialMode: z.enum(["platform", "customer"]).optional(), chargeBasis: z.string().optional() })
+        credentialMode: z.enum(["platform", "customer"]).optional(), chargeBasis: z.string().optional(),
+        maximumMicros: z.string().optional(), route: quoteRouteSchema.optional(),
+        // Wallets before the range fields omit them.
+        priceText: z.string().optional(), priceMinMicros: z.string().optional(), priceMaxMicros: z.string().optional(),
+        priceAvgMicros: z.string().nullable().optional(), priceAvgN: z.number().nullable().optional() })
       .parse(await this.call("quote", { toolId, input, ...options }));
   }
   cancel(id: string) {
     return this.call("cancel", { id });
+  }
+  /** Record whether a completed call's result was useful; it ranks providers and never changes billing. */
+  rateResult(input: z.input<typeof publicOperationSchemas.rate_result>) {
+    return this.call("rate_result", publicOperationSchemas.rate_result.parse(input));
   }
   resources() {
     return this.call("resources", {});

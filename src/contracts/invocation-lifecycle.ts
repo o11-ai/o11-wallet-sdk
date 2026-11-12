@@ -41,6 +41,9 @@ export const invocationHistoryInputSchema = z.strictObject({
   state: invocationStateSchema.optional(),
   toolId: z.string().min(1).max(250).optional(),
   runId: z.uuid().optional(),
+  /** Only the calls one route or recipe made for itself, by the parent's full invocation id. */
+  parentId: z.uuid().optional()
+    .describe("Full invocation id of a route or recipe call. Lists the calls it made for you, which are otherwise left out of history."),
   /** Only calls created at or after this instant. */
   since: z.iso.datetime({ offset: true }).optional(),
 });

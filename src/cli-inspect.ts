@@ -193,6 +193,9 @@ export function compactInspection(tool: ToolDefinition, selection: Selection) {
     id: tool.id,
     ...exampleCommand(tool, selection),
     price: {
+      // `$0.01–$0.03 (avg $0.0233)`: low, the held top of the range, and the mean billed in the last 30 days.
+      ...(price.priceText ? { priceText: price.priceText, priceMinMicros: price.priceMinMicros, priceMaxMicros: price.priceMaxMicros,
+        ...(price.priceAvgMicros ? { priceAvgMicros: price.priceAvgMicros, priceAvgN: price.priceAvgN } : {}) } : {}),
       basis: price.basis,
       ...(price.micros !== null ? { micros: price.micros } : {}),
       ...(price.unit ? { unit: price.unit } : {}),

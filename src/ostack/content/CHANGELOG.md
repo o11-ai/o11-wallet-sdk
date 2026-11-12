@@ -2,6 +2,9 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.8.1
+- Find, qualify and research go through o11 routes. One call picks the provider, tries the next one on a miss and bills only the calls it made, so the playbook no longer names providers. Find uses `o11.people.search` and `o11.leads.from_topic`; qualify sorts a batch with `o11.rows` before the per-company checks; research reads the profile, posts and company news. A lead-data tool is used only where your files name it.
+
 ## 0.8.0
 - New names: modules are **playbooks**, notes are **files**, packs are **presets** (`o11 ostack playbooks`, `files`, `presets`; the old commands still work). Settings `gtm.mode`, `mailbox` and `split` are now `gtm.send_mode`, `sender_email` and `lead_assignment`; the old names still work. Your offer now lives in `company.md` (`about.md` keeps working).
 - Audiences: each kind of person you reach, such as customers and providers, is a folder of files under your playbook. `gtm/` is the default audience and `gtm/audiences/<name>/` any other. 0.7's `campaigns/` folders keep working; the wallet moves them to `gtm/audiences/` once. `o11 ostack gtm audiences` lists them, and `--audience` replaces `--campaign`.

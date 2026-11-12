@@ -17,9 +17,11 @@ import { presentLargeResult } from './cli-result-file.js';
 import { commandHelp, commandSynopsis, compactInspection, inspectArguments, isWalletCommand, unknownCommand } from './cli-help.js';
 import { executeQuote, quoteArguments } from './cli-call.js';
 import { resourceArguments, resourceCommand } from './cli-resources.js';
-import { topUpArguments, openCheckout } from './cli-wallet.js';
+import { topUpArguments } from './cli-wallet.js';
+import { executeTopUp } from './cli-topup.js';
 import { activeKeyProfile, keyArguments, manageKeys, selectDefaultCredentials, forgetKeyLabel } from './cli-keys.js';
 import { fileReport, reportArguments, ReportSubmissionError } from './cli-report.js';
+import { batchArguments, runBatch } from './cli-batch.js';
 
 let command: string | undefined;
 let args: string[] = [];
@@ -108,6 +110,8 @@ function validateArguments() {
     quoteArguments(args);
   } else if (command === 'call' || command === 'status') {
     executionArguments(command, args);
+  } else if (command === 'batch') {
+    batchArguments(args);
   } else if (command === 'create-api-key') {
     const values = args.slice(0, -2);
     if (args.at(-2) !== '--output' || !args.at(-1) || args.at(-1)!.startsWith('--') ||
@@ -140,11 +144,11 @@ function historyArguments() {
   }
   const filters: Record<string, string | number> = {};
   let notice: string | undefined;
-  const names: Record<string, string> = { '--limit': 'limit', '-l': 'limit', '--cursor': 'cursor', '--state': 'state', '--tool': 'toolId', '--since': 'since' };
+  const names: Record<string, string> = { '--limit': 'limit', '-l': 'limit', '--cursor': 'cursor', '--state': 'state', '--tool': 'toolId', '--since': 'since', '--parent': 'parentId' };
   for (let index = 0; index < args.length; index++) {
     const flag = args[index]!;
     const name = Object.hasOwn(names, flag) ? names[flag] : undefined;
-    if (!name || filters[name] !== undefined) throw new Error('Use history [--limit 1-25] [--cursor CURSOR] [--state STATE] [--tool ID] [--since 30m|2h|1d] [--run-id UUID]');
+    if (!name || filters[name] !== undefined) throw new Error('Use history [--limit 1-25] [--cursor CURSOR] [--state STATE] [--tool ID] [--since 30m|2h|1d] [--parent ID] [--run-id UUID]');
     const value = args[++index];
     if (!value || value.startsWith('-')) throw new Error(`Supply a value after ${flag}`);
     if (name === 'limit' && (!/^\d+$/.test(value) || Number(value) < 1))
@@ -290,7 +294,7 @@ function safeHttpError(error: ToolClientError) {
     NOT_CONFIGURED: `This tool or operation is not available now. Choose another tool with ${program} discover, or try again later.`,
     CONFLICT: command === 'report-info'
       ? 'Run report-status for the current revision. Keep the unsent message. Reuse requestId only for unchanged inputs.'
-      : ['status', 'wait', 'cancel'].includes(command ?? '') && invocationShortIdSchema.safeParse(args[0]).success
+      : ['status', 'wait', 'cancel', 'rate'].includes(command ?? '') && invocationShortIdSchema.safeParse(args[0]).success
       ? 'Use the full invocation ID from its receipt or history.'
       : 'Check the current state. Reuse the request ID only for unchanged inputs.',
     UNAVAILABLE: 'Check the existing invocation before retrying with the same idempotency key.',
@@ -501,6 +505,12 @@ try {
         process.exitCode = executed.exitCode;
         break;
       }
+      case 'batch': {
+        const executed = await runBatch(client, { ...batchArguments(args), ...(runId ? { runId } : {}), cwd: process.cwd() });
+        result = executed.result;
+        process.exitCode = executed.exitCode;
+        break;
+      }
       case 'history': {
         const { input, notice } = await historyInput();
         const page = await client.invocationHistory(input).catch((error: unknown) => {
@@ -520,24 +530,20 @@ try {
         break;
       }
       case 'cancel': result = await client.cancel(required(0)); break;
+      case 'rate': {
+        const [invocationId, verdict, flag, reason, ...extra] = args;
+        if (!invocationId || !['useful', 'not-useful'].includes(verdict ?? '') || flag && (flag !== '--reason' || !reason) || extra.length)
+          throw new Error('Use o11 rate ID useful|not-useful [--reason TEXT]');
+        result = await client.rateResult({ invocationId: invocationId!, useful: verdict === 'useful', ...(flag ? { reason } : {}) });
+        break;
+      }
       case 'balance': result = await client.balance(); break;
       case 'topup': {
-        const input = topUpArguments(args);
-        if (input.amountCents === undefined) { result = await client.topUpLimits(); break; }
-        let checkout;
-        try { checkout = await client.topUp(input.amountCents, input.requestId); }
-        catch (error) {
-          if (!(error instanceof TopUpRequestError) || !(error.cause instanceof ToolClientError) || !(error.cause.status === 403 || [400, 503].includes(error.cause.status) && typeof error.cause.response === 'object' && error.cause.response !== null && 'error' in error.cause.response && error.cause.response.error === 'NOT_CONFIGURED')) throw error;
-          // Same Billing link as topup without an amount; older servers fall back to the wallet origin.
-          const dashboardUrl = await client.topUpLimits().then(limits => limits.dashboardUrl, () => new URL('/billing', config.baseUrl).href);
-          result = { checkoutAvailable: false, dashboardUrl, requestId: input.requestId,
-            message: error.cause.status === 403 ? 'This connection cannot create a checkout link. Open Billing to add funds.'
-              : 'Card checkout is not available on this wallet. Open Billing to add funds.' };
-          break;
-        }
-        const browserOpened = await openCheckout(checkout.url, input.noBrowser);
-        result = { ...checkout, browserOpened,
-          next: 'Complete payment in Stripe, then run o11 balance.' };
+        const executed = await executeTopUp(client, args, { baseUrl: config.baseUrl, profile, cardId,
+          invocation: namedInvocation ?? recoveryInvocation, emit: value => print(value),
+          notice: value => printError(JSON.stringify(value)) });
+        result = executed.result;
+        process.exitCode = executed.exitCode;
         break;
       }
       case 'resources': case 'events': case 'release': result = await resourceCommand(client, command, args); break;
@@ -563,7 +569,8 @@ try {
     const cause = error.cause;
     const code = cause instanceof ToolClientError && typeof cause.response === 'object' && cause.response !== null && 'error' in cause.response
       && typeof cause.response.error === 'string' && /^[A-Z_]{1,80}$/.test(cause.response.error) ? cause.response.error : 'CHECKOUT_FAILED';
-    printError(JSON.stringify({ error: code, requestId: error.requestId,
+    printError(JSON.stringify({ error: code, requestId: error.requestId, reason: error.reason,
+      ...(error.fields?.length ? { fields: error.fields } : {}),
       message: cause instanceof ToolClientError && code === 'NOT_CONFIGURED' ? 'Card funding is unavailable for this wallet.'
         : 'Checkout was not confirmed. Retry the same amount with --request-id to recover the existing checkout.',
       ...(cause instanceof ToolClientError ? { status: cause.status } : {}) }));

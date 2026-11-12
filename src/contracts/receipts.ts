@@ -2,7 +2,7 @@ import { z } from "zod";
 import { supplierPriceReferenceSchema } from "./supplier-price-reference.js";
 import { moneySchema, platformAccountHealthSchema } from "./index.js";
 import { executionAccountSchema } from "./execution-account.js";
-import { publishedTariffSchema, tariffRateSchema } from "./published-tariff.js";
+import { priceRangeShape, publishedTariffSchema, tariffRateSchema } from "./published-tariff.js";
 import { publishedInputSchema } from "./published-input.js";
 import { executionFailureSchema, invocationLifecycleSchema, invocationShortIdSchema, invocationShortId } from "./invocation-lifecycle.js";
 import { toolHealthSummarySchema } from "./health.js";
@@ -12,6 +12,8 @@ export { resultOutcomeSchema, providerResultOutcome, type ResultOutcome } from "
 export const receiptBillingSchema = z.object({
   basis: z.enum(["charged", "cached", "no_charge"]),
   note: z.string(),
+  /** The provider charged more than the call's hold. The caller paid at most the hold; o11 reviews the price. */
+  exceededHold: z.literal(true).optional(),
 });
 export type ReceiptBilling = z.infer<typeof receiptBillingSchema>;
 export const receiptSchema = z.object({
@@ -86,7 +88,7 @@ export const compactDiscoverySchema = z.object({
   matching: discoveryMatchingSchema.optional(),
   results: z.array(z.object({
     endpoint_id: z.string(), name: z.string(), provider: z.string(), bulk: z.literal(true).optional(),
-    usd_per_call: z.number().nonnegative().nullable(), no_key_needed: z.boolean(),
+    usd_per_call: z.number().nonnegative().nullable(), price_text: z.string().nullable().optional(), no_key_needed: z.boolean(),
     score: z.number().nonnegative().nullable(), works: z.number().min(0).max(1).nullable(),
     samples: z.number().int().nonnegative().nullable(),
     usable_rate: z.number().min(0).max(1).nullable().optional(),
@@ -135,6 +137,7 @@ export const discoverySchema = z.object({
         unavailableReason: z.string().optional(),
         unit: z.string().optional(),
         rates: z.array(tariffRateSchema).optional(),
+        ...priceRangeShape,
       }),
     }),
   ),

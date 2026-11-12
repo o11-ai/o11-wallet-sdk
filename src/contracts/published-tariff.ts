@@ -13,3 +13,9 @@ export const tariffRateSchema = z.object({
   when: z.array(z.object({ key: z.string(), equals: z.union([z.string(), z.number(), z.boolean(), z.null()]) })).optional(),
   rounding: z.enum(["linear", "up"]).optional(), offset: z.number().optional(),
 });
+/** Optional range fields a price carries where the response read billed history (see ./price-range-text). */
+export const priceRangeShape = {
+  priceText: z.string().optional(),
+  priceMinMicros: z.string().regex(/^\d+$/).optional(), priceMaxMicros: z.string().regex(/^\d+$/).optional(),
+  priceAvgMicros: z.string().regex(/^\d+$/).nullable().optional(), priceAvgN: z.number().int().nonnegative().nullable().optional(),
+};

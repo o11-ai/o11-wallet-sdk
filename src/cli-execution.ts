@@ -1,13 +1,13 @@
 import { invocationReferenceSchema, invocationShortIdSchema, type invocationHistoryPageSchema } from "./contracts/invocation-lifecycle.js";
 import { z } from 'zod';
 import { lstat, rename, rm, type FileHandle } from 'node:fs/promises';
-import { ToolClient, ToolClientError, type InvocationReceipt } from './client.js';
-import { callArguments, callRequest } from './cli-call.js';
+import { defaultCallWaitMs, ToolClient, ToolClientError, type InvocationReceipt } from './client.js';
+import { callArguments, callProgress, callRequest } from './cli-call.js';
 import { mediaWaitState } from './invocation-wait.js';
 import { inlineResultBytes, largeResultNote, reserveOutputFile, resultPreview, saveLargeResult, spilledResult } from './cli-result-file.js';
 
 export type ExecutionCommand = 'call' | 'status' | 'wait';
-const usage = 'Use o11 call TOOL_ID [--input JSON|@FILE] or o11 wait INVOCATION_ID [--timeout MS] [--output NEW_FILE]';
+const usage = 'Use o11 call TOOL_ID [--input JSON|@FILE] or o11 status INVOCATION_ID [--wait [SECONDS]] [--output NEW_FILE]';
 export function executionArguments(command: ExecutionCommand, values: string[]) {
   if (!values[0] || values[0].startsWith('-')) throw new Error(usage);
   const requestArguments = [values[0]];
@@ -24,7 +24,7 @@ export function executionArguments(command: ExecutionCommand, values: string[]) 
         timeoutMs = value === undefined ? NaN : Number(value);
       } else {
         const next = values[index + 1];
-        timeoutMs = next !== undefined && /^\d+(?:\.\d+)?$/.test(next) ? Number(values[++index]) * 1000 : 60_000;
+        timeoutMs = next !== undefined && /^\d+(?:\.\d+)?$/.test(next) ? Number(values[++index]) * 1000 : defaultCallWaitMs;
       }
       if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2_147_483_647)
         throw new Error(flag === '--timeout' ? '--timeout takes milliseconds from 1 to 2147483647, for example --timeout 60000'
@@ -55,7 +55,7 @@ export function executionArguments(command: ExecutionCommand, values: string[]) 
   if (noWait && timeoutMs !== undefined) throw new Error('Use --wait or --no-wait, not both');
   if (overwrite && output === undefined) throw new Error('--overwrite applies to -o FILE');
   // A call waits for its result by default, like a plain HTTP request; --no-wait prints the queued receipt.
-  const defaultWait = command === 'wait' || command === 'call' && !noWait ? 60_000 : undefined;
+  const defaultWait = command === 'wait' || command === 'call' && !noWait ? defaultCallWaitMs : undefined;
   return { requestArguments, timeoutMs: timeoutMs ?? defaultWait, output, detailed, overwrite };
 }
 
@@ -79,7 +79,7 @@ function resumeCommand(reference: Pick<InvocationReceipt, 'id' | 'cardId' | 'run
   const runId = reference.runId ?? context.runId;
   return cliRecoveryCommand([...(context.profile ? ['--profile', context.profile] : []),
     // A wait shorter than the default would time out again for an agent that follows this command.
-    'wait', reference.id, '--timeout', String(Math.max(options.timeoutMs ?? 0, 60_000)),
+    'status', reference.id, '--wait', ...(options.timeoutMs && options.timeoutMs > defaultCallWaitMs ? [String(Math.ceil(options.timeoutMs / 1000))] : []),
     ...(options.output ? ['--output', options.output, ...(options.overwrite ? ['--overwrite'] : [])] : []),
     ...(options.detailed ? ['--detailed'] : []),
     ...(cardId ? ['--card', cardId] : []), '--run-id', runId], context.invocation);
@@ -132,34 +132,25 @@ function outputSummary(id: string, receipt: InvocationReceipt | undefined, idemp
   };
 }
 
-/**
- * Before a waited call has answered for this long, one plain line goes to stderr (never stdout), so a shell that kills
- * the wait can still find the call. Agents that merge stderr into a parser rarely wait this long without a terminal.
- */
-const keyNoticeMs = () => process.stderr.isTTY ? 5_000 : 20_000;
-
-/**
- * A waited call can hold until the provider answers. If the caller's shell kills it first, the run ID printed here
- * finds the call in history (then o11 wait ID), and the key lets a rerun reuse it instead of paying again.
- */
-async function submitCall(client: ToolClient, request: Awaited<ReturnType<typeof callRequest>>, waitMs: number | undefined) {
-  const keyed = { ...request, idempotencyKey: request.idempotencyKey ?? crypto.randomUUID() };
-  const notice = waitMs ? setTimeout(() => process.stderr.write(`o11: still waiting for ${keyed.tool.replace(/[\u0000-\u001f\u007f]/g, ' ')}. If this command is stopped, `
-    + `do not call again: find it with o11 history --run-id ${client.runId}, then o11 wait ID, `
-    + `or rerun with --idempotency-key ${keyed.idempotencyKey}.\n`), keyNoticeMs()) : undefined;
-  try { return await client.callTool(keyed, { waitMs }); }
-  finally { clearTimeout(notice); }
-}
-
 /** Reserve a private new file before submission; keep its payload off stdout by default. */
 export async function executeInvocation(client: ToolClient, command: ExecutionCommand, values: string[], context: ExecutionContext) {
   const options = executionArguments(command, values);
+  if (command === 'wait') process.stderr.write(`o11: wait is no longer needed. call returns the result, and status ID --wait picks up a running call.\n`);
+  // A waited call re-attaches to the same call until it finishes. If the caller's shell kills it first, the progress
+  // line names the call (o11 status ID --wait picks it up), and the key lets a rerun reuse it instead of paying again.
+  const request = command === 'call' ? await callRequest(options.requestArguments) : undefined;
+  const keyed = request && { ...request, idempotencyKey: request.idempotencyKey ?? crypto.randomUUID() };
   const reservation = options.output ? await reserveOutputFile(options.output, options.overwrite) : undefined;
   const output = reservation?.handle;
   let saved = false, closed = false;
+  const progress = keyed && options.timeoutMs ? callProgress(keyed.tool, client.runId, keyed.idempotencyKey) : undefined;
   try {
     const started = Date.now();
-    const original = command === 'call' ? await submitCall(client, await callRequest(options.requestArguments), options.timeoutMs)
+    // A waited call streams its progress and result. The CLI reads a call itself if it is still running after that
+    // (a wallet that does not stream), so a refused read is reported, not hidden.
+    const original = keyed ? await (options.timeoutMs
+      ? client.streamTool(keyed, { waitMs: options.timeoutMs, reattach: false, onEvent: event => progress?.event(event) })
+      : client.callTool(keyed, { waitMs: 0 }))
       : options.timeoutMs === undefined ? await client.getInvocation(options.requestArguments[0]!) : undefined;
     const id = original?.id ?? options.requestArguments[0]!;
     const idempotencyKey = original && 'idempotencyKey' in original && typeof original.idempotencyKey === 'string'
@@ -171,8 +162,10 @@ export async function executeInvocation(client: ToolClient, command: ExecutionCo
         ? 'action_required' : ['succeeded', 'failed', 'cancelled'].includes(receipt.state) ? 'completed' : 'action_required';
       else {
         try {
-          // The submit request may already have spent part of the wait.
-          const waited = await client.waitForInvocationResult(id, { timeoutMs: Math.max(1, options.timeoutMs - (Date.now() - started)) });
+          if (original) progress?.pending(original.shortId ?? original.id);
+          // The submit request may already have spent part of the wait; its receipt says how long a read can be held.
+          const waited = await client.waitForInvocationResult(id, { timeoutMs: Math.max(1, options.timeoutMs - (Date.now() - started)),
+            holdSeconds: original?.wait?.waitSeconds });
           receipt = waited.receipt;
           outcome = waited.outcome;
         } catch (error) {
@@ -237,6 +230,7 @@ export async function executeInvocation(client: ToolClient, command: ExecutionCo
     }
     return { result, exitCode };
   } finally {
+    progress?.stop();
     if (output && reservation) {
       // A closed handle means the rename failed; the random sibling name is ours alone.
       try { if (!saved) await (closed ? rm(reservation.path, { force: true }) : removeEmptyOutput(reservation.path, output)); }

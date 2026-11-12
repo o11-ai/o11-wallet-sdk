@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { moneySchema } from "./money.js";
 
+/** The route attempt reason when the run's ceiling refused that provider's hold. */
+export const RUN_CEILING_REASON = "run ceiling reached";
 export const invocationRunInputSchema = z.strictObject({ runId: z.uuid() });
 export const invocationRunSchema = z.object({
   runId: z.uuid(), cardId: z.uuid(),
@@ -12,5 +14,8 @@ export const invocationRunSchema = z.object({
   coverage: z.object({ scope: z.literal("card_run"), since: z.iso.datetime().nullable(),
     through: z.iso.datetime().nullable(), historicalUncorrelatedExcluded: z.literal(true) }),
   budget: z.object({ enforcement: z.literal("card_and_ancestor_allowances"), runIdCreatesBudget: z.literal(false) }),
+  // Set once a call sends runMaxMicros with this run id; older wallets omit it.
+  ceiling: z.object({ limitMicros: moneySchema, spentMicros: moneySchema, heldMicros: moneySchema,
+    remainingMicros: moneySchema }).nullable().optional(),
 });
 export type InvocationRun = z.infer<typeof invocationRunSchema>;

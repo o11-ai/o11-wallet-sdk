@@ -218,3 +218,53 @@ export async function executeQuote(client: Pick<ToolClient, 'inspect' | 'quote'>
   const contract = supplied === undefined ? {} : (await client.inspect(request.tool)).input;
   return client.quote(request.tool, quoteInput(contract, withParams), options);
 }
+
+/**
+ * One stderr line while a call runs; stdout stays one JSON receipt. A terminal gets a line that updates in place with
+ * the step the wallet reports (which provider is being tried, judging). Other stderr gets one plain line at 20 s: how
+ * to pick the call up again if the shell kills this command, or, before the wallet has named it, how to find it.
+ */
+export function callProgress(tool: string, runId: string, idempotencyKey: string) {
+  const clean = (value: unknown) => String(value).replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 80);
+  const name = clean(tool);
+  const started = Date.now();
+  let id: string | undefined, step = '', drawn = false, noticed = false, named = false;
+  const nameLine = () => {
+    named = true;
+    process.stderr.write(`o11: still running ${name} as ${id}. If this command is stopped, do not call again: o11 status ${id} --wait picks it up.\n`);
+  };
+  const live = process.stderr.isTTY ? setInterval(() => {
+    const seconds = Math.round((Date.now() - started) / 1000);
+    if (seconds < 3) return;
+    process.stderr.write(`\r\x1b[Ko11: ${name}${id ? ` (${id.slice(0, 8)})` : ''}${step ? `, ${step}` : ''}, ${seconds} s`);
+    drawn = true;
+  }, 1000) : undefined;
+  const notice = live ? undefined : setTimeout(() => {
+    noticed = true;
+    if (id) nameLine();
+    else process.stderr.write(`o11: still running ${name}. If this command is stopped, do not call again: `
+      + `find it with o11 history --run-id ${runId}, or rerun with --idempotency-key ${idempotencyKey}.\n`);
+  }, 20_000);
+  const pending = (reference: string) => {
+    id ??= reference;
+    if (noticed && !named) nameLine();
+  };
+  return {
+    pending,
+    /** A streamed call's events: the call's ID, then each provider attempt and judging. */
+    event(event: { event: string; data: Record<string, unknown> }) {
+      const data = event.data;
+      if (event.event === 'accepted' && typeof data.invocationId === 'string') pending(data.invocationId);
+      else if (event.event === 'attempt') {
+        const who = clean(data.provider ?? data.tool ?? 'provider');
+        step = data.status === 'started' ? `trying ${who}` : `${who} ${clean(data.outcome ?? 'done')}`;
+      } else if (event.event === 'stage' && data.stage) step = clean(data.stage).replaceAll('_', ' ');
+      else if (event.event === 'judge') step = `checking results (${clean(data.judged ?? 0)} done)`;
+    },
+    stop() {
+      clearInterval(live);
+      clearTimeout(notice);
+      if (drawn) process.stderr.write('\r\x1b[K');
+    },
+  };
+}

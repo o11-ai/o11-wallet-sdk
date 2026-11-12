@@ -4,6 +4,8 @@ export type PollableInvocation = {
   id: string;
   state: string;
   polling?: { recommendedAfterMs: number };
+  /** The server holds get_invocation open up to waitSeconds and answers as soon as the call changes. */
+  wait?: { operation: string; waitSeconds: number };
   result?: unknown;
 };
 export type InvocationWaitOptions = {
@@ -12,6 +14,8 @@ export type InvocationWaitOptions = {
   intervalMs?: number;
   /** Caps backoff after failed reads, including jitter. Server Retry-After can require a longer delay. */
   maxIntervalMs?: number;
+  /** Seconds a receipt already in hand offered to hold get_invocation open, so the first read is held too. */
+  holdSeconds?: number;
 };
 export type InvocationWaitResult<T> = {
   invocationId: string;
@@ -81,7 +85,8 @@ function boundedStatusRead<T>(signal: AbortSignal, read: () => Promise<T>): Prom
 /** Wait only reads an existing invocation. Its deadline never stops the supplier job. */
 export async function waitForInvocationReceipt<T extends PollableInvocation>(
   invocationId: string,
-  read: (timeoutMs: number, signal: AbortSignal) => Promise<T>,
+  /** waitSeconds: hold the read open on the server (get_invocation long-poll) once a receipt has offered it. */
+  read: (timeoutMs: number, signal: AbortSignal, waitSeconds?: number) => Promise<T>,
   options: InvocationWaitOptions,
   runtime: Runtime,
 ): Promise<InvocationWaitResult<T>> {
@@ -99,6 +104,8 @@ export async function waitForInvocationReceipt<T extends PollableInvocation>(
   let lastReadError: unknown;
   let failures = 0;
   let pendingReads = 0;
+  // Seconds the server offered to hold a read open; unset until a pending receipt offers it (older servers never do).
+  let holdSeconds = options.holdSeconds !== undefined && positive(options.holdSeconds) ? options.holdSeconds : undefined;
   const timedOut = (): InvocationWaitResult<T> => ({
     invocationId, outcome: "timed_out", ...(receipt ? { receipt } : {}),
     ...(lastReadError === undefined ? {} : { lastReadError }),
@@ -109,11 +116,14 @@ export async function waitForInvocationReceipt<T extends PollableInvocation>(
     return Math.max(Number.isFinite(floor) && floor > 0 ? floor : 0, Math.min(maxIntervalMs, Math.round(backoff * jitter)));
   };
   while (now() < deadline) {
-    const requestTimeout = Math.max(1, Math.ceil(Math.min(requestLimit, deadline - now())));
+    // A held read ends on the server a second before this wait does, so the answer always arrives in time.
+    const waitSeconds = holdSeconds === undefined ? 0 : Math.min(holdSeconds, Math.floor((deadline - now() - 1000) / 1000));
+    const requestTimeout = Math.max(1, Math.ceil(Math.min(requestLimit + waitSeconds * 1000, deadline - now())));
     const signal = AbortSignal.timeout(requestTimeout);
+    const readStarted = now();
     let nextDelay: number;
     try {
-      const current = await boundedStatusRead(signal, () => read(requestTimeout, signal));
+      const current = await boundedStatusRead(signal, () => read(requestTimeout, signal, waitSeconds > 0 ? waitSeconds : undefined));
       if (!invocationReferenceMatches(invocationId, current.id)) throw new Error("Status response belongs to a different invocation");
       invocationId = current.id;
       receipt = current;
@@ -124,11 +134,20 @@ export async function waitForInvocationReceipt<T extends PollableInvocation>(
       if (!pending.has(current.state) && media !== "pending") return {
         invocationId, outcome: terminal.has(current.state) ? "completed" : "action_required", receipt,
       };
-      // Polling is only the fallback: 1s, then 1.5x per read up to the cap. A longer server cadence, such as a
-      // scheduled retry, still sets the floor. Backoff with jitter applies only to failed reads.
-      const advised = current.polling?.recommendedAfterMs;
-      const schedule = Math.min(maxIntervalMs, Math.round(intervalMs * 1.5 ** Math.min(pendingReads++, 20)));
-      nextDelay = Math.max(schedule, advised !== undefined && positive(advised) ? advised : 0);
+      const offered = current.wait?.operation === "get_invocation" && positive(current.wait.waitSeconds) ? current.wait.waitSeconds : undefined;
+      const firstOffer = offered !== undefined && holdSeconds === undefined;
+      if (offered !== undefined) holdSeconds = offered;
+      if (firstOffer) nextDelay = 0;
+      else if (waitSeconds > 0) {
+        // The server held this read until the call changed or the hold ended: read again at once, at most once a second.
+        nextDelay = Math.max(0, 1000 - (now() - readStarted));
+      } else {
+        // Polling is only the fallback (servers that offer no hold): 1s, then 1.5x per read up to the cap. A longer
+        // server cadence, such as a scheduled retry, still sets the floor. Backoff with jitter applies only to failed reads.
+        const advised = current.polling?.recommendedAfterMs;
+        const schedule = Math.min(maxIntervalMs, Math.round(intervalMs * 1.5 ** Math.min(pendingReads++, 20)));
+        nextDelay = Math.max(schedule, advised !== undefined && positive(advised) ? advised : 0);
+      }
     } catch (error) {
       lastReadError = error;
       if (signal.aborted && now() >= deadline) return timedOut();

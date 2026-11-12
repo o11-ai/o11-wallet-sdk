@@ -5,7 +5,7 @@ import { resourcePlanSchema, type ResourcePlan } from "./resource-plan.js";
 import { moneySchema } from "./money.js";
 import { providerAuthorizationRequirementSchema, type ProviderAuthorizationRequirement } from "./provider-authorization.js";
 import { providerBillingSchema, type ProviderBilling } from "./execution-account.js";
-import { publishedTariffSchema, tariffRateSchema, type PublishedTariff } from "./published-tariff.js";
+import { priceRangeShape, publishedTariffSchema, tariffRateSchema, type PublishedTariff } from "./published-tariff.js";
 import { publishedInputSchema, type PublishedInput } from "./published-input.js";
 import { toolHealthSchema, type ToolHealth } from "./health.js";
 import { decisionEvidenceSchema, type DecisionEvidence } from "./decision-evidence.js";
@@ -112,6 +112,12 @@ export interface ToolDefinition {
     unavailableReason?: string;
     unit?: string;
     rates?: z.infer<typeof tariffRateSchema>[];
+    /** `$0.01–$0.03 (avg $0.0233)` or `$0.01` (./price-range-text); set where the response read billed history. */
+    priceText?: string;
+    priceMinMicros?: string;
+    priceMaxMicros?: string;
+    priceAvgMicros?: string | null;
+    priceAvgN?: number | null;
   };
   lifecycle:
     | "http"
@@ -230,6 +236,7 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
       unavailableReason: z.string().optional(),
       unit: z.string().optional(),
       rates: z.array(tariffRateSchema).optional(),
+      ...priceRangeShape,
     }),
     lifecycle: z.enum([
       "http",

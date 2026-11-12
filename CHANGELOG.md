@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.1.38
+
+**Changed behavior: SDK callers and scripts that call `o11` directly**
+- `o11 topup 5` prints the USD checkout link immediately, then waits for the wallet credit and confirms `Added US$5.00 in credits.` Declines stay pending while the same checkout can be retried; failed or expired payments never report success. `--no-wait` returns only the link; `--wait-ms` changes the 10-minute wait. Reuse `--request-id` and the same amount to resume an existing checkout.
+- `o11 call` prints the result when it is ready, up to 10 minutes (`--wait SECONDS` changes that). A long call shows one progress line on stderr; stdout is still one JSON receipt.
+- `call` and `callTool` always send a request key. If the connection drops or times out, they send the same request with the same key up to twice more, which returns the existing call and never charges twice. Server errors are not resent.
+- `o11 call` streams: the wallet sends each provider attempt and then the result on one connection, and the progress line shows the provider being tried. A dropped stream reconnects to the same call and misses nothing. Against a wallet that does not stream, `call` uses the plain held request.
+- Add `ToolClient.streamTool(request, { onEvent })`, which streams a call's progress and resolves with the final receipt, and export `streamCall` for any HTTP client.
+- `o11 wait` is no longer needed. It still works for this release, prints a one-line notice on stderr and runs `o11 status ID --wait`.
+- A call still running when the wait ends exits 2 with `nextCommand` set to `o11 status ID --wait`, not `o11 wait`. `o11 status ID` reads a call once.
+- `ToolClient.callTool` resolves with the finished receipt by default. While the call runs, the client keeps reading the same call and returns as soon as it finishes, up to 10 minutes. Pass `{ waitMs: 0 }` for the old behavior, which returns the receipt at once, and `onPending` to get the invocation ID while it runs.
+
+**New**
+- `ToolClient.topUpStatus(requestId)` reads durable funding without contacting Stripe. `waitForTopUp(requestId, options)` polls that same request with a bounded deadline and optional abort signal; `topUp` still returns the checkout link immediately.
+- Add `o11 batch TOOL_ID --rows FILE|INVOCATION_ID`: runs a route once per row of a CSV, JSON or JSONL file, or of an earlier list call. `--map FIELD=COLUMN` picks the row column for each field; a row missing one is skipped, not charged.
+- `--run-max USD` with `--run-id` (or `O11_RUN_ID`) caps the whole run, settled charges plus holds. The batch stops at the cap; raise it and run the same command again.
+- Progress is saved to a journal. After a stop or a kill, running the same command again skips finished rows and replays sent ones without a new charge. A row's key comes from its own fields, so the list can change between runs.
+- The batch stops when the run maximum, the balance or the card refuses a call, and those rows stay pending. `--retry-failed` sends rows that ran and failed again under new keys. A list over 1,000 rows needs `--run-max`.
+- `invoke` and `call` accept `runMaxMicros`, and `run-status` shows the run's ceiling, spent, held and remaining.
+- `o11 quote` on a route (an `o11.*` tool) now prints `route`: the providers a call would try, in order (`route.order`), and one row per provider with its price, recorded calls, success rate, hit rate, median seconds and checks passed (`route.compare`). `maximumMicros` is printed too. Earlier versions dropped these fields.
+- `ToolClient.quote` returns the same `route` and `maximumMicros`, typed as `QuoteRoute`. Both are absent on a quote for a single tool.
+- Add `o11 rate ID useful|not-useful [--reason TEXT]` to rate a call result. Ratings rank providers for the same job and never change billing.
+- `o11 ostack` 0.8.1: find, qualify and research go through o11 routes, so the outbound playbook no longer names providers.
+
 ## 0.1.37
 
 - `o11 ostack` 0.8: files, presets and playbooks replace notes, packs and modules (the old commands still work). Audiences with their own templates and follow-ups, A/B testing across the templates in use, and per-template results on each run. Each CRM record keeps `o11_audience`, `o11_template` and `o11_follow_up`.

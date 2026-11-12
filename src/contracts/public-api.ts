@@ -7,19 +7,31 @@ import { invocationHistoryInputSchema, invocationReferenceSchema, maxInvocationW
 import { invocationRunInputSchema } from "./invocation-run.js";
 
 const id = z.strictObject({ id: z.string().uuid() });
-/** Why a route call or quote was refused before anything was held. Every route refusal carries one. */
-export const routeRefusalReasons = ["invalid_identity", "route_no_candidate", "route_max_cost", "invalid_field", "invalid_option"] as const;
+/**
+ * Why a route call or quote was refused before anything was held. Every route refusal carries one. `option_disabled`:
+ * an option the call sent, or the tool itself, is turned off for now; the same call without that option still runs.
+ */
+export const routeRefusalReasons = ["invalid_identity", "route_no_candidate", "route_max_cost", "invalid_field", "invalid_option", "option_disabled"] as const;
 export type RouteRefusalReason = typeof routeRefusalReasons[number];
+/** Domains Stripe serves hosted checkout from. Live sessions do not always use checkout.stripe.com/c/pay/. */
+const stripeCheckoutDomains = ["stripe.com", "link.com"];
+const isStripeCheckoutHost = (hostname: string) =>
+  stripeCheckoutDomains.some(domain => hostname === domain || hostname.endsWith(`.${domain}`));
 export const stripeCheckoutUrlSchema = z.url().refine(value => {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && url.hostname === "checkout.stripe.com" && !url.port && !url.username && !url.password
-      && url.pathname.startsWith("/c/pay/");
+    return url.protocol === "https:" && isStripeCheckoutHost(url.hostname) && !url.port && !url.username && !url.password;
   } catch { return false; }
 }, "Expected a Stripe-hosted checkout URL");
 export const topUpResultSchema = z.object({
   requestId: z.uuid(), walletId: z.uuid(), cardId: z.uuid(), amountMicros: moneySchema,
   currency: z.literal("USD"), status: z.literal("awaiting_payment"), url: stripeCheckoutUrlSchema,
+});
+export const topUpStatusSchema = z.object({
+  requestId: z.uuid(), walletId: z.uuid(), cardId: z.uuid(), amountMicros: moneySchema,
+  currency: z.literal("USD"), status: z.enum(["pending", "paid", "failed", "expired", "partially_refunded", "refunded", "disputed"]),
+  creditedMicros: moneySchema, creditCommitted: z.boolean(), paidAt: z.iso.datetime().nullable(),
+  failureReason: z.enum(["payment_declined", "authentication_failed", "payment_failed", "checkout_expired", "payment_refunded", "payment_disputed"]).nullable(), paymentRetryable: z.boolean(),
 });
 export const topUpLimitsSchema = z.object({
   currency: z.literal("USD"), minimumCents: z.number().int().positive(), maximumCents: z.number().int().positive(),
@@ -57,6 +69,8 @@ export const serviceOperationSchemas = {
 export const discoveryFirstPageSize = 10;
 export const discoveryPageSize = 50;
 
+/** A run's spending maximum: settled charges plus open holds across every call with this run id on this wallet. */
+const runMaxSchema = moneySchema.optional().describe("Spending maximum for the whole run, in USD micros: settled charges plus open holds across every call with this runId. Needs runId (or the x-o11-run-id header). Raise it any time; lower it no further than the run has spent and holds. A call past it is refused with reason run_ceiling.");
 export const publicOperationSchemas = {
   ...reportOperationSchemas,
   ...managementOperationSchemas,
@@ -76,6 +90,7 @@ export const publicOperationSchemas = {
   get_configuration: z.strictObject({ id: z.string() }),
   balance: z.strictObject({}),
   topup_limits: z.strictObject({}),
+  topup_status: z.strictObject({ requestId: z.uuid() }),
   topup: z.strictObject({ requestId: z.uuid(), amountCents: z.number().int().min(500).max(100000) }),
   call: z.strictObject({
     tool: z.string().min(1).max(250),
@@ -91,10 +106,12 @@ export const publicOperationSchemas = {
     allowWrite: z.boolean().default(false),
     acceptRecurring: z.boolean().default(false),
     runId: z.uuid().optional(),
+    runMaxMicros: runMaxSchema,
   }),
   // searchId links a purchase to the search that led to it; it is not part of the invocation request.
   invoke: invocationSchema.extend({ searchId: z.uuid().optional(), runId: z.uuid().optional()
-    .describe("Reuse one run UUID across this task's calls. This label groups receipts; it does not authorize spending or create a budget.") }),
+    .describe("Reuse one run UUID across this task's calls. This label groups receipts; it does not authorize spending. It caps spending only once a call sets runMaxMicros."),
+    runMaxMicros: runMaxSchema }),
   get_invocation: z.strictObject({ id: invocationReferenceSchema,
     waitSeconds: z.number().int().min(0).max(maxInvocationWaitSeconds).optional()
       .describe("Wait up to this many seconds for a pending call to finish before answering, instead of polling repeatedly.") }),
@@ -140,15 +157,16 @@ export const publicOperationDescriptions: Record<keyof typeof publicOperationSch
   connections: "List the connected provider accounts available to this card. Credentials are never returned.",
   get_configuration: "Read the saved account choice and spending limits for an allowed tool.",
   balance: "Read wallet funds, this card's remaining allowance and spendable balance separately, in micro-USD.",
+  topup_status: "Read the committed funding status for requestId in the selected card's wallet, without creating a checkout or contacting Stripe. Paid means the wallet credit was committed; pending is not payment confirmation.",
   topup_limits: "Read current one-time funding limits, checkout availability and the wallet billing URL without creating a checkout.",
   topup: "Request a one-time Stripe-hosted checkout to add USD credits to this selected card's wallet (500–100000 cents). The user completes payment in Stripe; no saved payment method is charged or changed. Reuse requestId and the same amount for retries. Funding does not increase card allowances.",
-  call: "Call a tool using its discovered short ID and provider params. o11 quotes internally and applies existing card and allowance limits; no spending maximum or idempotency key is required. Use query/body/path for split inputs. Returns a receipt; while it is pending, call get_invocation with waitSeconds (up to 25) instead of polling. HTTP callers can send Prefer: wait=N to get the finished result in the response. Failures are returned without expanding permissions or retrying a purchase.",
+  call: "Call a tool using its discovered short ID and provider params. o11 quotes internally and applies existing card and allowance limits; no spending maximum or idempotency key is required. Use query/body/path for split inputs. Returns the result when the call finishes within 25 seconds. A call still running returns a pending receipt: call get_invocation with waitSeconds (up to 25) instead of polling. HTTP callers can send Prefer: wait=N (up to 120) to wait longer, or wait=0 to answer at once. Failures are returned without expanding permissions or retrying a purchase.",
   invoke: "Submit a tool call with an explicit spending maximum and a stable idempotency key.",
   get_invocation: "Retrieve this card's existing call by shortId (8 characters) or full UUID without executing it again, with its request (inputs, secrets redacted), state and output. Generated files are in result.media; fetch a ready file from its signed downloadUrl. Set waitSeconds (up to 25) to wait for a pending call to finish instead of polling.",
-  list_invocations: "List this selected card's invocation summaries, newest first. Follow cursor with the same filters. Filter runId to recover one task; retrieve full results with get_invocation.",
-  get_run: "Read wallet charges and outstanding reservations for this selected card's labeled run. The label creates no budget. External supplier charges may be unknown.",
+  list_invocations: "List this selected card's invocation summaries, newest first. Follow cursor with the same filters. Filter runId to recover one task, or parentId (a route or recipe call's full id) to list the calls it made; retrieve full results with get_invocation.",
+  get_run: "Read wallet charges and outstanding reservations for this selected card's labeled run. When a call set runMaxMicros, ceiling shows the run's maximum, spent, held and remaining. External supplier charges may be unknown.",
   search_tools: "Search the tool index for one task described in words. Returns at most limit compact summaries (default 3); inspect the closest toolId first. Check match, category and alternatives; confident describes the task category, not certainty that a tool fits. Quality combines classified output, explicit ratings and a prior. Retain searchId for invoke. Use find_tools for a named provider or endpoint.",
-  rate_result: "Report whether an invocation's result was useful, to improve rankings.",
+  rate_result: "Rate whether a completed call's result was useful, with an optional short reason about the output.",
   quote: "Estimate the price of an allowed tool call without submitting it.",
   cancel: "Request cancellation of this card's call by shortId or full UUID. Cancellation is not guaranteed after supplier acceptance.",
   resources: "List services funded by this card. Requires service access.",
