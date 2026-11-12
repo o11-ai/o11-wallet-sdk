@@ -4,7 +4,7 @@ import { lstat, rename, rm, type FileHandle } from 'node:fs/promises';
 import { ToolClient, ToolClientError, type InvocationReceipt } from './client.js';
 import { callArguments, callRequest } from './cli-call.js';
 import { mediaWaitState } from './invocation-wait.js';
-import { reserveOutputFile, resultPreview, saveLargeResult } from './cli-result-file.js';
+import { inlineResultBytes, largeResultNote, reserveOutputFile, resultPreview, saveLargeResult, spilledResult } from './cli-result-file.js';
 
 export type ExecutionCommand = 'call' | 'status' | 'wait';
 const usage = 'Use o11 call TOOL_ID [--input JSON|@FILE] or o11 wait INVOCATION_ID [--timeout MS] [--output NEW_FILE]';
@@ -204,13 +204,16 @@ export async function executeInvocation(client: ToolClient, command: ExecutionCo
     const visible = shown && shown.state === 'succeeded' && !options.detailed ? { ...shown, failure: undefined } : shown;
     const result = { ...(shortId ? { shortId } : {}), ...runHint, ...(visible ?? { id }), ...(idempotencyKey ? { idempotencyKey } : {}), ...followup };
     let exitCode = outcome && outcome !== 'completed' || receipt && unsuccessful(receipt) ? 2 : 0;
-    // A large result goes to a new file; the server's result is unchanged. --detailed prints everything.
-    if (!options.output && !options.detailed && receipt && settled(receipt) && receipt.result != null) {
+    // A large result goes to a new file, including --detailed, so one read of stdout stays valid JSON.
+    if (!options.output && receipt && settled(receipt) && receipt.result != null) {
       const file = await saveLargeResult(receipt.result, shortId ?? reference.id);
-      if (file) return { result: { ...(shortId ? { shortId } : {}), ...runHint,
-        ...outputSummary(reference.id, receipt, idempotencyKey, followup, { path: file.path, saved: true }),
-        resultBytes: file.bytes, resultPreview: resultPreview(receipt.result),
-        note: `The result is ${Math.round(file.bytes / 1024)} KB, so it was saved to ${file.path}. Read fields from that file; add --detailed to print it.` }, exitCode };
+      if (file) {
+        if (options.detailed) return { result: spilledResult(result, file, receipt.result), exitCode };
+        return { result: { ...(shortId ? { shortId } : {}), ...runHint,
+          ...outputSummary(reference.id, receipt, idempotencyKey, followup, { path: file.path, saved: true }),
+          resultBytes: file.bytes, resultPreview: resultPreview(receipt.result),
+          note: largeResultNote(file.path, file.bytes) }, exitCode };
+      }
     }
     if (output && options.output) {
       let error: string | undefined;
@@ -224,7 +227,12 @@ export async function executeInvocation(client: ToolClient, command: ExecutionCo
         catch { error = 'Output could not be saved. Retrieve this invocation again; do not submit another call.'; exitCode = 2; }
       }
       const outputFile = { path: options.output, saved, ...(error ? { error } : {}) };
-      return { result: options.detailed ? { ...result, outputFile }
+      const printed = { ...result, outputFile };
+      const payload = receipt?.result;
+      const encoded = JSON.stringify(payload);
+      if (options.detailed && saved && payload != null && encoded && encoded.length > inlineResultBytes)
+        return { result: spilledResult(printed, { path: options.output, bytes: Buffer.byteLength(JSON.stringify(payload, null, 2) + '\n') }, payload), exitCode };
+      return { result: options.detailed ? printed
         : { ...runHint, ...outputSummary(reference.id, receipt ?? original, idempotencyKey, followup, outputFile) }, exitCode };
     }
     return { result, exitCode };
@@ -238,7 +246,8 @@ export async function executeInvocation(client: ToolClient, command: ExecutionCo
 }
 
 const isoSince = z.iso.datetime({ offset: true });
-/** `30m`, `2h`, `1d` or an ISO timestamp, as the ISO lower bound for history. */
+const sinceExample = '2026-01-01T00:00:00Z';
+/** `30m`, `2h`, `1d`, or a timestamp such as 2026-01-01T00:00:00Z, as the lower bound for history. */
 export function sinceTimestamp(value: string, now = Date.now()) {
   const relative = /^(\d{1,4})([mhd])$/.exec(value);
   if (relative) {
@@ -246,7 +255,20 @@ export function sinceTimestamp(value: string, now = Date.now()) {
     if (minutes < 1 || minutes > 90 * 1440) throw new Error('History --since must be from 1m to 90d');
     return new Date(now - minutes * 60_000).toISOString();
   }
-  if (!isoSince.safeParse(value).success) throw new Error('Use history --since 30m, 2h, 1d or an ISO timestamp');
+  if (!isoSince.safeParse(value).success)
+    throw new Error(`History --since takes 30m, 2h, 1d, or a timestamp such as ${sinceExample}.`);
+  return value;
+}
+
+// Same object the wallet prints and reads: {"at":"<timestamp>","id":"<uuid>"}. A page number is not a cursor.
+const historyPageCursor = z.object({ at: z.iso.datetime(), id: z.uuid() });
+const cursorExample = '{"at":"2026-01-01T00:00:00.000000Z","id":"00000000-0000-4000-8000-000000000000"}';
+export function historyCursor(value: string) {
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); }
+  catch { parsed = null; }
+  if (!historyPageCursor.safeParse(parsed).success)
+    throw new Error(`History --cursor takes the cursor the previous history command printed, such as ${cursorExample}. It is not a page number.`);
   return value;
 }
 

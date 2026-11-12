@@ -66,6 +66,8 @@ export class ToolClient {
       fetch?: typeof fetch;
       timeoutMs?: number;
       runId?: string;
+      /** The partner customer a partner key acts for, sent as X-Customer. */
+      customer?: string;
     },
   ) {
     this.runId = z.uuid().parse(options.runId ?? crypto.randomUUID());
@@ -108,6 +110,7 @@ export class ToolClient {
           "Content-Type": "application/json",
           "x-o11-run-id": this.runId,
           "x-o11-call-id": clientCallId,
+          ...(this.options.customer ? { "X-Customer": this.options.customer } : {}),
           ...extraHeaders,
         },
         body,

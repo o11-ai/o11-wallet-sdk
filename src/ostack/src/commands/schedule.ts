@@ -2,42 +2,58 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { oneOf, optional, required, type Args } from "../lib/args.js";
 import { OstackError } from "../lib/errors.js";
-import { findWorkflow, loadModules, type Workflow } from "../lib/modules.js";
+import { listAudiences } from "../lib/layers.js";
+import { findWorkflow, loadPlaybooks, type Workflow } from "../lib/playbooks.js";
+import { WALLET_LAUNCHER_DIR, walletOnPath } from "../lib/o11-path.js";
 import { print } from "../lib/output.js";
 import { describeSchedule, parseSchedule, runsPerDay, shiftSchedule, toCron, toRRule, zoneOffset, type ScheduleSpec } from "../lib/schedule.js";
 import { writeState } from "../lib/state.js";
 import { systemTimeZone } from "../lib/time.js";
-import { enabledModules, loadWorkspace, type Workspace } from "../lib/workspace.js";
+import { DEFAULT_AUDIENCE, enabledPlaybooks, loadWorkspace, type Workspace } from "../lib/workspace.js";
+import { audienceOf } from "./customize.js";
 
 export const HOSTS = ["claude", "codex", "cron"] as const;
 type Host = (typeof HOSTS)[number];
 
-function workflows(workspace: Workspace): Workflow[] {
-  const enabled = enabledModules(workspace);
-  return loadModules().filter((module) => enabled.includes(module.id)).flatMap((module) => module.workflows);
+/** A workflow to schedule: per-audience workflows (outbound) once for each audience, the others once. */
+type Entry = { workflow: Workflow; audience: string };
+
+function entries(workspace: Workspace): Entry[] {
+  const enabled = enabledPlaybooks(workspace);
+  return loadPlaybooks().filter((playbook) => enabled.includes(playbook.id)).flatMap((playbook) => playbook.workflows.flatMap((workflow) =>
+    (workflow.perAudience ? listAudiences(workspace, playbook.id) : [DEFAULT_AUDIENCE]).map((audience) => ({ workflow, audience }))));
 }
 
-/** The schedule a workflow runs on: the user's own, or the module's default until they set one. */
-export function effective(workspace: Workspace, workflow: Workflow): { spec: ScheduleSpec | null; enabled: boolean; source: "custom" | "default" } {
-  const own = workspace.state.schedules[workflow.ref];
+/** "gtm/outbound" for the default audience, "gtm/outbound@customers" for another audience: the key in ostack.json. */
+export function scheduleKey(workflow: Workflow, audience: string = DEFAULT_AUDIENCE): string {
+  return audience === DEFAULT_AUDIENCE ? workflow.ref : `${workflow.ref}@${audience}`;
+}
+
+const audienceFlag = (audience: string) => (audience === DEFAULT_AUDIENCE ? "" : ` --audience ${audience}`);
+
+/** The schedule a workflow runs on: the user's own, or the playbook's default until they set one. Other audiences start unscheduled. */
+export function effective(workspace: Workspace, workflow: Workflow, audience: string = DEFAULT_AUDIENCE): { spec: ScheduleSpec | null; enabled: boolean; source: "custom" | "default" } {
+  const own = workspace.state.schedules[scheduleKey(workflow, audience)];
   if (own) return { spec: own.spec, enabled: own.enabled, source: "custom" };
   return { spec: workflow.schedule, enabled: false, source: "default" };
 }
 
-function taskName(workflow: Workflow): string {
-  return `ostack-${workflow.module}-${workflow.id}`;
+function taskName({ workflow, audience }: Entry): string {
+  return `ostack-${workflow.playbook}-${workflow.id}${audience === DEFAULT_AUDIENCE ? "" : `-${audience}`}`;
 }
 
 /** The whole instruction a scheduled task stores. It only calls `o11 ostack prompt`, so updates never require editing the task. */
-function instruction(workspace: Workspace, workflow: Workflow): string {
-  return `Run \`o11 ostack prompt ${workflow.ref}\` in ${workspace.root} and follow the instructions it prints exactly.`;
+function instruction(workspace: Workspace, { workflow, audience }: Entry): string {
+  return `Run \`o11 ostack prompt ${workflow.ref}${audienceFlag(audience)}\` in ${workspace.root} and follow the instructions it prints exactly.`;
 }
 
-function view(workspace: Workspace, workflow: Workflow) {
-  const { spec, enabled, source } = effective(workspace, workflow);
+function view(workspace: Workspace, entry: Entry) {
+  const { workflow, audience } = entry;
+  const { spec, enabled, source } = effective(workspace, workflow, audience);
   const timezone = workspace.timezone;
   return {
     workflow: workflow.ref,
+    ...(workflow.perAudience ? { audience } : {}),
     summary: workflow.summary,
     enabled,
     source,
@@ -45,16 +61,21 @@ function view(workspace: Workspace, workflow: Workflow) {
     runs_per_day: spec ? runsPerDay(spec) : 0,
     cron: spec ? toCron(spec) : null,
     rrule: spec ? toRRule(spec) : null,
-    installed: workspace.state.schedules[workflow.ref]?.installed ?? {},
+    installed: workspace.state.schedules[scheduleKey(workflow, audience)]?.installed ?? {},
   };
 }
 
 /** What to create in each host, so the agent creates exactly the same task wherever it runs. */
-function hostSpec(workspace: Workspace, workflow: Workflow, host: Host) {
-  const { spec } = effective(workspace, workflow);
-  if (!spec) throw new OstackError("no_schedule", `${workflow.ref} has no schedule. Set one with "o11 ostack schedule set ${workflow.ref}".`);
+function hostSpec(workspace: Workspace, entry: Entry, host: Host) {
+  const { workflow, audience } = entry;
+  const flag = audienceFlag(audience);
+  const { spec } = effective(workspace, workflow, audience);
+  if (!spec) throw new OstackError("no_schedule", `${scheduleKey(workflow, audience)} has no schedule. Set one with "o11 ostack schedule set ${workflow.ref}${flag}".`);
   const timezone = workspace.timezone;
-  const base = { workflow: workflow.ref, name: taskName(workflow), folder: workspace.root, instructions: instruction(workspace, workflow), schedule: describeSchedule(spec, timezone) };
+  const base = {
+    workflow: workflow.ref, ...(workflow.perAudience ? { audience } : {}), name: taskName(entry), folder: workspace.root,
+    instructions: instruction(workspace, entry), schedule: describeSchedule(spec, timezone),
+  };
   const machine = systemTimeZone();
   // Claude Desktop and Codex read schedules in the computer's clock. When it differs from the workspace's, convert,
   // and rely on the run guard for the hour daylight saving can shift it by.
@@ -72,7 +93,7 @@ function hostSpec(workspace: Workspace, workflow: Workflow, host: Host) {
       cron: toCron(local),
       permission_mode: "Auto, or Accept edits with ostack and your mail/CRM tools always allowed after the first Run now",
       ask: `Create a local scheduled task named "${base.name}" in the folder ${base.folder}, running on the cron schedule "${toCron(local)}" in local time, with these instructions: ${base.instructions}`,
-      after: `Click Run now once, approve each tool with "always allow", then run: o11 ostack schedule installed ${workflow.ref} --host claude --name ${base.name}`,
+      after: `Click Run now once, approve each tool with "always allow", then run: o11 ostack schedule installed ${workflow.ref}${flag} --host claude --name ${base.name}`,
       timezone_note: timezoneNote,
     };
   }
@@ -84,7 +105,7 @@ function hostSpec(workspace: Workspace, workflow: Workflow, host: Host) {
       rrule: toRRule(local),
       sandbox: "workspace-write with network access, so the run can reach your mail and CRM tools",
       ask: `Create a standalone automation named "${base.name}" for the project ${base.folder}, running locally (not in a worktree) on the schedule ${toRRule(local)}, with these instructions: ${base.instructions}`,
-      after: `Run it once from the Automations page and check its result, then run: o11 ostack schedule installed ${workflow.ref} --host codex --name ${base.name}`,
+      after: `Run it once from the Automations page and check its result, then run: o11 ostack schedule installed ${workflow.ref}${flag} --host codex --name ${base.name}`,
       timezone_note: timezoneNote,
     };
   }
@@ -96,21 +117,22 @@ const CRON_END = (root: string) => `# <<< ostack ${root}`;
 
 /** The crontab block for every enabled schedule in this workspace. Each run starts the agent headless with the workspace prompt. */
 async function cronBlock(workspace: Workspace, agent: "claude" | "codex"): Promise<string[]> {
-  const o11 = Bun.which("o11");
+  const { path: o11, wallet } = walletOnPath();
   const binary = Bun.which(agent);
-  if (!o11) throw new OstackError("not_on_path", "o11 is not on PATH. Install the o11 CLI first (docs.o11.ai).");
+  if (!o11) throw new OstackError("not_on_path", `o11 is not on PATH. Install the o11 CLI (https://go.o11.ai/skill.md), then put ${WALLET_LAUNCHER_DIR} first on PATH.`);
+  if (!wallet) throw new OstackError("not_on_path", `${o11} is not the o11 wallet CLI. Put ${WALLET_LAUNCHER_DIR} first on PATH, then retry.`);
   if (!binary) throw new OstackError("not_on_path", `${agent} is not on PATH, so cron cannot start it.`);
   const logs = join(workspace.root, ".ostack", "logs");
   const lines = [CRON_BEGIN(workspace.root), `CRON_TZ=${workspace.timezone}`, `PATH=${process.env.PATH ?? "/usr/bin:/bin"}`];
-  for (const workflow of workflows(workspace)) {
-    const { spec, enabled } = effective(workspace, workflow);
+  for (const entry of entries(workspace)) {
+    const { spec, enabled } = effective(workspace, entry.workflow, entry.audience);
     if (!spec || !enabled) continue;
-    const prompt = `"$(${o11} ostack prompt ${workflow.ref} --workspace ${workspace.root})"`;
+    const prompt = `"$(${o11} ostack prompt ${entry.workflow.ref}${audienceFlag(entry.audience)} --workspace ${workspace.root})"`;
     const run =
       agent === "claude"
         ? `${binary} -p ${prompt} --permission-mode auto --permission-prompts none`
         : `${binary} exec --cd ${workspace.root} --sandbox workspace-write ${prompt}`;
-    lines.push(`${toCron(spec)} cd ${workspace.root} && ${run} >> ${join(logs, `${taskName(workflow)}.log`)} 2>&1`);
+    lines.push(`${toCron(spec)} cd ${workspace.root} && ${run} >> ${join(logs, `${taskName(entry)}.log`)} 2>&1`);
   }
   lines.push(CRON_END(workspace.root));
   return lines;
@@ -138,7 +160,7 @@ export async function scheduleCommand(args: Args): Promise<void> {
   const workspace = await loadWorkspace();
   const sub = args.positionals[1] ?? "list";
   if (sub === "list") {
-    print({ timezone: workspace.timezone, workflows: workflows(workspace).map((workflow) => view(workspace, workflow)) });
+    print({ timezone: workspace.timezone, workflows: entries(workspace).map((entry) => view(workspace, entry)) });
     return;
   }
   if (sub === "cron") {
@@ -151,8 +173,8 @@ export async function scheduleCommand(args: Args): Promise<void> {
       mkdirSync(join(workspace.root, ".ostack", "logs"), { recursive: true });
       writeCrontab([...withoutBlock(readCrontab(), workspace.root), ...block]);
       const at = new Date().toISOString();
-      for (const workflow of workflows(workspace)) {
-        const entry = workspace.state.schedules[workflow.ref];
+      for (const { workflow, audience } of entries(workspace)) {
+        const entry = workspace.state.schedules[scheduleKey(workflow, audience)];
         if (entry?.enabled) entry.installed.cron = { name: `crontab (${agent})`, at };
       }
       await writeState(workspace.root, workspace.state);
@@ -168,9 +190,15 @@ export async function scheduleCommand(args: Args): Promise<void> {
     }
     throw new OstackError("unknown_command", "Use: o11 ostack schedule cron show|install|remove [--agent claude|codex].");
   }
-  const workflow = findWorkflow(args.positionals[2] ?? required(args, "workflow"), enabledModules(workspace));
-  const current = effective(workspace, workflow);
-  const entry = (workspace.state.schedules[workflow.ref] ??= {
+  const workflow = findWorkflow(args.positionals[2] ?? required(args, "workflow"), enabledPlaybooks(workspace));
+  const audience = audienceOf(args);
+  if (audience !== DEFAULT_AUDIENCE && !workflow.perAudience) throw new OstackError("invalid_flag", `${workflow.ref} covers every audience in one run; it takes no --audience.`);
+  if (audience !== DEFAULT_AUDIENCE && !listAudiences(workspace, workflow.playbook).includes(audience)) {
+    throw new OstackError("unknown_audience", `No audience named "${audience}".`, { audiences: listAudiences(workspace, workflow.playbook) });
+  }
+  const key = scheduleKey(workflow, audience);
+  const current = effective(workspace, workflow, audience);
+  const entry = (workspace.state.schedules[key] ??= {
     spec: current.spec ?? parseSchedule({ days: "weekdays", at: "09:00" }),
     enabled: current.enabled,
     installed: {},
@@ -187,17 +215,17 @@ export async function scheduleCommand(args: Args): Promise<void> {
   } else if (sub === "on" || sub === "off") {
     entry.enabled = sub === "on";
   } else if (sub === "spec") {
-    print(hostSpec(workspace, workflow, oneOf(args, "host", HOSTS)));
+    print(hostSpec(workspace, { workflow, audience }, oneOf(args, "host", HOSTS)));
     return;
   } else if (sub === "installed") {
     entry.installed[oneOf(args, "host", HOSTS)] = { name: required(args, "name"), at: new Date().toISOString() };
   } else if (sub === "uninstalled") {
     delete entry.installed[oneOf(args, "host", HOSTS)];
   } else {
-    throw new OstackError("unknown_command", "Use: o11 ostack schedule list | set|on|off|spec|installed|uninstalled <workflow> | cron show|install|remove.");
+    throw new OstackError("unknown_command", "Use: o11 ostack schedule list | set|on|off|spec|installed|uninstalled <workflow> [--audience <name>] | cron show|install|remove.");
   }
   await writeState(workspace.root, workspace.state);
-  const result = view(workspace, workflow);
+  const result = view(workspace, { workflow, audience });
   const hosts = Object.keys(result.installed);
-  print({ ...result, ...(hosts.length > 0 && sub !== "installed" && sub !== "uninstalled" ? { update_hosts: `Also update the task in: ${hosts.join(", ")} (o11 ostack schedule spec ${workflow.ref} --host <host>).` } : {}) });
+  print({ ...result, ...(hosts.length > 0 && sub !== "installed" && sub !== "uninstalled" ? { update_hosts: `Also update the task in: ${hosts.join(", ")} (o11 ostack schedule spec ${workflow.ref}${audienceFlag(audience)} --host <host>).` } : {}) });
 }

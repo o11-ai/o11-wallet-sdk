@@ -3,54 +3,74 @@ import { join } from "node:path";
 import { OstackError } from "./errors.js";
 import { isRecord } from "./paths.js";
 
-/** "team" notes and settings are shared by the workspace; "me" ones belong to the signed-in person. */
-export type NoteScope = "team" | "me";
-export type RemoteNote = { path: string; body: string; version: number; updatedAt: string; updatedBy: string | null };
+/** "team" files and settings are shared by the workspace; "me" ones belong to the signed-in person. */
+export type FileScope = "team" | "me";
+/** A playbook file as it is now. `versionId` names this exact text, so a CRM record can point at what was sent. */
+export type RemoteFile = { path: string; content: string; version: number; versionId: string; updatedAt: string; updatedBy: string | null };
+export type RemoteFileVersion = {
+  id: string; scope: FileScope; path: string; version: number; content: string; current: boolean; createdAt: string; createdBy: string | null;
+};
 export type Answer = { version: string; skipped: boolean };
-/** Each module's own settings by id, such as gtm's mode and limits. Core stores them; the module reads them. */
-export type ModuleValues = Record<string, unknown>;
+/** Each playbook's own settings by id, such as gtm's send mode and limits. Core stores them; the playbook reads them. */
+export type PlaybookValues = Record<string, unknown>;
 export type RemoteSettings = {
   timezone: string | null;
-  packs: string[] | null;
-  answered: Record<string, Answer>;
-  modules: Record<string, ModuleValues>;
+  presets: string[] | null;
+  setupAnswers: Record<string, Answer>;
+  playbooks: Record<string, PlaybookValues>;
 };
-/** A partial change. A null clears a value (a person's own value then falls back to the team's); module values merge by key. */
+/** A partial change. A null clears a value (a person's own value then falls back to the team's); playbook values merge by key. */
 export type SettingsPatch = {
   timezone?: string | null;
-  packs?: string[] | null;
-  answered?: Record<string, Answer | null>;
-  modules?: Record<string, ModuleValues>;
+  presets?: string[] | null;
+  setupAnswers?: Record<string, Answer | null>;
+  playbooks?: Record<string, PlaybookValues>;
 };
 export type RemoteSetup = {
   me: { id: string; name: string; email: string };
   role: string;
   canManage: boolean;
   workspace: { id: string; name: string };
-  notes: { team: RemoteNote[]; mine: RemoteNote[] };
+  files: { team: RemoteFile[]; mine: RemoteFile[] };
   settings: { team: RemoteSettings; mine: RemoteSettings };
   cards: { id: string; name: string; status: string }[];
 };
+/** Sent, replied and meetings since a run started, per template file version id. */
+export type TemplateCounts = Record<string, { sent?: number; replied?: number; meetings?: number }>;
 
-/** What the o11 wallet CLI provides: the team's setup through the signed-in wallet key. */
-export interface OstackRemote {
+/** What the o11 wallet CLI provides: the team's playbook setup through the signed-in wallet key. */
+export interface PlaybookRemote {
   /** The wallet origin, such as https://go.o11.ai. */
   origin: string;
+  /** The o11 CLI release that runs this ostack, shown by doctor next to ostack's own version. */
+  cliVersion?: string;
   setup(): Promise<RemoteSetup>;
-  saveNote(input: { scope: NoteScope; path: string; body: string; baseVersion: number | null }): Promise<RemoteNote>;
-  deleteNote(input: { scope: NoteScope; path: string; baseVersion: number }): Promise<void>;
-  saveSettings(input: { scope: NoteScope; values: SettingsPatch }): Promise<RemoteSettings>;
-  startRun(input: { workflow: string; scheduled: boolean }): Promise<{ id: string; startedAt: string }>;
-  endRun(input: { id: string; summary?: string; counts?: Record<string, number> }): Promise<{ id: string; endedAt: string }>;
+  saveFile(input: { scope: FileScope; path: string; content: string; baseVersion: number | null }): Promise<RemoteFile>;
+  deleteFile(input: { scope: FileScope; path: string; baseVersion: number }): Promise<void>;
+  /** One saved version of a file by its id, such as the template a CRM record says was sent. */
+  fileVersion(id: string): Promise<RemoteFileVersion>;
+  saveSettings(input: { scope: FileScope; values: SettingsPatch }): Promise<RemoteSettings>;
+  startRun(input: { workflow: string; scheduled: boolean; audience?: string | null }): Promise<{ id: string; startedAt: string }>;
+  endRun(input: { id: string; summary?: string; counts?: Record<string, number>; templateCounts?: TemplateCounts }): Promise<{ id: string; endedAt: string }>;
+  /** Counts a skills install for the signed-in workspace. Best effort: skipped when signed out or offline. */
+  reportInstall?(input: InstallReport): Promise<void>;
 }
 
-let current: OstackRemote | undefined;
+export type InstallReport = {
+  version: string;
+  hosts: ("claude" | "codex" | "cursor" | "gemini")[];
+  installed: number;
+  updated: number;
+  skipped: number;
+};
 
-export function useRemote(remote: OstackRemote): void {
+let current: PlaybookRemote | undefined;
+
+export function useRemote(remote: PlaybookRemote): void {
   current = remote;
 }
 
-export function remote(): OstackRemote {
+export function remote(): PlaybookRemote {
   if (!current) throw new OstackError("not_signed_in", 'Sign in first: run "o11 login".');
   return current;
 }
@@ -85,22 +105,23 @@ async function readCache(root: string, origin: string): Promise<SetupSnapshot | 
   if (!existsSync(cacheFile(root))) return null;
   try {
     const value: unknown = await Bun.file(cacheFile(root)).json();
-    if (!isRecord(value) || value.origin !== origin || !isRecord(value.settings) || !isRecord(value.notes)) return null;
+    // Copies saved before 0.8 hold notes instead of files; they are skipped until the next online read.
+    if (!isRecord(value) || value.origin !== origin || !isRecord(value.settings) || !isRecord(value.files)) return null;
     return value as SetupSnapshot;
   } catch {
     return null;
   }
 }
 
-/** The person's own value wins over the team's, key by key inside each module; answers from both count. */
+/** The person's own value wins over the team's, key by key inside each playbook; answers from both count. */
 export function effectiveSettings(setup: Pick<RemoteSetup, "settings">): RemoteSettings {
   const { team, mine } = setup.settings;
-  const ids = new Set([...Object.keys(team.modules), ...Object.keys(mine.modules)]);
+  const ids = new Set([...Object.keys(team.playbooks), ...Object.keys(mine.playbooks)]);
   return {
     timezone: mine.timezone ?? team.timezone,
-    packs: team.packs,
-    answered: { ...team.answered, ...mine.answered },
-    modules: Object.fromEntries([...ids].map((id) => [id, { ...team.modules[id], ...mine.modules[id] }])),
+    presets: team.presets,
+    setupAnswers: { ...team.setupAnswers, ...mine.setupAnswers },
+    playbooks: Object.fromEntries([...ids].map((id) => [id, { ...team.playbooks[id], ...mine.playbooks[id] }])),
   };
 }
 

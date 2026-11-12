@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import { OstackError, runOstack, type OstackRemote } from './ostack/src/index.js';
+import { OstackError, runOstack, type PlaybookRemote } from './ostack/src/index.js';
 import {
-  ostackNoteSchema, ostackRunEndedSchema, ostackRunStartedSchema, ostackSettingsSchema, ostackSetupSchema,
-} from './contracts/ostack-setup.js';
+  playbookFileSchema, playbookFileVersionSchema, playbookSettingsSchema, playbookSetupSchema, runEndedSchema, runStartedSchema, skillsInstalledSchema,
+} from './contracts/playbooks.js';
 import { profileTokenProvider, readConfig } from './config.js';
 import { walletOrigin } from './access-tokens.js';
+import { version } from '../package.json';
 
 type Method = 'GET' | 'PUT' | 'PATCH' | 'POST' | 'DELETE';
 
@@ -13,7 +14,7 @@ function failure(status: number, body: unknown): OstackError {
   const code = typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string' ? body.error : '';
   const message = typeof body === 'object' && body !== null && 'message' in body && typeof body.message === 'string' ? body.message.slice(0, 300) : '';
   if (status === 401) return new OstackError('not_signed_in', 'Your wallet sign-in expired or was revoked. Run "o11 login" and try again.');
-  if (status === 409) return new OstackError('note_changed', message || 'Someone changed this since you read it. Read it again, merge, and retry.');
+  if (status === 409) return new OstackError('file_changed', message || 'Someone changed this since you read it. Read it again, merge, and retry.');
   if (status === 403) return new OstackError('forbidden', message || 'Your role in this workspace cannot make that change.');
   if (status === 404) return new OstackError('not_found', message || 'Not found in this workspace.');
   if (status === 400) return new OstackError('invalid_input', message || 'The wallet rejected the input.', code ? { wallet: code } : undefined);
@@ -24,7 +25,7 @@ function failure(status: number, body: unknown): OstackError {
  * The team's setup through the signed-in wallet key. Reads the saved login lazily, so commands that never touch the
  * team (help, init, skills) work before signing in. OAuth logins refresh once on a 401, like every wallet call.
  */
-export function walletRemote(profile: string | undefined): OstackRemote {
+export function walletRemote(profile: string | undefined): PlaybookRemote {
   let config: Awaited<ReturnType<typeof readConfig>> | undefined;
   const load = async () => {
     if (config) return config;
@@ -41,7 +42,7 @@ export function walletRemote(profile: string | undefined): OstackRemote {
     let token = await tokens.getAccessToken();
     const send = () => fetch(new URL(path, walletOrigin(saved.baseUrl)), {
       method, redirect: 'error', signal: AbortSignal.timeout(20_000),
-      headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      headers: { Authorization: `Bearer ${token}`, ...(saved.customer ? { 'X-Customer': saved.customer } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     // Only an unreachable wallet counts as offline. A login that ended or was revoked never falls back to the saved copy.
@@ -61,31 +62,38 @@ export function walletRemote(profile: string | undefined): OstackRemote {
     return parsed;
   };
   return {
+    cliVersion: version,
     get origin() {
       return config ? walletOrigin(config.baseUrl) : 'unknown';
     },
     async setup() {
-      return ostackSetupSchema.parse(await request('GET', '/v1/ostack/setup'));
+      return playbookSetupSchema.parse(await request('GET', '/v1/ostack/setup'));
     },
-    async saveNote(input) {
-      return ostackNoteSchema.parse(await request('PUT', '/v1/ostack/notes', input));
+    async saveFile(input) {
+      return playbookFileSchema.parse(await request('PUT', '/v1/ostack/files', input));
     },
-    async deleteNote(input) {
-      await request('DELETE', '/v1/ostack/notes', input);
+    async deleteFile(input) {
+      await request('DELETE', '/v1/ostack/files', input);
+    },
+    async fileVersion(id) {
+      return playbookFileVersionSchema.parse(await request('GET', `/v1/ostack/files/versions/${z.uuid().parse(id)}`));
     },
     async saveSettings(input) {
-      return ostackSettingsSchema.parse(await request('PATCH', '/v1/ostack/settings', input));
+      return playbookSettingsSchema.parse(await request('PATCH', '/v1/ostack/settings', input));
     },
     async startRun(input) {
-      return ostackRunStartedSchema.parse(await request('POST', '/v1/ostack/runs', input));
+      return runStartedSchema.parse(await request('POST', '/v1/ostack/runs', input));
     },
     async endRun({ id, ...input }) {
-      return ostackRunEndedSchema.parse(await request('POST', `/v1/ostack/runs/${z.uuid().parse(id)}/end`, input));
+      return runEndedSchema.parse(await request('POST', `/v1/ostack/runs/${z.uuid().parse(id)}/end`, input));
+    },
+    async reportInstall(input) {
+      await request('POST', '/v1/ostack/installs', skillsInstalledSchema.parse(input));
     },
   };
 }
 
-/** `o11 ostack ...`: ostack's own commands, with the team's setup read through this login. */
+/** `o11 ostack ...`: ostack's own commands, with the team's playbook setup read through this login. */
 export async function ostackCommand(args: string[], profile: string | undefined): Promise<number> {
   return runOstack(args, walletRemote(profile));
 }

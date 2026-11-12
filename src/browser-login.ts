@@ -5,12 +5,13 @@ import { z } from "zod";
 import { cardAccessUrl } from "./contracts/card-access.js";
 import { ToolClient, ToolClientError } from "./client.js";
 import { credentialDirectory, readConfig, saveConfig, type ToolConfig } from "./config.js";
-import { tokenRequest, walletOrigin } from "./access-tokens.js";
+import { tokenRequest, walletOrigin, walletServer } from "./access-tokens.js";
 import { withLoginLock } from './login-lock.js';
 import { openLoginTerminal } from './login-terminal.js';
 import { startEmailLogin, verifyEmailLogin, createEmailHandoff, EmailLoginError } from './email-login.js';
 
-export async function browserLogin(args: string[], profile?: string) {
+const loginUsage = "Use login [--server URL] [--client NAME] [--card ID] [--name NAME] [--profile PROFILE] [--email EMAIL] [--auth email|browser] [--no-browser] [--reauth]";
+export function loginOptions(args: string[]) {
   const flags: Record<string, string> = {};
   let noBrowser = false, reauth = false;
   for (let index = 0; index < args.length; index++) {
@@ -18,14 +19,32 @@ export async function browserLogin(args: string[], profile?: string) {
     if (name === "--reauth" && !reauth) { reauth = true; continue; }
     if (name === "--no-browser" && !noBrowser) { noBrowser = true; continue; }
     if (!["--server", "--client", "--card", "--name", "--task", "--email", "--auth"].includes(name) || flags[name] || !args[index + 1] || args[index + 1]!.startsWith("--"))
-      throw new Error("Use login --server URL [--client NAME] [--card ID] [--name NAME] [--profile PROFILE] [--email EMAIL] [--auth email|browser] [--no-browser] [--reauth]");
+      throw new Error(loginUsage);
     flags[name] = args[++index]!;
   }
-  if (!flags["--server"]) throw new Error("Supply --server with your wallet URL");
   if (flags["--auth"] && !["email", "browser"].includes(flags["--auth"])) throw new Error("Use --auth email or --auth browser");
   if (flags["--email"]) z.email().parse(flags["--email"]);
   if (flags["--auth"] === "browser" && flags["--email"]) throw new Error("Use --email with email sign-in, or --auth browser without --email");
-  const origin = walletOrigin(flags["--server"]);
+  return { flags, noBrowser, reauth, origin: walletServer(flags["--server"]) };
+}
+export function keyStdinServer(args: string[]) {
+  let server: string | undefined, stdin = false;
+  for (let index = 0; index < args.length; index++) {
+    const name = args[index]!;
+    if (name === "--key-stdin") {
+      if (stdin) throw new Error("Use login [--server URL] --key-stdin");
+      stdin = true;
+      continue;
+    }
+    if (name !== "--server" || server || !args[index + 1] || args[index + 1]!.startsWith("--"))
+      throw new Error("Use login [--server URL] --key-stdin");
+    server = args[++index]!;
+  }
+  if (!stdin) throw new Error("Use login [--server URL] --key-stdin");
+  return walletServer(server);
+}
+export async function browserLogin(args: string[], profile?: string) {
+  const { flags, noBrowser, reauth, origin } = loginOptions(args);
   const selectedProfile = profile ?? process.env.O11_TOOLS_PROFILE ?? (flags["--client"] || flags["--card"] || flags["--name"] ? `agent-${crypto.randomUUID()}` : undefined);
   credentialDirectory(selectedProfile);
   const usage = `o11${selectedProfile ? ` --profile ${selectedProfile}` : ""}`;

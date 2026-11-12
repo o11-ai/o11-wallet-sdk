@@ -1,1 +1,0 @@
-Read new mail with the connected Gmail tool: search the inbox for messages from lead addresses (or replies in threads we sent) since the last check, oldest first. Use Gmail's message id as `--external-id` when observing.

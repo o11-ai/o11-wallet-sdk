@@ -5,7 +5,9 @@ import { z } from "zod";
 import { tokenRequest, walletOrigin } from "./access-tokens.js";
 import { serializedTokenProvider, TokenNotRenewableError, type AccessTokenProvider } from "./token-provider.js";
 
-const schema = z.object({ baseUrl: z.url(), apiKey: z.string().startsWith("o11_"), resource: z.url().optional(), refreshToken: z.string().min(40).optional(), expiresAt: z.number().int().positive().optional(), refreshState: z.enum(["uncertain", "ended"]).optional() });
+const schema = z.object({ baseUrl: z.url(), apiKey: z.string().startsWith("o11_"), resource: z.url().optional(), refreshToken: z.string().min(40).optional(), expiresAt: z.number().int().positive().optional(), refreshState: z.enum(["uncertain", "ended"]).optional(),
+  /** A partner key acts for this customer (X-Customer). Read from O11_CUSTOMER with an environment key; never saved. */
+  customer: z.string().trim().min(1).max(200).regex(/^[^\u0000-\u001f\u007f]+$/).optional() });
 export type ToolConfig = z.infer<typeof schema>;
 export function credentialDirectory(profile?: string) {
   const root = process.env.O11_TOOLS_CONFIG_DIR ?? join(homedir(), ".config", "o11-wallet");
@@ -27,7 +29,7 @@ async function regularFile(file: string) {
 export async function readConfig(profile?: string, options: { refresh?: boolean } = {}): Promise<ToolConfig> {
   const selected = profile ?? process.env.O11_TOOLS_PROFILE;
   if (!selected && process.env.O11_TOOLS_URL && process.env.O11_API_KEY)
-    return schema.parse({ baseUrl: process.env.O11_TOOLS_URL, apiKey: process.env.O11_API_KEY });
+    return schema.parse({ baseUrl: process.env.O11_TOOLS_URL, apiKey: process.env.O11_API_KEY, customer: process.env.O11_CUSTOMER || undefined });
   const file = path(profile);
   const stat = await regularFile(file);
   if (!stat) throw new Error("Run o11 login --server URL, or set O11_TOOLS_URL and O11_API_KEY");

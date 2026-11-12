@@ -1,6 +1,6 @@
 {
   "name": "@o11/sdk",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "type": "module",
   "description": "o11 Wallet TypeScript client and o11 command",
   "license": "MIT",

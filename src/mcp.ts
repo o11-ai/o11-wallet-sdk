@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { parseCardAccessUrl } from './contracts/card-access.js';
 import { readConfig, profileTokenProvider } from './config.js';
+import { compactToolCallResult } from './cli-result-file.js';
 import { z } from 'zod';
 import { version } from '../package.json';
 
@@ -63,7 +64,7 @@ export async function serveMcp(profile?: string) {
       catch { throw new Error('Wallet tools could not be listed. Run doctor; no browser was opened.'); }
     });
     server.server.setRequestHandler('tools/call', async ({ params }, context) => {
-      try { return await client.callTool(params, { signal: context.mcpReq.signal }); }
+      try { return await compactToolCallResult(await client.callTool(params, { signal: context.mcpReq.signal }), params.name); }
       catch { throw new Error('Wallet request failed. Check saved access or the existing invocation before retrying.'); }
     });
     return server;

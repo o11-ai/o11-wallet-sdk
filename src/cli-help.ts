@@ -1,9 +1,12 @@
 import { discoveryFirstPageSize, discoveryPageSize } from './contracts/public-api.js';
+import { productionWalletOrigin } from './access-tokens.js';
+
+const optionalServer = `--server URL is optional and defaults to ${productionWalletOrigin}`;
 
 const providerInput = '[--input JSON|@FILE|@-]';
 const executionInput = `TOOL_ID ${providerInput}`;
 const commands = {
-  login: ['--server URL', 'Connect a wallet'],
+  login: ['[--server URL]', 'Connect a wallet'],
   logout: ['', 'End saved access'],
   doctor: ['', 'Check access and readiness'],
   setup: ['[--verify-mcp]', 'Check access and optionally MCP'],
@@ -27,7 +30,7 @@ const commands = {
   status: ['ID [-o NEW_FILE [--overwrite]]', 'Show a call: inputs, state and output'],
   wait: ['ID [--timeout MS] [-o NEW_FILE [--overwrite]]', 'Wait for a call'],
   cancel: ['ID', 'Request cancellation'],
-  history: ['[--limit 1-25] [--since 30m|ISO] [--cursor CURSOR]', 'List running and past calls with totals'],
+  history: ['[--limit 1-25] [--since 30m|2h|1d] [--cursor CURSOR]', 'List running and past calls with totals'],
   'session-id': ['[-j]', 'Generate a task UUID'],
   generate_session_id: ['[-j]', 'Alias for session-id'],
   'run-status': ['[RUN_UUID]', 'Total a task\'s calls, charges and holds'],
@@ -52,7 +55,7 @@ const commands = {
 const quickCommands = ['login', 'discover', 'inspect', 'quote', 'call', 'wait', 'session-id', 'run-status', 'history'] as const;
 const inputFlags = '  --query KEY=VALUE, --path KEY=VALUE, --header "NAME: VALUE"\n  --credential-mode customer --connection ID, --max-cost-micros N';
 const details: Partial<Record<keyof typeof commands, string>> = {
-  login: '  --auth email|browser, --no-browser, --key-stdin, --reauth\n  --client APP, --name NAME, --card ID, --email EMAIL, --task TEXT',
+  login: `  ${optionalServer}\n  --auth email|browser, --no-browser, --key-stdin, --reauth\n  --client APP, --name NAME, --card ID, --email EMAIL, --task TEXT`,
   discover: `  --provider KEY, --cursor CURSOR, --limit N, --detailed\n  --providers lists provider keys for --provider.
   Compact results[] vs --detailed items[]: id and endpoint_id = id; usd_per_call = price.micros / 1000000
     (null for variable prices); name, provider and score match. works, samples, usable_rate, usable_samples
@@ -71,7 +74,7 @@ ${inputFlags.split('\n')[0]!.replace('--query KEY=VALUE, ', '')}\n${inputFlags.s
   --idempotency-key KEY, --allow-write (tools inspect marks effect: write), --accept-recurring
   -o NEW_FILE saves the result and prints a short receipt. Add --detailed for the full receipt.
   -o refuses an existing file before submitting; --overwrite replaces it once the result is saved.
-  Results over 16 KB are saved to a new o11-result-ID.json file; the receipt shows a preview. --detailed prints them.
+  Results over 16 KB are saved to a new o11-result-ID.json file, including with --detailed. The receipt shows a preview.
   If a call is stopped before it answers, do not call again: o11 history --since 10m finds it, then o11 wait ID.
   Example: o11 call crustdata.companies.identify --input '{"domains":["stripe.com"]}'`,
   invoke: `  The request is JSON (inline, a file, or - for stdin) with these fields:
@@ -84,21 +87,24 @@ ${inputFlags.split('\n')[0]!.replace('--query KEY=VALUE, ', '')}\n${inputFlags.s
     runId           Optional task UUID; o11 run-status totals it. searchId and quoteContext are optional.
   Example: o11 invoke '{"toolId":"crustdata.companies.identify","idempotencyKey":"lead-42",
     "input":{"body":{"domains":["stripe.com"]}},"maxCostMicros":"50000"}'
+  A result over 16 KB is saved to o11-result-ID.json. The receipt shows a preview so one read of the output is JSON.
   Most calls are simpler with o11 call, which takes flat fields and sets the key and cap for you.`,
   status: `  Works on running and finished calls: request shows the inputs (secrets redacted), state the progress,
   result the output once it finishes. Generated files are in result.media; fetch a ready one from its downloadUrl.
-  --wait [SECONDS], --detailed with -o, --overwrite to replace an existing -o file`,
-  wait: '  --timeout MS defaults to 60000. Follow nextCommand on timeout.\n  -o NEW_FILE saves the result; --overwrite replaces an existing file. Add --detailed for the full receipt.',
+  --wait [SECONDS], --detailed with -o, --overwrite to replace an existing -o file
+  Results over 16 KB are saved to a file, including with --detailed.`,
+  wait: '  --timeout MS defaults to 60000. Follow nextCommand on timeout.\n  -o NEW_FILE saves the result; --overwrite replaces an existing file. Add --detailed for the full receipt. Results over 16 KB are saved to a file either way.',
   history: `  Lists running and finished calls, newest first. Pass a row's shortId or id to status.
   --limit 1-25 (default 10), --state STATE (queued, executing or waiting for running calls), --tool TOOL_ID, --run-id UUID, --input FILE|-
-  --since 30m|2h|1d|ISO  Only calls from that time on.
-  totals sums the listed calls; complete is false when --cursor has more.
-  --limit above 25 lists 25 and says so; follow cursor for more.
+  --since 30m, 2h, 1d, or a timestamp such as 2026-01-01T00:00:00Z. Only calls from that time on.
+  --cursor is the {"at","id"} value printed by the previous history command, not a page number.
+  totals sums the listed calls; complete is false when another page remains.
+  --limit above 25 lists 25 and says so; pass that cursor for more.
   History covers the whole card. With O11_RUN_ID or --run-id set, it lists only that task's calls.`,
   'run-status': `  Defaults to --run-id or O11_RUN_ID. Each o11 command makes a new run ID unless given one,
   so pass the same one to every call in a task: O11_RUN_ID=UUID o11 call ...
   Take it from o11 session-id or from your first call's runId.`,
-  keys: '  add -l LABEL --server URL --key-stdin\n  list\n  activate -l LABEL\n  remove -l LABEL [-f]',
+  keys: `  add -l LABEL [--server URL] --key-stdin\n  ${optionalServer}\n  list\n  activate -l LABEL\n  remove -l LABEL [-f]`,
   resources: '  list [-p PROVIDER] [-t TYPE] [-s STATE] [-l LIMIT] [--cursor CURSOR]\n  get RESOURCE_ID\n  events RESOURCE_ID [-l LIMIT] [--cursor CURSOR]\n  release RESOURCE_ID [-y]',
   report: '  --invocation ID, --run UUID, --note FILE, --request-id UUID\n  --retry REQUEST_UUID resumes the saved report.',
   topup: '  --request-id UUID retries the same checkout. An amount is in USD.',
@@ -113,6 +119,8 @@ export function commandSynopsis(program: string, command: string) {
 }
 
 export function unknownCommand(program: string, value: string) {
+  if (value.startsWith('-'))
+    return `Unknown command "${value}". Put flags after the command, for example ${program} history --limit 25. Run ${program} history --help.`;
   if (!/^[a-z0-9_-]{1,40}$/i.test(value)) return `Unknown command. Run ${program} --help.`;
   const alternatives = Object.keys(commands).filter(name => name.startsWith(value.toLowerCase()));
   const suggestion = value === 'list' || value === 'ls' || value === 'find' ? 'discover' : value === 'run' ? 'call'

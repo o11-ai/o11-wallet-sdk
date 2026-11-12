@@ -5,11 +5,11 @@ import { isRecord } from "./paths.js";
 import { parseSchedule, storeSchedule, type ScheduleSpec } from "./schedule.js";
 
 /**
- * The one file the CLI owns in a workspace folder: what only this computer knows (which modules this folder runs,
- * where schedules were created, which release was reviewed). The team's notes and settings live in the wallet.
+ * The one file the CLI owns in a workspace folder: what only this computer knows (which playbooks this folder runs,
+ * where schedules were created, which release was reviewed). The team's files and settings live in the wallet.
  */
 export const STATE_FILE = "ostack.json";
-export const STATE_FORMAT = 3;
+export const STATE_FORMAT = 4;
 /** Where 0.6 and older kept everything locally. Kept after the upgrade so `setup import` can copy it to the team. */
 export const PREVIOUS_STATE_FILE = "ostack.pre-0.7.json";
 
@@ -22,17 +22,23 @@ export type State = {
   format: number;
   /** The ostack version whose changes this person reviewed with ostack-setup. */
   reviewed: string;
-  modules: string[];
-  /** Workflow schedules by ref ("gtm/outbound"). A workflow without an entry uses its module's default, unscheduled. */
+  playbooks: string[];
+  /**
+   * Workflow schedules by ref ("gtm/outbound"), with the audience after an @ for audiences other than default
+   * ("gtm/outbound@customers"). A workflow without an entry uses its playbook's default, unscheduled.
+   */
   schedules: Record<string, ScheduleState>;
 };
 
-export function defaultState(version: string, modules: string[]): State {
-  return { format: STATE_FORMAT, reviewed: version, modules: [...modules].sort(), schedules: {} };
+export function defaultState(version: string, playbooks: string[]): State {
+  return { format: STATE_FORMAT, reviewed: version, playbooks: [...playbooks].sort(), schedules: {} };
 }
 
-/** Reads ostack.json. Files from 0.6 and older are upgraded in place; `migrated` tells the caller to save a backup and the new layout. */
-export async function readState(root: string): Promise<{ state: State; migrated: boolean; raw: unknown }> {
+/**
+ * Reads ostack.json. Older layouts are upgraded in place: `migrated` tells the caller to save the new layout, and
+ * `backup` that the file came from 0.6 or older, whose settings `setup import` still reads from a saved copy.
+ */
+export async function readState(root: string): Promise<{ state: State; migrated: boolean; backup: boolean; raw: unknown }> {
   const path = join(root, STATE_FILE);
   let raw: unknown;
   try {
@@ -41,9 +47,11 @@ export async function readState(root: string): Promise<{ state: State; migrated:
     throw new OstackError("invalid_workspace", `${path} is not valid JSON. Restore it from git or run "o11 ostack init" again.`);
   }
   if (!isRecord(raw)) throw new OstackError("invalid_workspace", `${path} must be a JSON object.`);
-  const modules = Array.isArray(raw.modules)
-    ? raw.modules.filter((item): item is string => typeof item === "string")
-    : isRecord(raw.modules) ? Object.keys(raw.modules) : ["gtm"];
+  // 0.7 called playbooks modules.
+  const listed = raw.playbooks ?? raw.modules;
+  const playbooks = Array.isArray(listed)
+    ? listed.filter((item): item is string => typeof item === "string")
+    : isRecord(listed) ? Object.keys(listed) : ["gtm"];
   const schedules: Record<string, ScheduleState> = {};
   if (isRecord(raw.schedules)) {
     for (const [ref, value] of Object.entries(raw.schedules)) {
@@ -60,10 +68,11 @@ export async function readState(root: string): Promise<{ state: State; migrated:
   const state: State = {
     format: STATE_FORMAT,
     reviewed: typeof raw.reviewed === "string" ? raw.reviewed : "0.0.0",
-    modules: modules.sort(),
+    playbooks: playbooks.sort(),
     schedules,
   };
-  return { state, migrated: raw.format !== STATE_FORMAT, raw };
+  const format = typeof raw.format === "number" ? raw.format : 0;
+  return { state, migrated: format !== STATE_FORMAT, backup: format < 3, raw };
 }
 
 export async function writeState(root: string, state: State): Promise<void> {

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { z } from 'zod';
 import { readConfig, saveConfig, clearConfig } from './config.js';
-import { walletOrigin } from './access-tokens.js';
+import { walletServer } from './access-tokens.js';
 
 const labelSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const registrySchema = z.strictObject({ labels: z.array(labelSchema), active: labelSchema.nullable(), useDefault: z.boolean().optional() });
@@ -109,6 +109,9 @@ export function keyArguments(args: string[]) {
   if (operation === 'add' && Boolean(options.key) === Boolean(options.stdin)) throw new Error('Supply -k KEY or --key-stdin once');
   return { operation, ...options };
 }
+export function keyWalletOrigin(server?: string) {
+  return walletServer(server || process.env.O11_TOOLS_URL || undefined);
+}
 export async function manageKeys(args: string[]) {
   const options = keyArguments(args);
   // Confirm before taking the store lock; noninteractive clients must opt in with -f.
@@ -122,9 +125,7 @@ export async function manageKeys(args: string[]) {
   if (options.operation === 'add') {
     const key = options.stdin ? (await Bun.stdin.text()).trim() : options.key!;
     if (!/^o11_[A-Za-z0-9_-]+$/.test(key)) throw new Error('Expected an o11 API key');
-    const server = options.server ?? process.env.O11_TOOLS_URL;
-    if (!server) throw new Error('Supply --server URL (or O11_TOOLS_URL) for this key');
-    const origin = walletOrigin(server);
+    const origin = keyWalletOrigin(options.server);
     // Like login --key-stdin: save only a key the server accepts. Checked before the store lock.
     const { ToolClient } = await import('./client.js');
     await new ToolClient({ baseUrl: origin, apiKey: key }).cards();

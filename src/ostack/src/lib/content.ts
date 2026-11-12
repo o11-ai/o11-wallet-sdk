@@ -1,8 +1,8 @@
 import { CONTENT } from "../../content/index.js";
 
 /**
- * The baseline steps, setup questions, packs and skills ship inside the CLI, so an update of the o11 CLI
- * updates all of them at once. Paths are relative to packages/ostack/content, such as "modules/gtm/steps/write.md".
+ * The baseline steps, setup questions, presets and skills ship inside the CLI, so an update of the o11 CLI
+ * updates all of them at once. Paths are relative to packages/ostack/content, such as "playbooks/gtm/steps/write.md".
  */
 export function readContent(path: string): string | undefined {
   return CONTENT[path];

@@ -4,11 +4,15 @@ import { parseCardAccessUrl } from "./contracts/card-access.js";
 
 export const tokensSchema = z.object({ access_token: z.string().startsWith("o11_"),
   refresh_token: z.string().min(40).optional(), expires_in: z.number().int().positive(), task: z.string().optional() });
+export const productionWalletOrigin = "https://go.o11.ai";
 export function walletOrigin(value: string) {
   new ToolClient({ baseUrl: value, apiKey: "o11_validation" });
   const url = new URL(value);
   if (url.pathname !== "/") throw new Error("Use the wallet origin without a path");
   return url.origin;
+}
+export function walletServer(explicit?: string) {
+  return walletOrigin(explicit ?? productionWalletOrigin);
 }
 export async function tokenRequest(baseUrl: string, input: Record<string, string>, resource?: string, signal?: AbortSignal) {
   const origin = walletOrigin(baseUrl);

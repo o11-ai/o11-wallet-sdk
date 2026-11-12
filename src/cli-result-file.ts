@@ -26,6 +26,57 @@ export function resultPreview(value: unknown) {
   return preview(value, 0);
 }
 
+export function largeResultNote(path: string, bytes: number) {
+  return `The result is ${Math.round(bytes / 1024)} KB, so it was saved to ${path}. Read fields from that file.`;
+}
+
+type SavedResult = { path: string; bytes: number };
+type Spillable = { result?: unknown; outputFile?: { path: string; saved: boolean; error?: string } };
+
+/** Drops a spilled payload from the receipt so one 64 KB read of stdout is valid JSON. */
+export function spilledResult<T extends object>(value: T, file: SavedResult, payload: unknown) {
+  const { result: _omitted, outputFile, ...rest } = value as T & Spillable;
+  return {
+    ...rest,
+    outputFile: outputFile ?? { path: file.path, saved: true as const },
+    resultBytes: file.bytes,
+    resultPreview: resultPreview(payload),
+    note: largeResultNote(file.path, file.bytes),
+  };
+}
+
+/** Same 16 KB spill as call/status/wait. A result that fits stays on the receipt. */
+export async function presentLargeResult<T extends object>(value: T, name: string) {
+  const payload = 'result' in value ? value.result : undefined;
+  const file = await saveLargeResult(payload, name);
+  return file ? spilledResult(value, file, payload) : value;
+}
+
+function toolErrorFlag(value: unknown) {
+  if (typeof value !== 'object' || value === null || !('isError' in value)) return undefined;
+  return typeof value.isError === 'boolean' ? value.isError : undefined;
+}
+
+/**
+ * MCP tools/call writes one JSON-RPC line. Above 16 KB that line no longer fits in one pipe read,
+ * so the full result goes to a file and the line carries the receipt.
+ */
+export async function compactToolCallResult<T>(value: T, name: string): Promise<T | {
+  content: [{ type: 'text'; text: string }];
+  structuredContent: ReturnType<typeof spilledResult>;
+  isError?: boolean;
+}> {
+  const file = await saveLargeResult(value, name);
+  if (!file) return value;
+  const receipt = spilledResult({}, file, value);
+  const isError = toolErrorFlag(value);
+  return {
+    content: [{ type: 'text', text: JSON.stringify(receipt) }],
+    structuredContent: receipt,
+    ...(isError === undefined ? {} : { isError }),
+  };
+}
+
 /**
  * Saves a large settled result to a new private file in the working directory and returns its path,
  * or undefined when it is small enough to print or cannot be saved (the caller then prints it in full).

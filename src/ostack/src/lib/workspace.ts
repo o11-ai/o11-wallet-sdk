@@ -6,12 +6,19 @@ import { effectiveSettings, loadSetup, type RemoteSettings, type SetupSnapshot }
 import { backupPreviousState, readState, STATE_FILE, writeState, type State } from "./state.js";
 import { checkTimeZone, systemTimeZone } from "./time.js";
 
-/** This person's own notes on this computer, which take priority over everything in the wallet. */
+/** This person's own files on this computer, which take priority over everything in the wallet. */
 export const LOCAL_DIR = "custom.local";
-/** Where 0.6 and older kept the team's notes. `setup import` copies them to the wallet. */
+/** Where 0.6 and older kept the team's files. `setup import` copies them to the wallet. */
 export const LEGACY_CUSTOM_DIR = "custom";
+/** Where 0.6 and older kept campaign folders on this computer, and 0.7 kept them at the top of the team setup. */
 export const LEGACY_CAMPAIGNS_DIR = "campaigns";
-export const DEFAULT_CAMPAIGN = "main";
+/** The audience a run uses unless it names another. Its files sit directly in the playbook's folder (gtm/). */
+export const DEFAULT_AUDIENCE = "default";
+
+/** Where an audience's own files live in the team's setup: gtm/audiences/customers/ for the customers audience. */
+export function audienceFolder(playbook: string, audience: string): string {
+  return `${playbook}/audiences/${audience}`;
+}
 
 export type LocalWorkspace = { root: string; state: State; migrated: boolean };
 export type Workspace = LocalWorkspace & { setup: SetupSnapshot; settings: RemoteSettings; timezone: string };
@@ -35,16 +42,16 @@ export async function loadLocalWorkspace(): Promise<LocalWorkspace> {
     const hint = known.length > 0 ? ` Known workspaces: ${known.join(", ")}. cd into one, or pass --workspace.` : ' Run "o11 ostack init" or pass --workspace.';
     throw new OstackError("no_workspace", `No ${STATE_FILE} found in ${start} or its parents.${hint}`, { known });
   }
-  const { state, migrated, raw } = await readState(root);
+  const { state, migrated, backup, raw } = await readState(root);
   if (migrated) {
-    await backupPreviousState(root, raw);
+    if (backup) await backupPreviousState(root, raw);
     await writeState(root, state);
   }
   rememberWorkspace(root);
   return { root, state, migrated };
 }
 
-/** The workspace folder plus the team's notes and settings from the wallet (or its saved copy when offline). */
+/** The workspace folder plus the team's files and settings from the wallet (or its saved copy when offline). */
 export async function loadWorkspace(): Promise<Workspace> {
   const local = await loadLocalWorkspace();
   const setup = await loadSetup(local.root);
@@ -58,13 +65,13 @@ export async function loadWorkspace(): Promise<Workspace> {
   return { ...local, setup, settings, timezone };
 }
 
-export function enabledModules(workspace: LocalWorkspace): string[] {
-  return [...workspace.state.modules].sort();
+export function enabledPlaybooks(workspace: LocalWorkspace): string[] {
+  return [...workspace.state.playbooks].sort();
 }
 
-export function requireModule(workspace: LocalWorkspace, id: string): void {
-  if (!workspace.state.modules.includes(id)) {
-    throw new OstackError("module_not_enabled", `The ${id} module is not enabled in this workspace. Run "o11 ostack modules add ${id}".`);
+export function requirePlaybook(workspace: LocalWorkspace, id: string): void {
+  if (!workspace.state.playbooks.includes(id)) {
+    throw new OstackError("playbook_not_enabled", `The ${id} playbook is not enabled in this workspace. Run "o11 ostack playbooks add ${id}".`);
   }
 }
 

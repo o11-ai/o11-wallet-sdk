@@ -2,9 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { OstackError } from "../lib/errors.js";
+import { WALLET_LAUNCHER_DIR, walletOnPath } from "../lib/o11-path.js";
 import { print } from "../lib/output.js";
+import { remote } from "../lib/remote.js";
 import { VERSION } from "../lib/version.js";
-import { enabledModules, loadWorkspace } from "../lib/workspace.js";
+import { enabledPlaybooks, loadWorkspace } from "../lib/workspace.js";
 import { setupStatus } from "./setup.js";
 import { SKILL_HOSTS } from "./skills.js";
 
@@ -14,11 +16,40 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** The o11 CLI release running this ostack, when the CLI says. */
+function cliRelease(): string | null {
+  try {
+    return remote().cliVersion ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The sign-in on its own, for when there is no workspace folder to load the team's setup into. */
+async function loginCheck(): Promise<Check> {
+  try {
+    const setup = await remote().setup();
+    return { check: "login", status: "ok", detail: `${setup.me.email} in ${setup.workspace.name} (${setup.canManage ? "owner or admin" : "member"})` };
+  } catch (error) {
+    const offline = error instanceof OstackError && error.code === "offline";
+    return { check: "login", status: offline ? "warn" : "fail", detail: message(error) };
+  }
+}
+
 /** Checks the sign-in, the installed skills, this folder, the team's setup and schedules. */
 export async function doctorCommand(): Promise<void> {
   const checks: Check[] = [];
-  const onPath = Bun.which("o11");
-  checks.push({ check: "o11 on PATH", status: onPath ? "ok" : "warn", detail: onPath ?? "Not found. Scheduled runs call o11 by name; install it from docs.o11.ai." });
+  const { path: onPath, wallet } = walletOnPath();
+  const cliVersion = cliRelease();
+  checks.push({
+    check: "o11 on PATH",
+    status: wallet ? "ok" : "warn",
+    detail: !onPath
+      ? "Not found. Scheduled runs call o11 by name; install it as https://go.o11.ai/skill.md describes, then put its launcher's folder on PATH."
+      : wallet
+        ? `${onPath}${cliVersion ? ` (o11 ${cliVersion}, with ostack ${VERSION} inside)` : ""}`
+        : `${onPath} is not the o11 wallet CLI, and scheduled runs would call it. Put the wallet launcher's folder (usually ${WALLET_LAUNCHER_DIR}) first on PATH.`,
+  });
 
   const hosts = Object.entries(SKILL_HOSTS).flatMap(([host, dir]) => {
     const marker = join(homedir(), dir, "ostack-setup", ".o11-ostack");
@@ -45,14 +76,14 @@ export async function doctorCommand(): Promise<void> {
       status: setup.cards.some((card) => card.status === "active") ? "ok" : "warn",
       detail: setup.cards.length > 0 ? setup.cards.map((card) => `${card.name} (${card.status})`).join(", ") : "No card for this login. Paid lookups need one; create it in the wallet.",
     });
-    checks.push({ check: "workspace", status: "ok", detail: `${workspace.root} (modules: ${enabledModules(workspace).join(", ") || "none"})` });
+    checks.push({ check: "workspace", status: "ok", detail: `${workspace.root} (playbooks: ${enabledPlaybooks(workspace).join(", ") || "none"})` });
     const status = await setupStatus(workspace);
     const open = [
       status.pending_questions.length > 0 && `setup questions to ask: ${status.pending_questions.map((question) => question.id).join(", ")}`,
       status.team_pending.length > 0 && `an owner or admin still has to answer: ${status.team_pending.join(", ")}`,
       status.changed_defaults.length > 0 && `${status.changed_defaults.length} customized step(s) whose default changed`,
-      status.unknown_steps.length > 0 && `${status.unknown_steps.length} note(s) for unknown steps`,
-      status.local_setup_to_import > 0 && `${status.local_setup_to_import} note(s) from before teams to import (o11 ostack setup import)`,
+      status.unknown_steps.length > 0 && `${status.unknown_steps.length} file(s) for unknown steps`,
+      status.local_setup_to_import > 0 && `${status.local_setup_to_import} file(s) from before teams to import (o11 ostack setup import)`,
     ].filter(Boolean);
     checks.push({
       check: "customizations",
@@ -70,9 +101,12 @@ export async function doctorCommand(): Promise<void> {
     });
   } catch (error) {
     const signedOut = error instanceof OstackError && ["not_signed_in", "forbidden", "offline"].includes(error.code);
+    // No workspace folder yet: still say whether this person is signed in, since setup signs in before creating one.
+    if (!signedOut) checks.push(await loginCheck());
     checks.push({ check: signedOut ? "login" : "workspace", status: signedOut ? "fail" : "warn", detail: message(error) });
   }
 
-  print({ ok: checks.every((check) => check.status !== "fail"), version: VERSION, checks });
+  // `version` is ostack's own release; `o11_version` is the CLI that ships it (what `o11 --version` prints).
+  print({ ok: checks.every((check) => check.status !== "fail"), version: VERSION, o11_version: cliVersion, checks });
   if (checks.some((check) => check.status === "fail")) process.exitCode = 1;
 }

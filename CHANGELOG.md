@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.37
+
+- `o11 ostack` 0.8: files, presets and playbooks replace notes, packs and modules (the old commands still work). Audiences with their own templates and follow-ups, A/B testing across the templates in use, and per-template results on each run. Each CRM record keeps `o11_audience`, `o11_template` and `o11_follow_up`.
+- New playbook: launch-videos (`o11 ostack playbooks add launch-videos`).
+
 ## 0.1.36
 
 - Add `o11 ostack`: outbound workflows for coding agents, with the team's setup kept in your workspace. `o11 ostack skills install` adds the skills to Claude Code, Codex, Cursor or Gemini, and updates refresh them.

@@ -8,11 +8,12 @@ import { readFile, open, readlink, realpath, unlink } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { version } from '../package.json';
-import { browserLogin } from './browser-login.js';
+import { browserLogin, keyStdinServer } from './browser-login.js';
 import { managementOperationSchemas } from './contracts/agent-permissions.js';
 import { searchArguments } from './cli-search.js';
 import { invocationHistoryInputSchema, invocationShortIdSchema } from './contracts/invocation-lifecycle.js';
-import { executionArguments, executeInvocation, historyTotals, invocationFollowup, sinceTimestamp } from './cli-execution.js';
+import { executionArguments, executeInvocation, historyCursor, historyTotals, invocationFollowup, sinceTimestamp } from './cli-execution.js';
+import { presentLargeResult } from './cli-result-file.js';
 import { commandHelp, commandSynopsis, compactInspection, inspectArguments, isWalletCommand, unknownCommand } from './cli-help.js';
 import { executeQuote, quoteArguments } from './cli-call.js';
 import { resourceArguments, resourceCommand } from './cli-resources.js';
@@ -126,6 +127,8 @@ function validateArguments() {
     discoveryArguments();
   } else if (command === 'search') {
     searchArguments(args);
+  } else if (command?.startsWith('-')) {
+    throw new Error(unknownCommand(program, command));
   }
 }
 const historyLimitMax = invocationHistoryInputSchema.shape.limit.unwrap().maxValue ?? 25;
@@ -141,7 +144,7 @@ function historyArguments() {
   for (let index = 0; index < args.length; index++) {
     const flag = args[index]!;
     const name = Object.hasOwn(names, flag) ? names[flag] : undefined;
-    if (!name || filters[name] !== undefined) throw new Error('Use history [--limit 1-25] [--cursor CURSOR] [--state STATE] [--tool ID] [--since 30m|2h|ISO] [--run-id UUID]');
+    if (!name || filters[name] !== undefined) throw new Error('Use history [--limit 1-25] [--cursor CURSOR] [--state STATE] [--tool ID] [--since 30m|2h|1d] [--run-id UUID]');
     const value = args[++index];
     if (!value || value.startsWith('-')) throw new Error(`Supply a value after ${flag}`);
     if (name === 'limit' && (!/^\d+$/.test(value) || Number(value) < 1))
@@ -149,14 +152,19 @@ function historyArguments() {
     // Asking for more than a page holds is common; serve the largest page and say how to get the rest.
     if (name === 'limit' && Number(value) > historyLimitMax)
       notice = `--limit ${value} is above the page maximum, so ${historyLimitMax} calls are listed. Pass --cursor CURSOR for more.`;
-    filters[name] = name === 'limit' ? Math.min(Number(value), historyLimitMax) : name === 'since' ? sinceTimestamp(value) : value;
+    filters[name] = name === 'limit' ? Math.min(Number(value), historyLimitMax) : name === 'since' ? sinceTimestamp(value) : name === 'cursor' ? historyCursor(value) : value;
   }
   return { input: invocationHistoryInputSchema.parse({ ...filters, ...(runId ? { runId } : {}) }), notice };
 }
 async function historyInput() {
   const options = historyArguments();
   if (!options.values) return options;
-  const input = invocationHistoryInputSchema.parse(await jsonInput(options.values));
+  const raw = await jsonInput(options.values);
+  // A bare number is valid JSON, so it used to reach the object schema and say "expected object".
+  if (typeof raw === 'number')
+    throw new Error('History does not take a number. Use --limit N, from 1 to 25. The next page uses --cursor and the cursor the previous history command printed.');
+  const input = invocationHistoryInputSchema.parse(raw);
+  if (input.cursor !== undefined) historyCursor(input.cursor);
   if (runId && input.runId && input.runId !== runId) throw new Error('History runId must match --run-id or O11_RUN_ID');
   return { input: invocationHistoryInputSchema.parse({ ...input, ...(runId ? { runId } : {}) }), notice: undefined };
 }
@@ -301,6 +309,7 @@ function safeHttpError(error: ToolClientError) {
       terminal && code === 'INVALID_INPUT' && message ? ' Change the request before trying again.' : ''}`
     : `${head} ${said}Check access, request inputs, or the existing invocation.`;
 }
+// The wallet API applies publicFacing to every response and error it sends, so the CLI prints them as received.
 function print(value: unknown, detailed = false) { console.log(JSON.stringify(value, null, detailed ? 2 : undefined)); }
 
 try {
@@ -398,14 +407,12 @@ try {
       if (!connected.profile && !profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
       print(connected);
     } else {
-    if (args.length !== 3 || args[0] !== '--server' || args[2] !== '--key-stdin')
-      throw new Error('Use login --server URL --key-stdin');
-    const config = { baseUrl: required(1), apiKey: (await Bun.stdin.text()).trim() };
-    const client = new ToolClient(config);
-    await client.cards();
-    await saveConfig(config, profile);
-    if (!profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
-    print({ connected: true, server: new URL(config.baseUrl).origin });
+      const config = { baseUrl: keyStdinServer(args), apiKey: (await Bun.stdin.text()).trim() };
+      const client = new ToolClient(config);
+      await client.cards();
+      await saveConfig(config, profile);
+      if (!profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
+      print({ connected: true, server: new URL(config.baseUrl).origin });
     }
   } else {
     profile ??= process.env.O11_TOOLS_PROFILE ?? (process.env.O11_TOOLS_URL || process.env.O11_API_KEY || process.env.O11_CLI_DEFAULT_PROFILE ? undefined : await activeKeyProfile());
@@ -484,7 +491,8 @@ try {
       case 'invoke': {
         const request = publicOperationSchemas.invoke.parse(await jsonInput());
         const receipt = await client.invoke(request);
-        result = { ...receipt, ...invocationFollowup(receipt, { ...executionContext, runId: request.runId ?? client.runId }) };
+        const printed = { ...receipt, ...invocationFollowup(receipt, { ...executionContext, runId: request.runId ?? client.runId }) };
+        result = await presentLargeResult(printed, receipt.shortId ?? receipt.id);
         break;
       }
       case 'call': case 'status': case 'wait': {

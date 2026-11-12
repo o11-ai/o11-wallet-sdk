@@ -1,0 +1,1 @@
+Read new mail in Outlook on the web: check the Inbox (and Other or Junk for replies) for messages from lead addresses or in conversations we started. Use a stable key such as the item id from the URL, or "<from>|<subject>|<received time>", as its message id on the record, so re-reading never handles it twice (the inbox step).

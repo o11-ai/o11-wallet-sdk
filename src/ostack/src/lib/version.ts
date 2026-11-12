@@ -1,5 +1,5 @@
 /** The ostack release bundled in this CLI. Keep it equal to packages/ostack/package.json. */
-export const VERSION = "0.7.0";
+export const VERSION = "0.8.0";
 
 /** Compares dotted versions numerically: negative when a < b, zero when equal. */
 export function compareVersions(a: string, b: string): number {
