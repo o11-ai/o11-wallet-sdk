@@ -4,24 +4,26 @@ Asked by the ostack-setup skill when the launch-videos playbook is enabled; thei
 
 These are the team's: an owner or admin answers them once, and their files are team files (`o11 ostack files write <path>`). "Writes" names the file path.
 
+Together these files are the team's brand kit, and the brand kit holds only what is true for every video. Anything about one video (its audience, takeaway, story, screens, length or budget) belongs in that video's brief in o11, never in these files.
+
 ## brand
 Since: 0.8.0
-Ask: What's the product called, and what should the last line of every video say (the one call to action, such as "Try it free at acme.com")? Where are your logo mark (SVG or PNG) and your font file?
-Default: The name and offer from `company.md`; the system font when there's no font file.
-Writes: `launch-videos/brand.md`: the name exactly as written, the call to action in their words, where the mark and font files are, and any colors or words to avoid.
+Ask: What's the product called, and what should the last line of every video say (the one call to action, such as "Try it free at acme.com")? Where are your logo mark (SVG or PNG) and your font file? Is there a design.md or brand guide in your repo I should follow?
+Default: The name and offer from `company.md`; colors, fonts and style rules from a `design.md` (any case), brand guide or theme file in the repo when there is one; the system font when there's no font file.
+Writes: `launch-videos/brand.md`: the name exactly as written, the call to action in their words, where the mark and font files are, and the design every video follows: colors, fonts and weights, and style rules (corners, motion, what to avoid), each with where it came from.
 Check: Read the end card's two lines back to them. Confirm the mark and font files open.
 
 ## formats
 Since: 0.8.0
 Ask: Which videos do you want: launch films (people talking to camera), reels (one selfie clip, vertical), product demos (your app on screen), or a mix? Where will they be posted, and how long should they be?
 Default: Launch films at 1920×1080 for posts and sites, 30 to 90 seconds; reels at 1080×1920 for Reels, Shorts and TikTok, under 45 seconds.
-Writes: `launch-videos/deliver.md`: formats, sizes, lengths, where each is posted, and where finished files go (default: the user's Downloads).
+Writes: `launch-videos/deliver.md`: for each format they make, its size, usual length and where it is posted, and where review cuts go (default: the user's Downloads). Defaults per format only; one video's length goes in its brief.
 
 ## story
 Since: 0.8.0
-Ask: Who are these videos for, and what should someone remember after watching? Anything that must always or never be said (claims, competitors, prices)?
+Ask: Anything your videos must always or never say (claims, competitors, prices), and words you prefer for your product?
 Default: From `company.md`: one idea per video, said in the founder's own words.
-Writes: `launch-videos/script.md`: the audience, the one takeaway, words to use and avoid, and claims that need proof.
+Writes: `launch-videos/script.md`: words to use and avoid, claims that need proof, and anything always or never said. Not one video's audience or takeaway: those go in its brief.
 Check: Draft five headlines for a recent launch and ask which sound like them.
 
 ## product

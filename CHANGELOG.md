@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.40
+
+**New**
+- `o11 ostack launch-videos` works with videos: `videos` lists them, `video <id>` shows one (`--wait` holds until a template is picked), `update --part name=text` adds a brief part a kind of video needs, and `upload <video-id> <cut> [<other shapes>...]` uploads every shape of a cut as one version, with its preview and poster.
+- Setup ends with one optional question offering Ostack. A yes installs its skills; a no changes nothing.
+
 ## 0.1.39
 
 **New**

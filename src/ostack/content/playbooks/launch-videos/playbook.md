@@ -21,6 +21,7 @@ films the real product: its screens captured from the running app, a camera that
 a cursor, and generated narration. All three pass the same audits, so nothing ever shakes.
 
 Each video is a folder on the user's computer (`o11 ostack launch-videos new <name> --format irl|reel|product-demo`), made from
-the renderer kit. Clips, narration, renders and the user's sign-in stay in that folder; only short text files (the team's
-brand, voice and rules) live in the o11 workspace. Voice, transcription, music and sound come from wallet tools, quoted
+the renderer kit. Clips, narration, renders and the user's sign-in stay in that folder. In the o11 workspace live the team's
+short text files (brand, voice and rules) and every video's page: its brief, its template (a film from the o11 library), and every
+finished cut the agent uploads as a version, which the team watches and downloads on the Launch videos page. Voice, transcription, music and sound come from wallet tools, quoted
 before anything paid runs. Workflows run on request; they have no schedule.

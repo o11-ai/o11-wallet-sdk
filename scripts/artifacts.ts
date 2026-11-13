@@ -7,7 +7,7 @@ import { CONTENT } from '../../packages/ostack/content/index.ts';
 export const packageName = '@o11/sdk';
 export const contractFiles = ['index', 'money', 'accounts', 'receipts', 'resource-plan', 'public-api', 'cli-version', 'card-access', 'agent-permissions',
   'execution-account', 'provider-authorization', 'supplier-capacity', 'supplier-price-reference', 'published-tariff', 'published-input', 'purchases', 'product-search', 'agent-guidance', 'reports', 'report-values',
-  'invocation-lifecycle', 'invocation-run', 'result-outcome', 'record-output-contracts', 'email-confidence', 'health', 'decision-evidence', 'onboarding', 'playbooks'] as const;
+  'invocation-lifecycle', 'invocation-run', 'result-outcome', 'record-output-contracts', 'email-confidence', 'health', 'decision-evidence', 'onboarding', 'playbooks', 'ostack-videos'] as const;
 export const sdkSourceFiles = ['client', 'cli', 'cli-help', 'cli-inspect', 'cli-call', 'cli-wallet', 'cli-topup', 'topup-wait', 'cli-keys', 'cli-execution', 'cli-result-file', 'cli-report', 'cli-resources', 'cli-search', 'invocation-wait', 'call-stream', 'call-streamed', 'client-errors', 'config', 'browser-login', 'access-tokens', 'token-provider', 'mcp', 'login-lock', 'login-terminal', 'email-login', 'setup', 'cli-update', 'cli-auto-update', 'cli-ostack', 'cli-batch', 'cli-batch-rows', 'cli-install'] as const;
 /** ostack ships inside the CLI. Its sources and bundled markdown are mirrored under src/ostack/ at their package paths. */
 export const ostackSourceFiles = [
@@ -19,11 +19,14 @@ export const ostackSourceFiles = [
   'src/playbooks/gtm/audience-settings', 'src/playbooks/gtm/audiences-command', 'src/playbooks/gtm/homepage-check',
   'src/playbooks/gtm/index', 'src/playbooks/gtm/ledger-command', 'src/playbooks/gtm/settings',
   'src/playbooks/gtm/tam-command', 'src/playbooks/index', 'src/playbooks/launch-videos/index',
-  'src/playbooks/launch-videos/kit', 'src/playbooks/types', 'content/index', 'content/kits', 'content/markdown.d'
+  'src/playbooks/launch-videos/kit', 'src/playbooks/launch-videos/library', 'src/playbooks/launch-videos/media',
+  'src/playbooks/launch-videos/videos', 'src/playbooks/types', 'content/index', 'content/kits', 'content/markdown.d'
 ] as const;
 /** Every markdown file bundled into the CLI, read from the generated packages/ostack/content/index.ts. */
 export const ostackContentFiles = Object.keys(CONTENT).sort().map(path => `content/${path}`);
-export const ostackFiles = [...ostackSourceFiles.map(name => `src/ostack/${name}.ts`), ...ostackContentFiles.map(path => `src/ostack/${path}`)];
+/** Data files ostack's sources import, such as the launch-videos film library. */
+export const ostackDataFiles = ['content/playbooks/launch-videos/library.json'] as const;
+export const ostackFiles = [...ostackSourceFiles.map(name => `src/ostack/${name}.ts`), ...[...ostackContentFiles, ...ostackDataFiles].map(path => `src/ostack/${path}`)];
 export const reviewedFiles = ['client.js', 'cli.js', 'wallet-cli.js', 'package.json', 'LICENSE', 'README.md', 'CHANGELOG.md',
   ...sdkSourceFiles.map(name => `src/${name}.ts`),
   ...contractFiles.map(name => `src/contracts/${name}.ts`),

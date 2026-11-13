@@ -1,8 +1,11 @@
 import { z } from 'zod';
-import { OstackError, runOstack, type PlaybookRemote } from './ostack/src/index.js';
+import { OstackError, runOstack, type PlaybookRemote, type VideoRemote } from './ostack/src/index.js';
 import {
   playbookFileSchema, playbookFileVersionSchema, playbookSettingsSchema, playbookSetupSchema, runEndedSchema, runStartedSchema, skillsInstalledSchema,
 } from './contracts/playbooks.js';
+import {
+  videoDetailSchema, videoListSchema, videoUploadPartSchema, videoVersionStartedSchema,
+} from './contracts/ostack-videos.js';
 import { profileTokenProvider, readConfig } from './config.js';
 import { walletOrigin } from './access-tokens.js';
 import { version } from '../package.json';
@@ -36,14 +39,19 @@ export function walletRemote(profile: string | undefined): PlaybookRemote {
     }
     return config;
   };
+  // JSON bodies, or raw bytes for one part of a video upload, which gets longer to arrive.
   const request = async (method: Method, path: string, body?: unknown): Promise<unknown> => {
     const saved = await load();
     const tokens = profileTokenProvider(profile, saved);
     let token = await tokens.getAccessToken();
+    const bytes = body instanceof Uint8Array;
     const send = () => fetch(new URL(path, walletOrigin(saved.baseUrl)), {
-      method, redirect: 'error', signal: AbortSignal.timeout(20_000),
-      headers: { Authorization: `Bearer ${token}`, ...(saved.customer ? { 'X-Customer': saved.customer } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      method, redirect: 'error', signal: AbortSignal.timeout(bytes ? 300_000 : 20_000),
+      headers: {
+        Authorization: `Bearer ${token}`, ...(saved.customer ? { 'X-Customer': saved.customer } : {}),
+        ...(body === undefined ? {} : { 'Content-Type': bytes ? 'application/octet-stream' : 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: bytes ? (body as Uint8Array<ArrayBuffer>) : JSON.stringify(body) }),
     });
     // Only an unreachable wallet counts as offline. A login that ended or was revoked never falls back to the saved copy.
     const reach = async () => {
@@ -89,6 +97,38 @@ export function walletRemote(profile: string | undefined): PlaybookRemote {
     },
     async reportInstall(input) {
       await request('POST', '/v1/ostack/installs', skillsInstalledSchema.parse(input));
+    },
+    videos: videoRemote(request),
+  };
+}
+
+/** The workspace's videos and the three-step version upload: start, one request per part of each file, complete. */
+function videoRemote(request: (method: Method, path: string, body?: unknown) => Promise<unknown>): VideoRemote {
+  const id = (value: string) => z.uuid().parse(value);
+  return {
+    async list() {
+      return videoListSchema.parse(await request('GET', '/v1/ostack/videos')).videos;
+    },
+    async get(videoId) {
+      return videoDetailSchema.parse(await request('GET', `/v1/ostack/videos/${id(videoId)}`));
+    },
+    async create(input) {
+      return videoDetailSchema.parse(await request('POST', '/v1/ostack/videos', input));
+    },
+    async update(videoId, patch) {
+      return videoDetailSchema.parse(await request('PATCH', `/v1/ostack/videos/${id(videoId)}`, patch));
+    },
+    async startVersion(videoId, input) {
+      return videoVersionStartedSchema.parse(await request('POST', `/v1/ostack/videos/${id(videoId)}/versions`, input));
+    },
+    async uploadPart(versionId, fileId, partNumber, bytes) {
+      return videoUploadPartSchema.parse(await request('PUT', `/v1/ostack/videos/versions/${id(versionId)}/files/${id(fileId)}/parts/${partNumber}`, bytes));
+    },
+    async completeVersion(versionId, parts) {
+      return z.object({ id: z.uuid(), number: z.number().int() }).parse(await request('POST', `/v1/ostack/videos/versions/${id(versionId)}/complete`, { parts }));
+    },
+    async abandonVersion(versionId) {
+      await request('POST', `/v1/ostack/videos/versions/${id(versionId)}/abandon`);
     },
   };
 }
