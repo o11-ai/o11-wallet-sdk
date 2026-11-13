@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { posix } from 'node:path';
 import { assertPublicText } from './public-artifacts';
+import { CONTENT } from '../../packages/ostack/content/index.ts';
 
 export const packageName = '@o11/sdk';
 export const contractFiles = ['index', 'money', 'accounts', 'receipts', 'resource-plan', 'public-api', 'cli-version', 'card-access', 'agent-permissions',
@@ -20,41 +21,8 @@ export const ostackSourceFiles = [
   'src/playbooks/gtm/tam-command', 'src/playbooks/index', 'src/playbooks/launch-videos/index',
   'src/playbooks/launch-videos/kit', 'src/playbooks/types', 'content/index', 'content/kits', 'content/markdown.d'
 ] as const;
-/** Equal to the keys of packages/ostack/content/index.ts; the download build checks they match. */
-export const ostackContentFiles = [
-  'CHANGELOG.md', 'playbooks/gtm/playbook.md', 'playbooks/gtm/presets/b2b-founders/find.md',
-  'playbooks/gtm/presets/b2b-founders/preset.md', 'playbooks/gtm/presets/b2b-founders/qualify.md',
-  'playbooks/gtm/presets/b2b-founders/write.md', 'playbooks/gtm/presets/fundraising/preset.md',
-  'playbooks/gtm/presets/fundraising/qualify.md', 'playbooks/gtm/presets/fundraising/write.md',
-  'playbooks/gtm/presets/gmail/inbox.md', 'playbooks/gtm/presets/gmail/preset.md',
-  'playbooks/gtm/presets/gmail/send.md', 'playbooks/gtm/presets/outlook-web/inbox.md',
-  'playbooks/gtm/presets/outlook-web/preset.md', 'playbooks/gtm/presets/outlook-web/send.md',
-  'playbooks/gtm/presets/recruiting/follow-up.md', 'playbooks/gtm/presets/recruiting/preset.md',
-  'playbooks/gtm/presets/recruiting/qualify.md', 'playbooks/gtm/presets/recruiting/write.md',
-  'playbooks/gtm/questions.md', 'playbooks/gtm/skills/ostack-follow-ups/SKILL.md',
-  'playbooks/gtm/skills/ostack-outbound/SKILL.md', 'playbooks/gtm/skills/ostack-outbound/references/tam-sources.md',
-  'playbooks/gtm/skills/ostack-outbound/references/writing.md', 'playbooks/gtm/steps/book.md',
-  'playbooks/gtm/steps/find.md', 'playbooks/gtm/steps/follow-up.md', 'playbooks/gtm/steps/handoff.md', 'playbooks/gtm/steps/inbox.md',
-  'playbooks/gtm/steps/qualify.md', 'playbooks/gtm/steps/record.md', 'playbooks/gtm/steps/reply.md',
-  'playbooks/gtm/steps/report.md', 'playbooks/gtm/steps/research.md', 'playbooks/gtm/steps/send.md',
-  'playbooks/gtm/steps/tam.md', 'playbooks/gtm/steps/write.md', 'playbooks/launch-videos/playbook.md',
-  'playbooks/launch-videos/questions.md', 'playbooks/launch-videos/skills/ostack-launch-videos/SKILL.md',
-  'playbooks/launch-videos/skills/ostack-launch-videos/references/audio.md',
-  'playbooks/launch-videos/skills/ostack-launch-videos/references/design.md',
-  'playbooks/launch-videos/skills/ostack-launch-videos/references/motion.md',
-  'playbooks/launch-videos/skills/ostack-launch-videos/references/reels.md',
-  'playbooks/launch-videos/skills/ostack-launch-videos/references/rendering.md',
-  'playbooks/launch-videos/skills/ostack-launch-videos/references/storytelling.md',
-  'playbooks/launch-videos/skills/ostack-launch-videos/references/wallet-tools.md',
-  'playbooks/launch-videos/steps/audit.md', 'playbooks/launch-videos/steps/brief.md',
-  'playbooks/launch-videos/steps/capture.md', 'playbooks/launch-videos/steps/deliver.md',
-  'playbooks/launch-videos/steps/narrate.md', 'playbooks/launch-videos/steps/overlays.md',
-  'playbooks/launch-videos/steps/render.md', 'playbooks/launch-videos/steps/script.md',
-  'playbooks/launch-videos/steps/shoot.md', 'playbooks/launch-videos/steps/sound.md',
-  'playbooks/launch-videos/steps/timeline.md', 'playbooks/launch-videos/steps/transcribe.md',
-  'skills/ostack-setup/SKILL.md', 'skills/ostack-setup/references/customizing.md',
-  'skills/ostack-setup/references/questions.md'
-].map(path => `content/${path}`);
+/** Every markdown file bundled into the CLI, read from the generated packages/ostack/content/index.ts. */
+export const ostackContentFiles = Object.keys(CONTENT).sort().map(path => `content/${path}`);
 export const ostackFiles = [...ostackSourceFiles.map(name => `src/ostack/${name}.ts`), ...ostackContentFiles.map(path => `src/ostack/${path}`)];
 export const reviewedFiles = ['client.js', 'cli.js', 'wallet-cli.js', 'package.json', 'LICENSE', 'README.md', 'CHANGELOG.md',
   ...sdkSourceFiles.map(name => `src/${name}.ts`),
