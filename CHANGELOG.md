@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.39
+
+**New**
+- `o11` ships as a standalone program for macOS, Linux and Windows (x64 and Arm) that needs no Bun, Node.js or package manager. Install with `curl -fsSL https://go.o11.ai/install.sh | sh` or `irm https://go.o11.ai/install.ps1 | iex`. The installer checks the program's SHA-256 against the wallet's `checksums.json` and puts it at `~/.local/share/o11-wallet/bin/o11`, the path earlier launchers used, so saved commands and MCP entries keep working.
+- `o11 update` in the standalone program downloads the new one, checks it, and swaps it in place. Before other commands it only reports an available update.
+- `setup --verify-mcp`, the email-login retry command and saved invocations start the standalone program directly.
+
 ## 0.1.38
 
 **Changed behavior: SDK callers and scripts that call `o11` directly**

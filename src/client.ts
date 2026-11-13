@@ -6,6 +6,8 @@ import {
   type InvocationReceipt,
 } from "./contracts/receipts.js";
 import { z } from "zod";
+import { cliVersionHeader } from "./contracts/cli-version.js";
+import { version as sdkVersion } from "../package.json";
 import { publicOperationSchemas, topUpResultSchema, topUpLimitsSchema, topUpStatusSchema } from "./contracts/public-api.js";
 import { reportOperationSchemas, reportDetailSchema, reportPageSchema } from "./contracts/reports.js";
 import { agentPermissionsSchema, managementOperationSchemas } from "./contracts/agent-permissions.js";
@@ -113,6 +115,8 @@ export class ToolClient {
           "Content-Type": "application/json",
           "x-o11-run-id": this.runId,
           "x-o11-call-id": clientCallId,
+          // The wallet refuses a client older than it serves with update steps (tool-contracts cli-version.ts).
+          [cliVersionHeader]: sdkVersion,
           ...(this.options.customer ? { "X-Customer": this.options.customer } : {}),
           ...extraHeaders,
         },

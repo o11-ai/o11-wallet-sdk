@@ -6,7 +6,8 @@ import { listAudiences } from "../lib/layers.js";
 import { findWorkflow, loadPlaybooks, type Workflow } from "../lib/playbooks.js";
 import { WALLET_LAUNCHER_DIR, walletOnPath } from "../lib/o11-path.js";
 import { print } from "../lib/output.js";
-import { describeSchedule, parseSchedule, runsPerDay, shiftSchedule, toCron, toRRule, zoneOffset, type ScheduleSpec } from "../lib/schedule.js";
+import { describeSchedule, parseSchedule, runsPerDay, shiftSchedule, slotLabel, toCron, toRRule, withoutDays, withSlot, zoneOffset, type ScheduleSpec } from "../lib/schedule.js";
+import { parseDays } from "../lib/time.js";
 import { writeState } from "../lib/state.js";
 import { systemTimeZone } from "../lib/time.js";
 import { DEFAULT_AUDIENCE, enabledPlaybooks, loadWorkspace, type Workspace } from "../lib/workspace.js";
@@ -58,7 +59,7 @@ function view(workspace: Workspace, entry: Entry) {
     enabled,
     source,
     schedule: spec ? describeSchedule(spec, timezone) : null,
-    runs_per_day: spec ? runsPerDay(spec) : 0,
+    runs_per_day: spec ? runsPerDay(spec) : {},
     cron: spec ? toCron(spec) : null,
     rrule: spec ? toRRule(spec) : null,
     installed: workspace.state.schedules[scheduleKey(workflow, audience)]?.installed ?? {},
@@ -84,28 +85,37 @@ function hostSpec(workspace: Workspace, entry: Entry, host: Host) {
   const timezoneNote =
     machine === timezone
       ? null
-      : `This computer's clock is ${machine}, the workspace's is ${timezone}. The times below are converted to this computer's clock (${describeSchedule(local, machine)}). Each run checks the workspace time itself, so a daylight-saving shift never makes it act at the wrong hour.`;
+      : `This computer's clock is ${machine}, the workspace's is ${timezone}. The times below are converted to this computer's clock. Each run checks the workspace time itself, so a daylight-saving shift never makes it act at the wrong hour.`;
+  // Hosts take one schedule per task, so a schedule with several rules (weekdays and weekends) becomes one task per rule.
+  const names = spec.length === 1 ? [base.name] : spec.map((slot) => `${base.name}-${slotLabel(slot)}`);
+  const installed = `o11 ostack schedule installed ${workflow.ref}${flag} --host ${host} --name ${names.join(",")}`;
+  const list = (rules: string[], kind: string) =>
+    names.length === 1
+      ? `named "${names[0]}" ${kind} "${rules[0]}"`
+      : `(one per rule, identical apart from name and schedule): ${names.map((name, index) => `"${name}" ${kind} "${rules[index]}"`).join("; ")}`;
   if (host === "claude") {
+    const cron = toCron(local);
     return {
       ...base,
       host,
       where: "Claude Desktop, Code tab, Scheduled (a local task, so it can reach the workspace and your connectors)",
-      cron: toCron(local),
+      tasks: names.map((name, index) => ({ name, cron: cron[index] })),
       permission_mode: "Auto, or Accept edits with ostack and your mail/CRM tools always allowed after the first Run now",
-      ask: `Create a local scheduled task named "${base.name}" in the folder ${base.folder}, running on the cron schedule "${toCron(local)}" in local time, with these instructions: ${base.instructions}`,
-      after: `Click Run now once, approve each tool with "always allow", then run: o11 ostack schedule installed ${workflow.ref}${flag} --host claude --name ${base.name}`,
+      ask: `Create ${names.length === 1 ? "a local scheduled task" : "local scheduled tasks"} ${list(cron, "on the cron schedule")}, in the folder ${base.folder}, in local time, with these instructions: ${base.instructions}`,
+      after: `Click Run now once on a task, approve each tool with "always allow", then run: ${installed}`,
       timezone_note: timezoneNote,
     };
   }
   if (host === "codex") {
+    const rrule = toRRule(local);
     return {
       ...base,
       host,
       where: "Codex app, Automations (a standalone, local project automation on this folder, not a worktree)",
-      rrule: toRRule(local),
+      tasks: names.map((name, index) => ({ name, rrule: rrule[index] })),
       sandbox: "workspace-write with network access, so the run can reach your mail and CRM tools",
-      ask: `Create a standalone automation named "${base.name}" for the project ${base.folder}, running locally (not in a worktree) on the schedule ${toRRule(local)}, with these instructions: ${base.instructions}`,
-      after: `Run it once from the Automations page and check its result, then run: o11 ostack schedule installed ${workflow.ref}${flag} --host codex --name ${base.name}`,
+      ask: `Create ${names.length === 1 ? "a standalone automation" : "standalone automations"} ${list(rrule, "on the schedule")}, for the project ${base.folder}, running locally (not in a worktree), with these instructions: ${base.instructions}`,
+      after: `Run one once from the Automations page and check its result, then run: ${installed}`,
       timezone_note: timezoneNote,
     };
   }
@@ -132,7 +142,7 @@ async function cronBlock(workspace: Workspace, agent: "claude" | "codex"): Promi
       agent === "claude"
         ? `${binary} -p ${prompt} --permission-mode auto --permission-prompts none`
         : `${binary} exec --cd ${workspace.root} --sandbox workspace-write ${prompt}`;
-    lines.push(`${toCron(spec)} cd ${workspace.root} && ${run} >> ${join(logs, `${taskName(entry)}.log`)} 2>&1`);
+    for (const cron of toCron(spec)) lines.push(`${cron} cd ${workspace.root} && ${run} >> ${join(logs, `${taskName(entry)}.log`)} 2>&1`);
   }
   lines.push(CRON_END(workspace.root));
   return lines;
@@ -208,10 +218,17 @@ export async function scheduleCommand(args: Args): Promise<void> {
     const at = optional(args, "at");
     const every = optional(args, "every");
     if ((at === undefined) === (every === undefined)) throw new OstackError("missing_flag", "Pass --at HH:MM, or --every <minutes> [--from HH:MM --to HH:MM].");
-    entry.spec = at
+    const [slot] = at
       ? parseSchedule({ days, at })
       : parseSchedule({ days, every_minutes: every, from: optional(args, "from") ?? "08:00", to: optional(args, "to") ?? "18:00", offset: optional(args, "offset") ?? 7 });
+    // Only the days named change; other days keep their rule, so weekdays and weekends can differ.
+    entry.spec = withSlot(entry.spec, slot!);
     entry.enabled = true;
+  } else if (sub === "off" && optional(args, "days") !== undefined) {
+    const rest = withoutDays(entry.spec, parseDays(optional(args, "days")!));
+    // Dropping every day turns the schedule off and keeps its last rules for "on".
+    if (rest.length > 0) entry.spec = rest;
+    else entry.enabled = false;
   } else if (sub === "on" || sub === "off") {
     entry.enabled = sub === "on";
   } else if (sub === "spec") {
@@ -222,7 +239,7 @@ export async function scheduleCommand(args: Args): Promise<void> {
   } else if (sub === "uninstalled") {
     delete entry.installed[oneOf(args, "host", HOSTS)];
   } else {
-    throw new OstackError("unknown_command", "Use: o11 ostack schedule list | set|on|off|spec|installed|uninstalled <workflow> [--audience <name>] | cron show|install|remove.");
+    throw new OstackError("unknown_command", "Use: o11 ostack schedule list | set|on|off|spec|installed|uninstalled <workflow> [--audience <name>] [--days <days>] | cron show|install|remove.");
   }
   await writeState(workspace.root, workspace.state);
   const result = view(workspace, { workflow, audience });

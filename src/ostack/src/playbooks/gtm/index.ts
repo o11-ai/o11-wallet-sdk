@@ -18,7 +18,9 @@ audience.md and follow-up.md front matter can set the settings below for that au
 Settings (o11 ostack settings set gtm.<key> <value> [--me])
   send_mode draft|send, new_per_day, touches_per_day, per_company,
   follow_up_days (days after the previous message for each follow-up, e.g. 3,4,7, or off),
-  send_window (when cold messages may go out, e.g. "weekdays 08:00-18:00", or any)`;
+  send_window (when cold messages may go out, e.g. "weekdays 08:00-18:00", or any),
+  send_at (when scheduled first messages land on the send window's days, e.g. 08:00, or off to send as the run goes;
+  o11 ostack context shows the next one as next_send_at)`;
 
 const MOVED = 'Since 0.6.0 ostack keeps no ledger: leads, messages, replies and opt-outs live in the user\'s own tool. Run "o11 ostack context gtm/record" for how.';
 
@@ -38,6 +40,7 @@ export const gtm: PlaybookCode = {
       if (name === "send_mode") return ["sendMode"];
       if (name === "follow_up_days") return ["followUpDays", "limits"];
       if (name === "send_window") return ["sendWindow"];
+      if (name === "send_at") return ["sendAt"];
       return ["limits", "followUpDays"];
     },
   },

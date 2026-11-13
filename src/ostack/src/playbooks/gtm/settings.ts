@@ -1,7 +1,7 @@
 import { OstackError } from "../../lib/errors.js";
 import { isRecord } from "../../lib/paths.js";
 import type { PlaybookValues } from "../../lib/remote.js";
-import { formatWindow, parseWindow, type Window } from "../../lib/time.js";
+import { formatClock, formatWindow, nextAt, parseClock, parseWindow, type Window } from "../../lib/time.js";
 
 export const MODES = ["draft", "send"] as const;
 export type Mode = (typeof MODES)[number];
@@ -23,11 +23,19 @@ export type GtmSettings = {
   follow_up_days: number[];
   /** When cold messages may go out, in the workspace timezone. Null means any time. Replies are never held. */
   send_window: Window | null;
+  /**
+   * When scheduled first messages land, as minutes after midnight in the workspace timezone, on the send window's
+   * days. Outbound runs the evening before and schedules each message for then. Null sends as the run goes.
+   */
+  send_at: number | null;
 };
 
 export const DEFAULT_LIMITS: Limits = { new_per_day: 20, touches_per_day: 60, per_company: 1, max_touches: 4 };
 export const DEFAULT_FOLLOW_UP_DAYS = [3, 4, 7];
 export const DEFAULT_SEND_WINDOW: Window = { days: [1, 2, 3, 4, 5], from: 8 * 60, to: 18 * 60 };
+export const DEFAULT_SEND_AT = 8 * 60;
+/** Values that turn scheduled sending off. */
+const OFF = ["off", "now", "none", "false"];
 
 export function defaultSettings(): GtmSettings {
   return {
@@ -35,6 +43,7 @@ export function defaultSettings(): GtmSettings {
     limits: { ...DEFAULT_LIMITS },
     follow_up_days: [...DEFAULT_FOLLOW_UP_DAYS],
     send_window: { ...DEFAULT_SEND_WINDOW, days: [...DEFAULT_SEND_WINDOW.days] },
+    send_at: DEFAULT_SEND_AT,
   };
 }
 
@@ -65,7 +74,35 @@ export function readSettings(raw: unknown): GtmSettings {
     limits: parsedLimits,
     follow_up_days: fitSchedule(days, parsedLimits.max_touches),
     send_window: window,
+    send_at: readSendAt(source.send_at),
   };
+}
+
+/** A stored send_at: "09:00", or "off". Anything else uses the default. */
+function readSendAt(value: unknown): number | null {
+  if (typeof value !== "string") return DEFAULT_SEND_AT;
+  if (OFF.includes(value.trim().toLowerCase())) return null;
+  try {
+    const sendAt = parseClock(value);
+    return sendAt < 24 * 60 ? sendAt : DEFAULT_SEND_AT;
+  } catch {
+    return DEFAULT_SEND_AT;
+  }
+}
+
+/** "08:00", or "off". */
+function formatSendAt(sendAt: number | null): string {
+  return sendAt === null ? "off" : formatClock(sendAt);
+}
+
+/**
+ * When the next scheduled first message should land: the next day in the send window (any day without one) at
+ * send_at. Null when scheduled sending is off. `local` is the workspace's clock; `utc` is what mail tools take.
+ */
+export function nextSendAt(settings: GtmSettings, timeZone: string, date: Date): { local: string; utc: string } | null {
+  if (settings.send_at === null) return null;
+  const next = nextAt(settings.send_window?.days ?? [0, 1, 2, 3, 4, 5, 6], settings.send_at, timeZone, date);
+  return next ? { local: next.local, utc: next.date.toISOString() } : null;
 }
 
 /** GTM's settings as the wallet stores them: unset fields fall back to the defaults, and "any" is a window that is always open. */
@@ -75,6 +112,7 @@ export function fromRemote(values: PlaybookValues): GtmSettings {
     limits: values.limits,
     ...(Array.isArray(values.followUpDays) ? { follow_up_days: values.followUpDays } : {}),
     ...(typeof values.sendWindow === "string" ? { send_window: values.sendWindow } : {}),
+    ...(typeof values.sendAt === "string" ? { send_at: values.sendAt } : {}),
   });
 }
 
@@ -85,6 +123,7 @@ export function toPatch(settings: GtmSettings): PlaybookValues {
     limits: settings.limits,
     followUpDays: settings.follow_up_days,
     sendWindow: settings.send_window ? formatWindow(settings.send_window) : "any",
+    sendAt: formatSendAt(settings.send_at),
   };
 }
 
@@ -92,7 +131,7 @@ function isPositive(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
-export const SETTING_KEYS = ["send_mode", ...LIMIT_KEYS, "follow_up_days", "send_window"] as const;
+export const SETTING_KEYS = ["send_mode", ...LIMIT_KEYS, "follow_up_days", "send_window", "send_at"] as const;
 /** Names from 0.7 and older, still accepted. */
 export const SETTING_ALIASES: Record<string, string> = { mode: "send_mode" };
 
@@ -109,6 +148,12 @@ export function applySetting(settings: GtmSettings, name: string, value: string)
   }
   if (key === "send_window") {
     return { ...settings, send_window: value === "any" ? null : parseWindow(value) };
+  }
+  if (key === "send_at") {
+    if (OFF.includes(value.trim().toLowerCase())) return { ...settings, send_at: null };
+    const sendAt = parseClock(value);
+    if (sendAt >= 24 * 60) throw new OstackError("invalid_flag", 'send_at is a time of day, such as "08:00", or "off".');
+    return { ...settings, send_at: sendAt };
   }
   if (key === "send_mode") {
     if (!(MODES as readonly string[]).includes(value)) throw new OstackError("invalid_flag", "send_mode must be draft or send.");
@@ -128,11 +173,11 @@ export function applySetting(settings: GtmSettings, name: string, value: string)
 
 /** What `settings show` prints for GTM. */
 export function showSettings(settings: GtmSettings) {
-  return { ...settings, follow_ups: settings.follow_up_days.length > 0 ? "on" : "off", send_window: settings.send_window ? formatWindow(settings.send_window) : "any" };
+  return { ...settings, follow_ups: settings.follow_up_days.length > 0 ? "on" : "off", send_window: settings.send_window ? formatWindow(settings.send_window) : "any", send_at: formatSendAt(settings.send_at) };
 }
 
 /** Settings an audience's audience.md can set in its front matter, and follow-up.md's `days`. */
-const AUDIENCE_KEYS = new Set(["send_mode", ...LIMIT_KEYS, "follow_up_days", "send_window"]);
+const AUDIENCE_KEYS = new Set(["send_mode", ...LIMIT_KEYS, "follow_up_days", "send_window", "send_at"]);
 
 /** YAML values as `settings set` text: lists join with commas, and false (YAML's "off") turns follow-ups off. */
 function settingText(value: unknown): string | null {

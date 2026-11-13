@@ -29,7 +29,7 @@ export function loadPlaybooks(): Playbook[] {
       playbook: id,
       skill: String(item.skill),
       summary: typeof item.summary === "string" ? item.summary : "",
-      schedule: isRecord(item.schedule) ? parseSchedule(item.schedule) : null,
+      schedule: isRecord(item.schedule) || Array.isArray(item.schedule) ? parseSchedule(item.schedule) : null,
       perAudience: item.per_audience === true,
     }));
     playbooks.push({ id, name: typeof data.name === "string" ? data.name : id, summary: typeof data.summary === "string" ? data.summary : "", dir, workflows });

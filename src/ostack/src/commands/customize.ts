@@ -8,7 +8,7 @@ import { checkTimeZone, localTime } from "../lib/time.js";
 import { checkName, DEFAULT_AUDIENCE, enabledPlaybooks, loadWorkspace, requirePlaybook, type Workspace } from "../lib/workspace.js";
 import { PLAYBOOK_CODE } from "../playbooks/index.js";
 import { audienceSettings } from "../playbooks/gtm/audience-settings.js";
-import { showSettings as showGtm } from "../playbooks/gtm/settings.js";
+import { nextSendAt, showSettings as showGtm } from "../playbooks/gtm/settings.js";
 
 export function audienceOf(args: Args): string {
   return checkName(optional(args, "audience") ?? DEFAULT_AUDIENCE, "audience");
@@ -41,7 +41,9 @@ export function teamSummary(workspace: Workspace) {
 function settingsFor(workspace: Workspace, playbook: string, audience: string) {
   if (playbook !== "gtm") return { settings: PLAYBOOK_CODE[playbook]?.settings?.show(playbookValues(workspace.settings, playbook)) ?? {} };
   const { settings, from, warnings } = audienceSettings(workspace, audience);
-  return { settings: showGtm(settings), ...(from.length > 0 ? { settings_from: from } : {}), ...(warnings.length > 0 ? { warnings } : {}) };
+  // Outbound schedules each first message for this moment, so no agent works out timezones itself.
+  const next = nextSendAt(settings, workspace.timezone, new Date());
+  return { settings: showGtm(settings), ...(next ? { next_send_at: next.local, next_send_at_utc: next.utc } : {}), ...(from.length > 0 ? { settings_from: from } : {}), ...(warnings.length > 0 ? { warnings } : {}) };
 }
 
 /** The audience's templates, with the version id each CRM record keeps. Only GTM's write step uses them. */

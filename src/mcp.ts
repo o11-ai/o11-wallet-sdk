@@ -1,4 +1,6 @@
+import { compiledCli } from './cli-update.js';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { cliVersionHeader } from './contracts/cli-version.js';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
@@ -18,7 +20,7 @@ async function connectSavedMcp(profile?: string, signal?: AbortSignal) {
   const client = new Client({ name: 'o11-wallet-cli', version }, { versionNegotiation: { mode: 'legacy' } });
   // The transport invokes token() per request, including after CLI refreshes.
   const transport = new StreamableHTTPClientTransport(new URL(resource), {
-    requestInit: { redirect: 'error' },
+    requestInit: { redirect: 'error', headers: { [cliVersionHeader]: version } },
     authProvider: { token: () => tokens.getAccessToken() },
   });
   try { await client.connect(transport, { signal }); }
@@ -28,10 +30,10 @@ async function connectSavedMcp(profile?: string, signal?: AbortSignal) {
 
 export async function verifyMcpBridge(profile?: string, cardId?: string) {
   const client = new Client({ name: 'o11-wallet-setup', version }, { versionNegotiation: { mode: 'legacy' } });
-  const entry = process.argv[1];
-  if (!entry) return { status: 'failed' as const, message: 'The CLI entry could not be located. Run setup through o11.' };
-  const transport = new StdioClientTransport({ command: process.execPath,
-    args: [entry, ...(profile ? ['--profile', profile] : []), 'mcp'],
+  if (!compiledCli && !process.argv[1]) return { status: 'failed' as const, message: 'The CLI entry could not be located. Run setup through o11.' };
+  const [command, ...entry] = compiledCli ? [process.execPath] : [process.execPath, process.argv[1]!];
+  const transport = new StdioClientTransport({ command: command!,
+    args: [...entry, ...(profile ? ['--profile', profile] : []), 'mcp'],
     env: Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
     stderr: 'pipe',
   });

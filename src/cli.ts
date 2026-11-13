@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { compiledCli, selfInvocation } from './cli-update.js';
 import { z } from "zod";
 import { ToolClient, ToolClientError, ToolCallError, TopUpRequestError } from './client.js';
 import { discoveryPageSize, publicOperationSchemas, routeRefusalReasons } from './contracts/public-api.js';
@@ -27,12 +28,17 @@ let command: string | undefined;
 let args: string[] = [];
 let profile: string | undefined;
 let runId: string | undefined;
-const recoveryInvocation = [process.execPath, '--no-install', process.argv[1]!];
+const recoveryInvocation = selfInvocation();
 const namedInvocation = await walletInvocation();
 const program = namedInvocation?.join(' ') ?? 'o11';
 
 async function walletInvocation() {
   const primary = Bun.which('o11');
+  if (compiledCli) {
+    // A standalone program is its own command; use the bare name when PATH reaches this same file.
+    try { return primary && await realpath(primary) === await realpath(process.execPath) ? ['o11'] : undefined; }
+    catch { return undefined; }
+  }
   try {
     const entry = await realpath(process.argv[1]!);
     const packageCli = join(dirname(entry), 'cli.js');
@@ -316,6 +322,8 @@ function safeHttpError(error: ToolClientError) {
 // The wallet API applies publicFacing to every response and error it sends, so the CLI prints them as received.
 function print(value: unknown, detailed = false) { console.log(JSON.stringify(value, null, detailed ? 2 : undefined)); }
 
+// Anonymous install count, once per version; it runs beside the command and never prints or fails it (cli-install.ts).
+const installReport = import('./cli-install.js').then(({ reportInstall }) => reportInstall(version)).catch(() => undefined);
 try {
   const values = process.argv.slice(2);
   const selected: string[] = [];
@@ -409,6 +417,10 @@ try {
     if (!args.includes('--key-stdin')) {
       const connected = await browserLogin(args, profile);
       if (!connected.profile && !profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
+      if (!('reused' in connected)) {
+        const saved = await readConfig(connected.profile ?? profile, { refresh: false }).catch(() => undefined);
+        if (saved) await (await import('./cli-install.js')).linkInstall(saved.baseUrl, saved.apiKey);
+      }
       print(connected);
     } else {
       const config = { baseUrl: keyStdinServer(args), apiKey: (await Bun.stdin.text()).trim() };
@@ -416,6 +428,7 @@ try {
       await client.cards();
       await saveConfig(config, profile);
       if (!profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
+      await (await import('./cli-install.js')).linkInstall(config.baseUrl, config.apiKey);
       print({ connected: true, server: new URL(config.baseUrl).origin });
     }
   } else {
@@ -607,6 +620,7 @@ try {
     : networkErrorMessage(error) ?? (error instanceof Error ? error.message : 'Request failed'));
   process.exitCode = 1;
 }
+await installReport;
 // Bun's fetch reports a failed connection as a TypeError with a string code and a timeout as a DOMException; its
 // wording names fetch() internals, so print the code and the next step instead.
 function networkErrorMessage(error: unknown) {

@@ -2,6 +2,15 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.9.0
+- First messages are scheduled: outbound writes them the evening before and schedules each one to land at `send_at` (8:00 by default) on your sending days. Set it with `o11 ostack settings set gtm.send_at 09:00`, per audience in `audience.md`, or `off` to send as the run goes. The suggested outbound schedule is now 8pm Sunday to Thursday; if yours runs in the morning, move it to the evening before (`o11 ostack schedule set gtm/outbound --days sun-thu --at 20:00`). Gmail has no schedule-send through its API, so there the message waits as a draft and the next follow-ups run after `send_at` sends it.
+- Replies that need you: pricing, contracts, custom terms, complaints and anyone asking for a person get a suggested draft in the thread, an `o11/needs you` label, status `needs you` in your CRM (with a task where your CRM has them), and nothing more is sent to them until you act. One short list arrives in your inbox each morning (or Slack, or off). Change what comes to you and when in `gtm/handoff.md`, or ask your agent to "go through my handoffs".
+- Your CRM gains two statuses (`scheduled`, `needs you`) and two fields (`scheduled_for`, `handoff_reason`); setup review offers to add them.
+
+## 0.8.2
+- New suggested gtm schedules: outbound at 08:00 on weekdays, and follow-ups from 06:00 to midnight, every 30 minutes on weekdays and every hour on weekends. Schedules you already turned on stay as they are.
+- A schedule can differ by day: `o11 ostack schedule set <workflow> --days weekends ...` changes only those days, and `schedule off <workflow> --days weekends` stops them. Claude Desktop and Codex get one task per rule.
+
 ## 0.8.1
 - Find, qualify and research go through o11 routes. One call picks the provider, tries the next one on a miss and bills only the calls it made, so the playbook no longer names providers. Find uses `o11.people.search` and `o11.leads.from_topic`; qualify sorts a batch with `o11.rows` before the per-company checks; research reads the profile, posts and company news. A lead-data tool is used only where your files name it.
 

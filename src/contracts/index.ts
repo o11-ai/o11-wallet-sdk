@@ -151,6 +151,11 @@ export interface ToolDefinition {
   decisionEvidence?: DecisionEvidence;
   platformAccountInstalled?: boolean;
   engineUnit?: Record<string, unknown>;
+  /**
+   * Declared outcome rules (the engine's `output.outcomes` shape) for a tool that does not run through the engine,
+   * such as a gateway route: copied from the supplier's own reviewed rules, read where the call settles.
+   */
+  outcomes?: Record<string, unknown>[];
   creditRatesMicros?: Record<string, string>;
 }
 export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
@@ -276,6 +281,7 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
     decisionEvidence: decisionEvidenceSchema.optional(),
     platformAccountInstalled: z.boolean().optional(),
     engineUnit: z.record(z.string(), z.unknown()).optional(),
+    outcomes: z.array(z.record(z.string(), z.unknown())).optional(),
     creditRatesMicros: z.record(z.string(), moneySchema).optional(),
   })
   .superRefine((value, ctx) => {

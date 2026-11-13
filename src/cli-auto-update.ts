@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 import { z } from 'zod';
 import { version } from '../package.json';
 import { homedir } from 'node:os';
-import { trustedReleaseOrigin, updateCli, type CliUpdateCheck } from './cli-update.js';
+import { checkCliUpdate, compiledCli, trustedReleaseOrigin, updateCli, type CliUpdateCheck } from './cli-update.js';
 
 const semver = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
 const runtimeSchema = z.object({ cli: z.string(), version: semver,
@@ -88,6 +88,13 @@ export async function prepareCliUpdate(origin: string, force = false): Promise<A
         return fetch(input, { ...init, signal: url.pathname.endsWith('/checksums.json')
           ? AbortSignal.any([...(init?.signal ? [init.signal] : []), AbortSignal.timeout(1500)]) : init?.signal });
       }, { preconnect: fetch.preconnect });
+      // A standalone program is too large to swap in before a command: it reports the update and o11 update installs it.
+      if (compiledCli) {
+        const check = await checkCliUpdate(base, version, fetcher);
+        if (!check.latestVersion) throw new Error('Release check unavailable');
+        await remember(check.latestVersion);
+        return checked(check.latestVersion);
+      }
       const update = await updateCli(base, cachedRuntime ? cache!.runtime!.version : version, fetcher, 8000);
       if (update.updated && 'cli' in update && update.cli) {
         const runtime = await runtimeAt(update.activeCli ?? update.cli, update.activeVersion);

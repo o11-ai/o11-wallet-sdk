@@ -55,7 +55,7 @@ export async function readState(root: string): Promise<{ state: State; migrated:
   const schedules: Record<string, ScheduleState> = {};
   if (isRecord(raw.schedules)) {
     for (const [ref, value] of Object.entries(raw.schedules)) {
-      if (!isRecord(value) || !isRecord(value.spec)) continue;
+      if (!isRecord(value) || !(isRecord(value.spec) || Array.isArray(value.spec))) continue;
       const installed: Record<string, Installed> = {};
       if (isRecord(value.installed)) {
         for (const [host, entry] of Object.entries(value.installed)) {

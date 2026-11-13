@@ -4,10 +4,10 @@ import { posix } from 'node:path';
 import { assertPublicText } from './public-artifacts';
 
 export const packageName = '@o11/sdk';
-export const contractFiles = ['index', 'money', 'accounts', 'receipts', 'resource-plan', 'public-api', 'card-access', 'agent-permissions',
+export const contractFiles = ['index', 'money', 'accounts', 'receipts', 'resource-plan', 'public-api', 'cli-version', 'card-access', 'agent-permissions',
   'execution-account', 'provider-authorization', 'supplier-capacity', 'supplier-price-reference', 'published-tariff', 'published-input', 'purchases', 'product-search', 'agent-guidance', 'reports', 'report-values',
   'invocation-lifecycle', 'invocation-run', 'result-outcome', 'record-output-contracts', 'email-confidence', 'health', 'decision-evidence', 'onboarding', 'playbooks'] as const;
-export const sdkSourceFiles = ['client', 'cli', 'cli-help', 'cli-inspect', 'cli-call', 'cli-wallet', 'cli-topup', 'topup-wait', 'cli-keys', 'cli-execution', 'cli-result-file', 'cli-report', 'cli-resources', 'cli-search', 'invocation-wait', 'call-stream', 'call-streamed', 'client-errors', 'config', 'browser-login', 'access-tokens', 'token-provider', 'mcp', 'login-lock', 'login-terminal', 'email-login', 'setup', 'cli-update', 'cli-auto-update', 'cli-ostack', 'cli-batch', 'cli-batch-rows'] as const;
+export const sdkSourceFiles = ['client', 'cli', 'cli-help', 'cli-inspect', 'cli-call', 'cli-wallet', 'cli-topup', 'topup-wait', 'cli-keys', 'cli-execution', 'cli-result-file', 'cli-report', 'cli-resources', 'cli-search', 'invocation-wait', 'call-stream', 'call-streamed', 'client-errors', 'config', 'browser-login', 'access-tokens', 'token-provider', 'mcp', 'login-lock', 'login-terminal', 'email-login', 'setup', 'cli-update', 'cli-auto-update', 'cli-ostack', 'cli-batch', 'cli-batch-rows', 'cli-install'] as const;
 /** ostack ships inside the CLI. Its sources and bundled markdown are mirrored under src/ostack/ at their package paths. */
 export const ostackSourceFiles = [
   'src/cli', 'src/commands/customize', 'src/commands/doctor', 'src/commands/files', 'src/commands/run',
@@ -34,7 +34,7 @@ export const ostackContentFiles = [
   'playbooks/gtm/questions.md', 'playbooks/gtm/skills/ostack-follow-ups/SKILL.md',
   'playbooks/gtm/skills/ostack-outbound/SKILL.md', 'playbooks/gtm/skills/ostack-outbound/references/tam-sources.md',
   'playbooks/gtm/skills/ostack-outbound/references/writing.md', 'playbooks/gtm/steps/book.md',
-  'playbooks/gtm/steps/find.md', 'playbooks/gtm/steps/follow-up.md', 'playbooks/gtm/steps/inbox.md',
+  'playbooks/gtm/steps/find.md', 'playbooks/gtm/steps/follow-up.md', 'playbooks/gtm/steps/handoff.md', 'playbooks/gtm/steps/inbox.md',
   'playbooks/gtm/steps/qualify.md', 'playbooks/gtm/steps/record.md', 'playbooks/gtm/steps/reply.md',
   'playbooks/gtm/steps/report.md', 'playbooks/gtm/steps/research.md', 'playbooks/gtm/steps/send.md',
   'playbooks/gtm/steps/tam.md', 'playbooks/gtm/steps/write.md', 'playbooks/launch-videos/playbook.md',

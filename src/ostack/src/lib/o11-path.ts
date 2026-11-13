@@ -1,4 +1,4 @@
-/** Where a wallet install puts its stable `o11` launcher; the installer leaves PATH unchanged. */
+/** Where a wallet install puts its stable `o11` command; install.sh adds this folder to PATH. */
 export const WALLET_LAUNCHER_DIR = "~/.local/share/o11-wallet/bin";
 
 /** The `o11` on PATH when it is the o11 wallet CLI, since another program can own that name. Null otherwise. */

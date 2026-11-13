@@ -61,6 +61,8 @@ export const gtmLimitsSchema = z.object({
 
 /** "weekdays 08:00-18:00", or "any" for always open. */
 export const sendWindowSchema = z.string().max(80).regex(/^(?:any|\S+ \d{1,2}:\d{2}-\d{1,2}:\d{2})$/);
+/** When scheduled first messages land, such as "08:00", or "off" to send as the run goes. */
+export const sendAtSchema = z.string().max(5).regex(/^(?:off|(?:[01]?\d|2[0-3]):[0-5]\d)$/);
 export const followUpDaysSchema = z.array(z.number().int().min(1).max(90)).max(19);
 
 /** GTM's settings. A missing field uses the shipped default; null clears a saved value. An audience's own files can override them. */
@@ -70,6 +72,7 @@ export const gtmSettingsSchema = z.object({
   /** Days after the previous message for each follow-up. Empty turns follow-ups off. */
   followUpDays: followUpDaysSchema.nullable(),
   sendWindow: sendWindowSchema.nullable(),
+  sendAt: sendAtSchema.nullable(),
   /** The address this member sends from. Member only. */
   senderEmail: z.string().max(254).nullable(),
   /** Which leads this member works, such as "companies A-M". Member only. */

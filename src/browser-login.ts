@@ -1,3 +1,4 @@
+import { compiledCli } from './cli-update.js';
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from 'node:timers/promises';
@@ -72,7 +73,7 @@ export async function browserLogin(args: string[], profile?: string) {
     const terminal = !manualBrowser && flags["--auth"] !== "browser" ? openLoginTerminal() : undefined;
     if (flags["--auth"] === "email" && !terminal) {
       const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
-      const retry = [process.execPath, process.argv[1] ?? 'o11', ...(selectedProfile ? ['--profile', selectedProfile] : []),
+      const retry = [...(compiledCli ? [process.execPath] : [process.execPath, process.argv[1] ?? 'o11']), ...(selectedProfile ? ['--profile', selectedProfile] : []),
         'login', '--server', origin, ...['--client', '--card', '--name'].flatMap(name => flags[name] ? [name, flags[name]!] : []),
         '--auth', 'email', ...(reauth ? ['--reauth'] : [])].map(quote).join(' ');
       throw new Error(process.platform === 'win32'

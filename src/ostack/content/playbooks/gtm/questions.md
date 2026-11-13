@@ -103,6 +103,20 @@ Default: Weekdays 08:00-18:00. New workspaces start with this; workspaces from b
 Writes: `o11 ostack settings set gtm.send_window "<days> HH:MM-HH:MM"`, such as `"weekdays 08:00-18:00"`, or `any`.
 Check: Say whether the window is open right now (`o11 ostack context` shows `local_time` and `send_window`).
 
+## send-at
+Since: 0.9.0
+Ask: What time should first messages land in people's inboxes? Outbound writes them the evening before and schedules them for that time on your sending days. Or should they go out as soon as they are written?
+Default: 08:00, with outbound running the evening before (Sunday to Thursday at 20:00).
+Writes: `o11 ostack settings set gtm.send_at HH:MM`, or `off` to send as the run goes. An audience that differs gets `send_at:` in its `audience.md` front matter.
+Check: Say when the next one would land (`o11 ostack context` shows `next_send_at`), and that the outbound schedule runs before it.
+
+## handoffs
+Since: 0.9.0
+Ask: Some replies are yours to answer: pricing, contracts, custom terms, complaints, or someone asking for a person. I draft a suggested reply, label the thread "o11/needs you", mark it in your CRM (with a task if it has them), and send you one short list each morning. What else should always come to you, or what can I answer myself? Should the daily list come by email, Slack or not at all, and when?
+Default: The handoff step's list, emailed to you at 07:30.
+Writes: `gtm/handoff.md` with what to add or remove from the list and, at its top, `digest: email|slack|off` and `digest_at: "HH:MM"` when they differ from the default.
+Check: Run `o11 ostack context gtm/handoff` and read back what goes to them and when the list arrives.
+
 ## signature
 Since: 0.7.0
 Scope: personal

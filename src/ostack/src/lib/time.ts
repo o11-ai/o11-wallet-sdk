@@ -93,6 +93,20 @@ export function nextOpen(window: Window, timeZone: string, date: Date): Date | n
   return null;
 }
 
+/**
+ * The next moment, from `date` on, that is `minutes` after midnight on one of `days` in `timeZone`, or null within
+ * eight days (a time that a daylight-saving change skips is skipped that day).
+ */
+export function nextAt(days: number[], minutes: number, timeZone: string, date: Date): { date: Date; local: string } | null {
+  const start = new Date(Math.ceil(date.getTime() / 60_000) * 60_000);
+  for (let step = 0; step <= 8 * 24 * 60; step += 1) {
+    const candidate = new Date(start.getTime() + step * 60_000);
+    const local = localTime(candidate, timeZone);
+    if (local.minutes === minutes && days.includes(local.day)) return { date: candidate, local: local.text };
+  }
+  return null;
+}
+
 export function checkTimeZone(value: string): string {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: value });
