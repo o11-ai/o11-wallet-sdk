@@ -34,6 +34,8 @@ export type RemoteSetup = {
   files: { team: RemoteFile[]; mine: RemoteFile[] };
   settings: { team: RemoteSettings; mine: RemoteSettings };
   cards: { id: string; name: string; status: string }[];
+  /** Beta playbooks and workflows ("seo", "seo/growth") this person may use here. Older wallets send none. */
+  access?: string[];
 };
 /** Sent, replied and meetings since a run started, per template file version id. */
 export type TemplateCounts = Record<string, { sent?: number; replied?: number; meetings?: number }>;

@@ -10,10 +10,10 @@ Writes: `o11 ostack settings set timezone <IANA name>` with this computer's zone
 Check: `o11 ostack settings show` shows the zone and a `local_time` that matches this computer's clock.
 
 ## schedule
-Since: 0.2.0
+Since: 0.9.1
 Scope: personal
 Order: last
-Ask: Should your workflows run on their own? Show `o11 ostack schedule list`: each workflow with its suggested schedule (gtm's outbound at 8pm Sunday to Thursday, scheduling first messages to land at `send_at` the next morning, follow-ups from 6am to midnight, every 30 minutes on weekdays and hourly on weekends). Which should run, and when? Which app should run them: Claude Desktop, Codex, or neither (cron)?
+Ask: Should your workflows run on their own? Show `o11 ostack schedule list`: each workflow with its suggested schedule (gtm's outbound at 8:00 on weekdays, sending first messages as it writes them, follow-ups from 6am to midnight, every 30 minutes on weekdays and hourly on weekends). Which should run, and when? Which app should run them: Claude Desktop, Codex, or neither (cron)?
 Default: Nothing scheduled.
 Writes: `o11 ostack schedule set <workflow> --at HH:MM` or `--every <minutes> --from HH:MM --to HH:MM`, or `o11 ostack schedule on <workflow>` to keep the suggestion. Add `--audience <name>` for each audience's outbound. Then create each task as described in SKILL.md ("Scheduling").
-Check: `o11 ostack schedule list` shows every chosen workflow as installed, and one test run (Run now) finished without stalling on a permission prompt.
+Check: `o11 ostack schedule list` shows every chosen workflow as installed, each task's instructions start with `/goal`, and one test run (Run now) kept going to `o11 ostack run end` without stalling on a permission prompt. A task created before 0.9.1 has no `/goal`: recreate it from `o11 ostack schedule spec <workflow> --host <host>`.

@@ -21,19 +21,22 @@ export type GtmSettings = {
   limits: Limits;
   /** Days to wait after the previous touch before each follow-up. Its length plus the first message is max_touches. */
   follow_up_days: number[];
-  /** When cold messages may go out, in the workspace timezone. Null means any time. Replies are never held. */
+  /** When cold messages may go out, in the workspace timezone. Null (the default) means any time. Replies are never held. */
   send_window: Window | null;
   /**
-   * When scheduled first messages land, as minutes after midnight in the workspace timezone, on the send window's
-   * days. Outbound runs the evening before and schedules each message for then. Null sends as the run goes.
+   * Null (the default) sends first messages as the run writes them (inside send_window, if one is set). A time, as minutes after
+   * midnight in the workspace timezone, schedules them to land then on the send window's days instead, for teams
+   * whose outbound runs the evening before.
    */
   send_at: number | null;
 };
 
 export const DEFAULT_LIMITS: Limits = { new_per_day: 20, touches_per_day: 60, per_company: 1, max_touches: 4 };
 export const DEFAULT_FOLLOW_UP_DAYS = [3, 4, 7];
-export const DEFAULT_SEND_WINDOW: Window = { days: [1, 2, 3, 4, 5], from: 8 * 60, to: 18 * 60 };
-export const DEFAULT_SEND_AT = 8 * 60;
+/** Messages go out the moment a run writes them, at any hour, unless a team sets sending hours. */
+export const DEFAULT_SEND_WINDOW: Window | null = null;
+/** First messages go out as the run writes them unless a team chooses a time. */
+export const DEFAULT_SEND_AT: number | null = null;
 /** Values that turn scheduled sending off. */
 const OFF = ["off", "now", "none", "false"];
 
@@ -42,7 +45,7 @@ export function defaultSettings(): GtmSettings {
     send_mode: "draft",
     limits: { ...DEFAULT_LIMITS },
     follow_up_days: [...DEFAULT_FOLLOW_UP_DAYS],
-    send_window: { ...DEFAULT_SEND_WINDOW, days: [...DEFAULT_SEND_WINDOW.days] },
+    send_window: DEFAULT_SEND_WINDOW && { ...DEFAULT_SEND_WINDOW, days: [...DEFAULT_SEND_WINDOW.days] },
     send_at: DEFAULT_SEND_AT,
   };
 }
@@ -78,7 +81,7 @@ export function readSettings(raw: unknown): GtmSettings {
   };
 }
 
-/** A stored send_at: "09:00", or "off". Anything else uses the default. */
+/** A stored send_at: "09:00", or "off". Anything else, including nothing stored, uses the default (off). */
 function readSendAt(value: unknown): number | null {
   if (typeof value !== "string") return DEFAULT_SEND_AT;
   if (OFF.includes(value.trim().toLowerCase())) return null;

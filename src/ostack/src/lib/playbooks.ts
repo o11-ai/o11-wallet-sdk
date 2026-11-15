@@ -12,8 +12,11 @@ export type Workflow = {
   id: string; ref: string; playbook: string; skill: string; summary: string; schedule: ScheduleSpec | null; perAudience: boolean;
 };
 
+/** "beta" playbooks reach only the people and workspaces o11 granted them (see lib/access.ts); the rest are open. */
+export type PlaybookAccess = "open" | "beta";
+
 /** `dir` is the playbook's folder inside the shipped content, such as "playbooks/gtm". */
-export type Playbook = { id: string; name: string; summary: string; dir: string; workflows: Workflow[] };
+export type Playbook = { id: string; name: string; summary: string; dir: string; access: PlaybookAccess; workflows: Workflow[] };
 
 export function loadPlaybooks(): Playbook[] {
   const playbooks: Playbook[] = [];
@@ -32,7 +35,10 @@ export function loadPlaybooks(): Playbook[] {
       schedule: isRecord(item.schedule) || Array.isArray(item.schedule) ? parseSchedule(item.schedule) : null,
       perAudience: item.per_audience === true,
     }));
-    playbooks.push({ id, name: typeof data.name === "string" ? data.name : id, summary: typeof data.summary === "string" ? data.summary : "", dir, workflows });
+    playbooks.push({
+      id, name: typeof data.name === "string" ? data.name : id, summary: typeof data.summary === "string" ? data.summary : "", dir,
+      access: data.access === "beta" ? "beta" : "open", workflows,
+    });
   }
   return playbooks;
 }

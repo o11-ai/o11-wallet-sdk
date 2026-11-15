@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { optional, required, type Args } from "../lib/args.js";
 import { OstackError } from "../lib/errors.js";
-import { findWorkflow } from "../lib/playbooks.js";
+import { findWorkflow, getPlaybook } from "../lib/playbooks.js";
+import { requireAccess } from "../lib/access.js";
 import { print } from "../lib/output.js";
 import { remote, type TemplateCounts } from "../lib/remote.js";
 import { describeSchedule, isDue } from "../lib/schedule.js";
@@ -81,6 +82,8 @@ export async function runCommand(args: Args): Promise<void> {
   const lock = join(dir, `${workflow.playbook}-${workflow.id}${audience === DEFAULT_AUDIENCE ? "" : `-${audience}`}.lock`);
   mkdirSync(dir, { recursive: true });
   if (sub === "start") {
+    // A beta playbook runs only with access; the wallet refuses it too, but this stops before any work starts.
+    requireAccess(workspace.setup, getPlaybook(workflow.playbook), workflow.id);
     if (args.flags.scheduled === true) {
       const { spec } = effective(workspace, workflow, audience);
       if (spec && !isDue(spec, workspace.timezone, new Date())) {
@@ -110,6 +113,11 @@ export async function runCommand(args: Args): Promise<void> {
       })).id;
       writeFileSync(join(lock, "run-id"), `${recorded}\n`);
     } catch (error) {
+      // Losing beta access stops the run; any other reporting failure lets it go ahead.
+      if (error instanceof OstackError && error.code === "feature_not_available") {
+        rmSync(lock, { recursive: true, force: true });
+        throw error;
+      }
       warning = `The run goes ahead but is not recorded in the wallet: ${message(error)}`;
     }
     print({

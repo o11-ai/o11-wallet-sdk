@@ -8,7 +8,8 @@ import { OstackError } from "../lib/errors.js";
 import { describePreset, playbookPresets, presetFiles } from "../lib/layers.js";
 import { findWorkflow, getPlaybook, loadPlaybooks } from "../lib/playbooks.js";
 import { print, printText } from "../lib/output.js";
-import { remote, requireManager, requireOnline } from "../lib/remote.js";
+import { loadSetup, remote, requireManager, requireOnline } from "../lib/remote.js";
+import { canUse, requireAccess } from "../lib/access.js";
 import { defaultState, STATE_FILE, writeState } from "../lib/state.js";
 import { VERSION } from "../lib/version.js";
 import { checkName, DEFAULT_AUDIENCE, enabledPlaybooks, findWorkspaceRoot, loadLocalWorkspace, loadWorkspace, LOCAL_DIR, rememberWorkspace, type Workspace } from "../lib/workspace.js";
@@ -25,7 +26,9 @@ export async function initCommand(args: Args): Promise<void> {
   const root = resolve(optional(args, "dir") ?? (cwd === resolve(homedir()) ? join(cwd, "ostack") : cwd));
   const existing = findWorkspaceRoot(root);
   if (existing) throw new OstackError("workspace_exists", `${existing} is already an ostack workspace.`, { root: existing });
-  const playbooks = list(optional(args, "playbooks") ?? optional(args, "modules")) ?? loadPlaybooks().map((playbook) => playbook.id);
+  // Beta playbooks are never on by default: they need a grant, added later with "playbooks add".
+  const playbooks = list(optional(args, "playbooks") ?? optional(args, "modules"))
+    ?? loadPlaybooks().filter((playbook) => playbook.access === "open").map((playbook) => playbook.id);
   for (const playbook of playbooks) getPlaybook(playbook);
   await mkdir(join(root, LOCAL_DIR), { recursive: true });
   await writeState(root, defaultState(VERSION, playbooks));
@@ -93,13 +96,19 @@ export async function playbooksCommand(args: Args): Promise<void> {
   const sub = args.positionals[1] ?? "list";
   const workspace = await loadLocalWorkspace();
   if (sub === "list") {
+    // Beta playbooks show only to people granted them; signed out, only the open ones show.
+    const granted = await loadSetup(workspace.root).then((setup) => setup.access ?? [], () => []);
     return print({
       enabled: enabledPlaybooks(workspace),
-      available: loadPlaybooks().map((playbook) => ({ id: playbook.id, name: playbook.name, summary: playbook.summary, workflows: playbook.workflows.map((workflow) => workflow.ref) })),
+      available: loadPlaybooks().filter((playbook) => canUse(granted, playbook)).map((playbook) => ({
+        id: playbook.id, name: playbook.name, summary: playbook.summary, ...(playbook.access === "beta" ? { beta: true } : {}),
+        workflows: playbook.workflows.filter((workflow) => canUse(granted, playbook, workflow.id)).map((workflow) => workflow.ref),
+      })),
     });
   }
   const id = args.positionals[2] ?? required(args, "name");
-  getPlaybook(id);
+  const playbook = getPlaybook(id);
+  if (sub === "add" && playbook.access === "beta") requireAccess(await loadSetup(workspace.root), playbook);
   if (sub === "add") workspace.state.playbooks = [...new Set([...workspace.state.playbooks, id])].sort();
   else if (sub === "remove") workspace.state.playbooks = workspace.state.playbooks.filter((item) => item !== id);
   else throw new OstackError("unknown_command", "Use: o11 ostack playbooks list|add <id>|remove <id>.");

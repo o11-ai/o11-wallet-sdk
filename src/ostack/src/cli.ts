@@ -40,7 +40,7 @@ Customization
   settings show | settings set <key> <value> [--me] | settings unset <key> --me
                                                timezone, sender_email, lead_assignment, or a playbook's own, such as gtm.send_mode
                                                (see "o11 ostack gtm help")
-  setup status | answer <question> [--skip] | reviewed | reset [--question <id>] | import [--dry-run]
+  setup status [--playbook <id>] | answer <question> [--skip] | reviewed | reset [--question <id>] | import [--dry-run]
                                                import copies a folder's setup from before teams (custom/, campaigns/) to the team
   presets list | add <name> | remove <name> | show <name>   ready-made files a playbook ships, such as gtm/gmail
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.42
+
+**New**
+- Ostack beta playbooks for invited teams: SEO (audit, growth and tracking) and Social (growth). Teams without access never see them.
+- `o11 ostack setup status --playbook <id>` sets up one playbook at a time.
+- Meetings go on the calendar each person chooses, and replies offer open times instead of a booking link.
+
 ## 0.1.41
 
 **Changed**

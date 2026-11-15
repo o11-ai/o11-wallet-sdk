@@ -116,6 +116,8 @@ export const playbookSetupSchema = z.object({
   files: z.object({ team: z.array(playbookFileSchema), mine: z.array(playbookFileSchema) }),
   settings: z.object({ team: playbookSettingsSchema, mine: playbookSettingsSchema }),
   cards: z.array(z.object({ id: z.string(), name: z.string(), status: z.string() })),
+  /** Beta features (a playbook such as "seo", or one workflow) this person can use here. Older wallets send none. */
+  access: z.array(z.string().max(80)).max(100).default([]),
 });
 export type PlaybookSetup = z.infer<typeof playbookSetupSchema>;
 

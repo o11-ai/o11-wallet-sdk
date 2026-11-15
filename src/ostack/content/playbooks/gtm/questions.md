@@ -77,10 +77,18 @@ Check: Post or create one clearly labeled test item, then remove it or ask the u
 
 ## meetings
 Since: 0.2.0
-Ask: When someone says yes, how should we book? A booking link, or should I offer times from your calendar and send the invite? How long are meetings? (Times use the workspace timezone; don't ask for it.)
-Default: Offer two or three times from the connected calendar; invite only after they agree.
-Writes: `gtm/book.md`.
-Check: List three real open slots from their calendar, or show the booking link.
+Ask: When someone says yes, I offer two or three open times from the sender's calendar and send the invite once they pick one. How long are meetings, which video link (Google Meet, Zoom, a fixed room), and should anyone else always be invited? Only if they bring it up: a booking link instead. (Times use the workspace timezone; don't ask for it. Which calendar is each person's own question.)
+Default: Two or three open times, 30 minutes, the calendar's own video link, no booking link.
+Writes: `gtm/book.md`, with only what differs from the default. Mention a booking link only when they asked for one.
+Check: Restate it in one line, as the invite a lead would get.
+
+## calendar
+Since: 0.9.2
+Scope: personal
+Ask: Which calendar should your meetings go on? Usually the one for the address you send from, but it can be another account's or a shared calendar. Then settle how this agent reaches it on the computer that runs follow-ups: a connected calendar tool, an MCP, the browser, or anything else that works.
+Default: The calendar of your `sender_email`, through whichever route reaches it.
+Writes: personal `gtm/book.md` (`--me`): the account, the calendar's name, how to reach it (the tool or MCP, or the browser and its URL), and anyone to add as a guest on every meeting.
+Check: Through that same route, list three real open slots, then create a 15-minute test event tomorrow with only the user as a guest, read it back to confirm it sits on that calendar under that account, and delete it. If the account differs from `sender_email`, say so and ask whether that is intended. If any part fails, say what to connect or share; follow-ups hand meetings to the user until it passes.
 
 ## limits
 Since: 0.2.0
@@ -97,18 +105,18 @@ Writes: `gtm/after-report.md` if they want it posted somewhere.
 Check: Post a test summary there.
 
 ## send-window
-Since: 0.4.0
+Since: 0.9.1
 Ask: When may cold messages go out? Days and hours, in the workspace timezone (already set from this computer; don't ask for it). Replies to people who wrote back go out any time.
-Default: Weekdays 08:00-18:00. New workspaces start with this; workspaces from before 0.4 start with any time, so ask.
+Default: Any time: messages go out the moment a run writes them. Ask only whether they want sending hours; most teams don't. If `o11 ostack settings show` has hours the team never chose (a wallet save before 0.9.1 stored weekdays 08:00-18:00), ask whether to keep them or set `any`.
 Writes: `o11 ostack settings set gtm.send_window "<days> HH:MM-HH:MM"`, such as `"weekdays 08:00-18:00"`, or `any`.
 Check: Say whether the window is open right now (`o11 ostack context` shows `local_time` and `send_window`).
 
 ## send-at
-Since: 0.9.0
-Ask: What time should first messages land in people's inboxes? Outbound writes them the evening before and schedules them for that time on your sending days. Or should they go out as soon as they are written?
-Default: 08:00, with outbound running the evening before (Sunday to Thursday at 20:00).
-Writes: `o11 ostack settings set gtm.send_at HH:MM`, or `off` to send as the run goes. An audience that differs gets `send_at:` in its `audience.md` front matter.
-Check: Say when the next one would land (`o11 ostack context` shows `next_send_at`), and that the outbound schedule runs before it.
+Since: 0.9.1
+Ask: First messages go out the moment outbound writes them. Is that right, or should they all land at one time on your sending days, such as 8:00 (outbound then writes them the evening before and schedules them)?
+Default: Off: sent as the run writes them, with outbound on weekdays at 08:00.
+Writes: nothing for the default (if `o11 ostack settings show` has a `send_at` time the user did not choose, `o11 ostack settings set gtm.send_at off`), or `o11 ostack settings set gtm.send_at HH:MM` for a fixed time. An audience that differs gets `send_at:` in its `audience.md` front matter.
+Check: With a time, say when the next one would land (`o11 ostack context` shows `next_send_at`) and move outbound to the evening before (`o11 ostack schedule set gtm/outbound --days sun-thu --at 20:00`). Without one, outbound can run whenever suits them.
 
 ## handoffs
 Since: 0.9.0

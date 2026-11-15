@@ -18,8 +18,13 @@ export type SetupStatus = Awaited<ReturnType<typeof setupStatus>>;
  * for everyone; personal questions are answered by each teammate. Also lists customized steps whose default changed
  * since this person last reviewed, and files that need attention.
  */
-export async function setupStatus(workspace: Workspace) {
-  const playbooks = enabledPlaybooks(workspace);
+export async function setupStatus(workspace: Workspace, only?: string) {
+  const enabled = enabledPlaybooks(workspace);
+  // `--playbook seo` scopes the interview to one playbook, so someone can set up a part of ostack on its own.
+  if (only && !enabled.includes(only)) {
+    throw new OstackError("playbook_not_enabled", `The ${only} playbook is not enabled in this workspace. Run "o11 ostack playbooks add ${only}" first.`, { enabled });
+  }
+  const playbooks = only ? [only] : enabled;
   const { team, mine } = workspace.setup.settings;
   const reviewed = workspace.state.reviewed;
   const unanswered = loadQuestions(playbooks)
@@ -107,7 +112,7 @@ export async function setupCommand(args: Args): Promise<void> {
   const sub = args.positionals[1] ?? "status";
   if (sub === "import") return importCommand(args);
   const workspace = await loadWorkspace();
-  if (sub === "status") return print(await setupStatus(workspace));
+  if (sub === "status") return print(await setupStatus(workspace, optional(args, "playbook")));
   if (sub === "reviewed") {
     workspace.state.reviewed = VERSION;
     await writeState(workspace.root, workspace.state);
@@ -131,5 +136,5 @@ export async function setupCommand(args: Args): Promise<void> {
     if (id || workspace.setup.canManage) await saveAnswers(workspace, "team", teamReset);
     return print({ reset: id ?? "all", questions: [...Object.keys(mineReset), ...(id || workspace.setup.canManage ? Object.keys(teamReset) : [])] });
   }
-  throw new OstackError("unknown_command", "Use: o11 ostack setup status|answer <question> [--skip]|reviewed|reset [--question <id>]|import [--dry-run].");
+  throw new OstackError("unknown_command", "Use: o11 ostack setup status [--playbook <id>]|answer <question> [--skip]|reviewed|reset [--question <id>]|import [--dry-run].");
 }

@@ -5,7 +5,8 @@ import { dirname, join } from "node:path";
 import type { Args } from "../lib/args.js";
 import { contentFolders, listContent } from "../lib/content.js";
 import { OstackError } from "../lib/errors.js";
-import { loadPlaybooks } from "../lib/playbooks.js";
+import { loadPlaybooks, type Playbook } from "../lib/playbooks.js";
+import { canUse, grantedFeatures } from "../lib/access.js";
 import { print } from "../lib/output.js";
 import { remote } from "../lib/remote.js";
 import { VERSION } from "../lib/version.js";
@@ -23,16 +24,43 @@ const HOSTS = Object.keys(SKILL_HOSTS) as Host[];
 /** Marks a skill folder written by this CLI, with the ostack version and content hash it holds. Folders without it are never touched. */
 const MARKER = ".o11-ostack";
 
+type Shipped = { name: string; playbook: Playbook | null; files: { path: string; text: string }[] };
+
 /** Every shipped skill: core ones in skills/, each playbook's in playbooks/<id>/skills/. Names are unique across them. */
-function shippedSkills(): { name: string; files: { path: string; text: string }[] }[] {
-  const folders = [
-    ...contentFolders("skills").map((name) => `skills/${name}`),
-    ...loadPlaybooks().flatMap((playbook) => contentFolders(`${playbook.dir}/skills`).map((name) => `${playbook.dir}/skills/${name}`)),
+function shippedSkills(): Shipped[] {
+  return [
+    ...contentFolders("skills").map((name) => ({ name, playbook: null, files: listContent(`skills/${name}`) })),
+    ...loadPlaybooks().flatMap((playbook) => contentFolders(`${playbook.dir}/skills`)
+      .map((name) => ({ name, playbook, files: listContent(`${playbook.dir}/skills/${name}`) }))),
   ];
-  return folders.map((folder) => ({ name: folder.split("/").pop()!, files: listContent(folder) }));
+}
+
+/**
+ * Whether a skill may be on this computer: yes for core and open playbooks, and for a beta playbook only with a grant.
+ * Null when the grants could not be read (signed out or offline): beta skills already there are kept and refreshed,
+ * and none are added.
+ */
+function allowed(skill: Shipped, granted: string[] | null): boolean | null {
+  if (!skill.playbook || skill.playbook.access !== "beta") return true;
+  return granted === null ? null : canUse(granted, skill.playbook);
 }
 
 const hostDir = (host: Host) => join(homedir(), SKILL_HOSTS[host]);
+
+/**
+ * A skill's files as one agent should get them. Only Claude Code reads `effort:` in a SKILL.md's front matter (it
+ * runs the skill at that reasoning effort), so other agents get the file without it rather than a key their skill
+ * loader may refuse; their scheduled tasks set the effort instead (`o11 ostack schedule spec`).
+ */
+export function forHost(host: Host, files: { path: string; text: string }[]): { path: string; text: string }[] {
+  if (host === "claude") return files;
+  return files.map((file) => {
+    if (!file.path.endsWith("SKILL.md")) return file;
+    const end = file.text.indexOf("\n---", 3);
+    if (!file.text.startsWith("---\n") || end < 0) return file;
+    return { ...file, text: file.text.slice(0, end).replace(/^effort:.*\n?/m, "") + file.text.slice(end) };
+  });
+}
 
 function installedVersion(dir: string): string | null {
   const marker = join(dir, MARKER);
@@ -58,15 +86,25 @@ function writeSkill(dir: string, files: { path: string; text: string }[]): void 
 
 type Result = { host: Host; skill: string; status: "installed" | "updated" | "current" | "skipped" | "removed"; path: string; reason?: string };
 
-function installHost(host: Host, onlyRefresh: boolean): Result[] {
+function installHost(host: Host, onlyRefresh: boolean, granted: string[] | null): Result[] {
   const root = hostDir(host);
   const results: Result[] = [];
   const shipped = shippedSkills();
-  for (const skill of shipped) {
+  for (const shippedSkill of shipped) {
+    const skill = { ...shippedSkill, files: forHost(host, shippedSkill.files) };
     const dir = join(root, skill.name);
     const link = lstatSafe(dir);
     const version = installedVersion(dir);
-    if (onlyRefresh && version === null) continue;
+    const may = allowed(skill, granted);
+    if (may === false) {
+      // A beta playbook this person no longer has (or never had): take out the copy this CLI wrote.
+      if (version !== null) {
+        rmSync(dir, { recursive: true, force: true });
+        results.push({ host, skill: skill.name, status: "removed", path: dir, reason: "beta access not granted" });
+      }
+      continue;
+    }
+    if ((onlyRefresh || may === null) && version === null) continue;
     if (link && !link.isSymbolicLink() && version === null) {
       results.push({ host, skill: skill.name, status: "skipped", path: dir, reason: "a folder not written by o11 is already there" });
       continue;
@@ -106,7 +144,7 @@ function lstatSafe(path: string) {
 /** After `o11 update`, the first ostack command rewrites skills this CLI installed earlier. Never fails a command. */
 export function refreshInstalledSkills(): Result[] {
   try {
-    return HOSTS.flatMap((host) => installHost(host, true)).filter((result) => result.status !== "current");
+    return HOSTS.flatMap((host) => installHost(host, true, null)).filter((result) => result.status !== "current");
   } catch {
     return [];
   }
@@ -136,7 +174,8 @@ export async function skillsCommand(args: Args): Promise<void> {
   if (sub === "install") {
     const hosts = hostsFrom(args);
     if (hosts.length === 0) throw new OstackError("no_agent", "No coding agent folder (~/.claude, ~/.codex, ~/.cursor, ~/.gemini) was found. Pass --host.");
-    const results = hosts.flatMap((host) => installHost(host, false));
+    const granted = await grantedFeatures();
+    const results = hosts.flatMap((host) => installHost(host, false, granted));
     await reportInstall(hosts, results);
     return print({ version: VERSION, results, next: 'Agents: read the installed ostack-setup/SKILL.md (path above) and follow it now; this session may not load new skills until it restarts. People: ask your agent to "set up ostack".' });
   }

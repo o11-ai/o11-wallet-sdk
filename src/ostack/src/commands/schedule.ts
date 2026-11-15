@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { oneOf, optional, required, type Args } from "../lib/args.js";
+import { codexRunEffort } from "../lib/codex-effort.js";
 import { OstackError } from "../lib/errors.js";
 import { listAudiences } from "../lib/layers.js";
 import { findWorkflow, loadPlaybooks, type Workflow } from "../lib/playbooks.js";
@@ -43,10 +44,29 @@ function taskName({ workflow, audience }: Entry): string {
   return `ostack-${workflow.playbook}-${workflow.id}${audience === DEFAULT_AUDIENCE ? "" : `-${audience}`}`;
 }
 
-/** The whole instruction a scheduled task stores. It only calls `o11 ostack prompt`, so updates never require editing the task. */
-function instruction(workspace: Workspace, { workflow, audience }: Entry): string {
-  return `Run \`o11 ostack prompt ${workflow.ref}${audienceFlag(audience)}\` in ${workspace.root} and follow the instructions it prints exactly.`;
+/**
+ * The whole instruction a scheduled task stores: a `/goal`, so the agent keeps taking turns until the run is really
+ * finished instead of stopping after the first one, and a separate model checks that finish line after each turn.
+ * The goal's text is also the directive for the first turn. It only calls `o11 ostack prompt`, so updates never
+ * require editing the task. No % (cron reads it as a newline) and no single quote (the crontab line quotes it).
+ */
+export function instruction(workspace: Workspace, { workflow, audience }: Entry): string {
+  const flag = audienceFlag(audience);
+  return [
+    `/goal Run \`o11 ostack prompt ${workflow.ref}${flag}\` in ${workspace.root} and follow the instructions it prints exactly, to the end.`,
+    `The goal is met when \`o11 ostack run end ${workflow.ref}${flag}\` has recorded this run and you have written the report its skill asks for,`,
+    "or when the run stopped early the way those instructions allow (run start reported not_due or run_in_progress, or a doctor check failed) and you reported that.",
+    "Keep going while due work remains inside the daily limits; never send anything twice to finish faster.",
+  ].join(" ");
 }
+
+/**
+ * Highest reasoning effort for scheduled runs. Claude Code also reads `effort: max` from the skill. Codex uses max
+ * when its model list says the configured model offers it, otherwise xhigh (codex-effort.ts).
+ */
+const CLAUDE_EFFORT = "max";
+
+const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
 function view(workspace: Workspace, entry: Entry) {
   const { workflow, audience } = entry;
@@ -100,21 +120,25 @@ function hostSpec(workspace: Workspace, entry: Entry, host: Host) {
       host,
       where: "Claude Desktop, Code tab, Scheduled (a local task, so it can reach the workspace and your connectors)",
       tasks: names.map((name, index) => ({ name, cron: cron[index] })),
-      permission_mode: "Auto, or Accept edits with ostack and your mail/CRM tools always allowed after the first Run now",
-      ask: `Create ${names.length === 1 ? "a local scheduled task" : "local scheduled tasks"} ${list(cron, "on the cron schedule")}, in the folder ${base.folder}, in local time, with these instructions: ${base.instructions}`,
+      permission_mode: "Auto, so each /goal turn runs unattended; or Accept edits with ostack and your mail/CRM tools always allowed after the first Run now",
+      effort: `${CLAUDE_EFFORT}: the ostack skills ask for it themselves; also pick it in the task if the app offers an effort setting`,
+      ask: `Create ${names.length === 1 ? "a local scheduled task" : "local scheduled tasks"} ${list(cron, "on the cron schedule")}, in the folder ${base.folder}, in local time, with the permission mode Auto, with these instructions exactly as written, starting with /goal: ${base.instructions}`,
       after: `Click Run now once on a task, approve each tool with "always allow", then run: ${installed}`,
       timezone_note: timezoneNote,
     };
   }
   if (host === "codex") {
     const rrule = toRRule(local);
+    const effort = codexRunEffort();
     return {
       ...base,
       host,
       where: "Codex app, Automations (a standalone, local project automation on this folder, not a worktree)",
       tasks: names.map((name, index) => ({ name, rrule: rrule[index] })),
       sandbox: "workspace-write with network access, so the run can reach your mail and CRM tools",
-      ask: `Create ${names.length === 1 ? "a standalone automation" : "standalone automations"} ${list(rrule, "on the schedule")}, for the project ${base.folder}, running locally (not in a worktree), with these instructions: ${base.instructions}`,
+      reasoning_effort: `${effort}: Max, or Extra high (xhigh) if the chosen model does not offer Max`,
+      goals: "Codex runs /goal only with its goals feature on ([features] goals = true in ~/.codex/config.toml). Without it the same words still guide the run, but nothing makes it keep going after its first turn.",
+      ask: `Create ${names.length === 1 ? "a standalone automation" : "standalone automations"} ${list(rrule, "on the schedule")}, for the project ${base.folder}, running locally (not in a worktree), at Max reasoning effort (Extra high if the model does not offer Max), with these instructions exactly as written, starting with /goal: ${base.instructions}`,
       after: `Run one once from the Automations page and check its result, then run: ${installed}`,
       timezone_note: timezoneNote,
     };
@@ -133,15 +157,17 @@ async function cronBlock(workspace: Workspace, agent: "claude" | "codex"): Promi
   if (!wallet) throw new OstackError("not_on_path", `${o11} is not the o11 wallet CLI. Put ${WALLET_LAUNCHER_DIR} first on PATH, then retry.`);
   if (!binary) throw new OstackError("not_on_path", `${agent} is not on PATH, so cron cannot start it.`);
   const logs = join(workspace.root, ".ostack", "logs");
+  const codexEffort = agent === "codex" ? codexRunEffort() : null;
   const lines = [CRON_BEGIN(workspace.root), `CRON_TZ=${workspace.timezone}`, `PATH=${process.env.PATH ?? "/usr/bin:/bin"}`];
   for (const entry of entries(workspace)) {
     const { spec, enabled } = effective(workspace, entry.workflow, entry.audience);
     if (!spec || !enabled) continue;
-    const prompt = `"$(${o11} ostack prompt ${entry.workflow.ref}${audienceFlag(entry.audience)} --workspace ${workspace.root})"`;
+    // The same /goal instruction the Desktop and Codex tasks store, so a headless run also keeps going until it is done.
+    const prompt = shellQuote(instruction(workspace, entry));
     const run =
       agent === "claude"
-        ? `${binary} -p ${prompt} --permission-mode auto --permission-prompts none`
-        : `${binary} exec --cd ${workspace.root} --sandbox workspace-write ${prompt}`;
+        ? `${binary} -p ${prompt} --effort ${CLAUDE_EFFORT} --permission-mode auto --permission-prompts none`
+        : `${binary} exec --cd ${workspace.root} --sandbox workspace-write -c model_reasoning_effort=${codexEffort} ${prompt}`;
     for (const cron of toCron(spec)) lines.push(`${cron} cd ${workspace.root} && ${run} >> ${join(logs, `${taskName(entry)}.log`)} 2>&1`);
   }
   lines.push(CRON_END(workspace.root));

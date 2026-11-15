@@ -6,7 +6,7 @@ workflows:
   - id: outbound
     skill: ostack-outbound
     summary: Find, qualify and research leads, then write and send first messages.
-    schedule: { days: sun-thu, at: "20:00" }
+    schedule: { days: weekdays, at: "08:00" }
     per_audience: true
   - id: follow-ups
     skill: ostack-follow-ups

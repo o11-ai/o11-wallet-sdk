@@ -13,7 +13,7 @@ export const sdkSourceFiles = ['client', 'cli', 'cli-help', 'cli-inspect', 'cli-
 export const ostackSourceFiles = [
   'src/cli', 'src/commands/customize', 'src/commands/doctor', 'src/commands/files', 'src/commands/run',
   'src/commands/schedule', 'src/commands/setup', 'src/commands/setup-import', 'src/commands/skills',
-  'src/commands/workspace', 'src/index', 'src/lib/args', 'src/lib/content', 'src/lib/csv', 'src/lib/errors',
+  'src/commands/workspace', 'src/index', 'src/lib/access', 'src/lib/args', 'src/lib/codex-effort', 'src/lib/content', 'src/lib/csv', 'src/lib/errors',
   'src/lib/layers', 'src/lib/o11-path', 'src/lib/output', 'src/lib/paths', 'src/lib/playbooks', 'src/lib/remote',
   'src/lib/schedule', 'src/lib/state', 'src/lib/steps', 'src/lib/time', 'src/lib/version', 'src/lib/workspace',
   'src/playbooks/gtm/audience-settings', 'src/playbooks/gtm/audiences-command', 'src/playbooks/gtm/homepage-check',

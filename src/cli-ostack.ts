@@ -18,6 +18,8 @@ function failure(status: number, body: unknown): OstackError {
   const message = typeof body === 'object' && body !== null && 'message' in body && typeof body.message === 'string' ? body.message.slice(0, 300) : '';
   if (status === 401) return new OstackError('not_signed_in', 'Your wallet sign-in expired or was revoked. Run "o11 login" and try again.');
   if (status === 409) return new OstackError('file_changed', message || 'Someone changed this since you read it. Read it again, merge, and retry.');
+  const reason = typeof body === 'object' && body !== null && 'reason' in body && typeof body.reason === 'string' ? body.reason : '';
+  if (status === 403 && reason === 'FEATURE_NOT_AVAILABLE') return new OstackError('feature_not_available', message || 'This Ostack feature is in beta and this workspace does not have access yet.');
   if (status === 403) return new OstackError('forbidden', message || 'Your role in this workspace cannot make that change.');
   if (status === 404) return new OstackError('not_found', message || 'Not found in this workspace.');
   if (status === 400) return new OstackError('invalid_input', message || 'The wallet rejected the input.', code ? { wallet: code } : undefined);
