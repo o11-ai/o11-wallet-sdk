@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.41
+
+**Changed**
+- Ostack setup and the GTM playbook use the computer's timezone for schedules and send windows instead of asking for one.
+
 ## 0.1.40
 
 **New**

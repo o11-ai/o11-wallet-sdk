@@ -4,10 +4,10 @@ These apply to the whole workspace, whatever playbooks it uses. Each playbook ad
 
 ## timezone
 Since: 0.4.0
-Ask: Which timezone does the team work in? Schedules and sending hours use it.
-Default: This computer's timezone, which `o11 ostack settings show` uses until one is set. Confirm it rather than asking cold.
-Writes: `o11 ostack settings set timezone <IANA name>`, such as America/New_York. A teammate elsewhere sets their own with `--me`.
-Check: Say the `local_time` from `o11 ostack settings show` and ask whether that is the time where they are.
+Ask: Don't ask. Use this computer's timezone, which `o11 ostack settings show` reports until one is set; schedules and sending hours use it. Mention it in one line with the rest of setup (for example "Times use America/New_York; say if that's wrong"), then record the question as answered. Change it only when the user says the team works elsewhere.
+Default: This computer's timezone.
+Writes: `o11 ostack settings set timezone <IANA name>` with this computer's zone, such as America/New_York. Later changes use the same command; a teammate elsewhere sets their own with `--me`.
+Check: `o11 ostack settings show` shows the zone and a `local_time` that matches this computer's clock.
 
 ## schedule
 Since: 0.2.0

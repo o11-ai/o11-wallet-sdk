@@ -77,7 +77,7 @@ Check: Post or create one clearly labeled test item, then remove it or ask the u
 
 ## meetings
 Since: 0.2.0
-Ask: When someone says yes, how should we book? A booking link, or should I offer times from your calendar and send the invite? How long are meetings, and in what timezone?
+Ask: When someone says yes, how should we book? A booking link, or should I offer times from your calendar and send the invite? How long are meetings? (Times use the workspace timezone; don't ask for it.)
 Default: Offer two or three times from the connected calendar; invite only after they agree.
 Writes: `gtm/book.md`.
 Check: List three real open slots from their calendar, or show the booking link.
@@ -98,7 +98,7 @@ Check: Post a test summary there.
 
 ## send-window
 Since: 0.4.0
-Ask: When may cold messages go out? Days and hours in your timezone. Replies to people who wrote back go out any time.
+Ask: When may cold messages go out? Days and hours, in the workspace timezone (already set from this computer; don't ask for it). Replies to people who wrote back go out any time.
 Default: Weekdays 08:00-18:00. New workspaces start with this; workspaces from before 0.4 start with any time, so ask.
 Writes: `o11 ostack settings set gtm.send_window "<days> HH:MM-HH:MM"`, such as `"weekdays 08:00-18:00"`, or `any`.
 Check: Say whether the window is open right now (`o11 ostack context` shows `local_time` and `send_window`).
