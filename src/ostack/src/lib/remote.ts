@@ -62,8 +62,14 @@ export interface PlaybookRemote {
 
 export type VideoFormat = "product-demo" | "irl" | "reel";
 export type VideoFileRole = "video" | "preview" | "poster";
-/** One stored file of a version: a cut in one shape, its preview loop or its poster. */
-export type RemoteVideoFile = { id: string; role: VideoFileRole; sizeBytes: number; width: number | null; height: number | null; durationMs: number | null };
+/**
+ * One stored file of a version: a cut in one shape, its preview loop or its poster. `downloadUrl` is a short-lived
+ * link, present once the version is ready (absent from wallet CLIs older than downloads).
+ */
+export type RemoteVideoFile = {
+  id: string; role: VideoFileRole; sizeBytes: number; width: number | null; height: number | null; durationMs: number | null;
+  contentType?: string; downloadUrl?: string | null;
+};
 /** One uploaded cut. `urls` are short-lived links to the main cut, present once the version is ready. */
 export type RemoteVideoVersion = {
   id: string; number: number; status: "uploading" | "ready" | "abandoned"; templateSlug: string | null; changeNote: string | null;

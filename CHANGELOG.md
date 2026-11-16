@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.43
+
+**New**
+- Ostack content calendar (social beta): every night your agent makes the posts due in the next three days from your own Sheet, Notion or calendar, with videos uploaded to o11 and a caption for each platform, and marks them ready for review.
+- `o11 ostack launch-videos download <link>` saves a library film or a cut of one of your videos.
+- `o11 ostack launch-videos` commands take a video's o11 link in place of its id, and a film's link in place of its slug.
+
 ## 0.1.42
 
 **New**

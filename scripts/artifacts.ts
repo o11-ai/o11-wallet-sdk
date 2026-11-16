@@ -18,9 +18,9 @@ export const ostackSourceFiles = [
   'src/lib/schedule', 'src/lib/state', 'src/lib/steps', 'src/lib/time', 'src/lib/version', 'src/lib/workspace',
   'src/playbooks/gtm/audience-settings', 'src/playbooks/gtm/audiences-command', 'src/playbooks/gtm/homepage-check',
   'src/playbooks/gtm/index', 'src/playbooks/gtm/ledger-command', 'src/playbooks/gtm/settings',
-  'src/playbooks/gtm/tam-command', 'src/playbooks/index', 'src/playbooks/launch-videos/index',
-  'src/playbooks/launch-videos/kit', 'src/playbooks/launch-videos/library', 'src/playbooks/launch-videos/media',
-  'src/playbooks/launch-videos/videos', 'src/playbooks/types', 'content/index', 'content/kits', 'content/markdown.d'
+  'src/playbooks/gtm/tam-command', 'src/playbooks/index', 'src/playbooks/launch-videos/download',
+  'src/playbooks/launch-videos/index', 'src/playbooks/launch-videos/kit', 'src/playbooks/launch-videos/library',
+  'src/playbooks/launch-videos/links', 'src/playbooks/launch-videos/media', 'src/playbooks/launch-videos/videos', 'src/playbooks/types', 'content/index', 'content/kits', 'content/markdown.d'
 ] as const;
 /** Every markdown file bundled into the CLI, read from the generated packages/ostack/content/index.ts. */
 export const ostackContentFiles = Object.keys(CONTENT).sort().map(path => `content/${path}`);

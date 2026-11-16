@@ -27,8 +27,9 @@ Then ask only the first question: what the video is about and which kind, unless
 5. Run `o11 ostack context --playbook launch-videos` and read every general file: the brand kit (brand, words, product, voice, music and spend) and anything else the team said.
 6. Look for design files in the repo or folder you are working in: `design.md` in any case or folder, a brand guide, theme or token files, a Tailwind config. Log what holds for every video into the brand kit: read `o11 ostack files show launch-videos/brand.md`, merge in the colors, fonts and weights, logo use and style rules it lacks (note where each came from, and keep what the team wrote unless the design file is clearly newer), then save it with `o11 ostack files write launch-videos/brand.md --text-file - --base-version <n>`. Tell the user what you added. Only an owner or admin can write team files: if the write is refused, use the design file for this video and tell the user what an admin could add. Never log anything about this one video.
 7. Find the video in o11. Every video has a page in the o11 workspace where the team picks its template, reads its brief and watches every cut.
-   - **The prompt names a video id:** run `o11 ostack launch-videos video <id>`.
-   - **The prompt names a template** (from "Copy prompt" on a film): create the video with that template, `o11 ostack launch-videos create --title "<short name>" --format <format> --template <slug>`, and send the user the `url` it prints.
+   - **The prompt names a video id or link:** run `o11 ostack launch-videos video <id or link>`.
+   - **The prompt names a template** (from "Copy prompt" on a film, or a film link copied from the library): create the video with that template, `o11 ostack launch-videos create --title "<short name>" --format <format> --template <slug or link>`, and send the user the `url` it prints.
+   - **The user points to one of their own videos to follow** (its o11 link): create this one blank and download theirs with `o11 ostack launch-videos download <link> --dir media/reference`, then study it the way a template recipe says.
    - **Neither** (say, "make me a launch video"): ask what the video is about in one question, then create it without a template and send the user its `url` in one line: "Pick a template here: <url>". Run `o11 ostack launch-videos video <id> --wait 300` until a template is picked, repeating while the user is still choosing; if they say to start blank, go on without one. List the workspace's videos with `o11 ostack launch-videos videos` when they mean an existing one. To suggest films yourself, search with `o11 ostack launch-videos templates --search <text>`.
 
    You name the video: a short title for what it is, such as "Inbox launch". `video` returns the brief, the template's recipe and every version. The brief answers the brief step's questions; ask only what it leaves out. Save what the user tells you about this video to its brief with `o11 ostack launch-videos update <id> --goal "<text>"` (also `--audience`, `--storyboard`, `--material`, `--notes`, `--length`, `--aspect`, `--title`, `--template`, and `--part <name>=<text>` for a part only this kind of video has, such as a UGC video's `hook`), so the team sees it on the video's Brief tab and the next version starts from it. The team rarely types there: they tell you. To have them check a storyboard or brief, send the `url` that `update` prints, which opens that tab. The recipe points to the template film: study it, then match its shape, look and sound; the team's files still win over it, and the rules below win over both.
@@ -43,6 +44,20 @@ The first time you reach a step, run `o11 ostack context launch-videos/<step>`. 
 
 Ask the user about anything needing their judgment: the brief, the words, which take, the music. Show a low-resolution cut early and often; never polish what has not been agreed.
 
+## Runs from the content calendar
+
+The ostack-content-calendar skill makes videos overnight with nobody to answer. When it hands you a calendar row:
+- Skip the first reply and the brief interview. The row, the team's files and the template are the brief: save it to
+  the video's brief, decide what is left from them, and note every assumption for the row.
+- Make your best choices where you would normally ask (which take, which words, which track), and say each in the
+  note. The team changes them by moving the row back to Planned with a new prompt.
+- Every audit still runs and must pass. A cut that cannot pass is not uploaded; the row needs help.
+- The row is the go-ahead to upload: upload the audited cut as a version with every shape the row needs, as a draft
+  for the team to review, and return its link. Never render a master the row did not ask for.
+- Paid calls stay inside the nightly cap the calendar skill gives you, quoted first.
+- Anything only a person can do (clips that are not there, a product sign-in, a password, a choice the row and files
+  cannot settle) stops this video with that one need, for the calendar to write back.
+
 ## Wallet tools
 
 Transcription, narration, music, sound effects and logos come from the user's o11 wallet: `o11 discover "<capability>"`, `o11 inspect <tool>`, `o11 quote <tool> --input @input.json`, then `o11 call`. [references/wallet-tools.md](references/wallet-tools.md) lists what to search for at each step and what to check. Quote before anything paid, and stay inside the video's budget from the brief. Start a video's paid calls with one run id (`o11 session-id`, then `--run-id`) so `o11 run-status` shows what the video cost.
@@ -53,7 +68,7 @@ Transcription, narration, music, sound effects and logos come from the user's o1
 - **Nothing shakes.** Every moving layer moves through `move()` (perspective plus translate3d); frames are rebuilt from scratch; renders split only at shot cuts. Prove stillness with the audits, never by eye. See [references/rendering.md](references/rendering.md).
 - **The voice is untouched.** No denoise, no EQ on the camera's audio; it plays in both ears and is level-matched. No copyrighted music without a license.
 - **Audit before showing.** Every cut the user sees has passed the stillness, layout, frame and sound audits, and you looked at it yourself. Say what you measured and what you could not check: you cannot listen.
-- **Media stays local, except finished cuts.** Clips, renders, narration and `media/auth.json` stay in the video folder. Never commit them or write them to o11 files. The only upload is a finished cut to its video in o11 with `o11 ostack launch-videos upload`, once the user agrees to it. Never type the user's passwords.
+- **Media stays local, except finished cuts.** Clips, renders, narration and `media/auth.json` stay in the video folder. Never commit them or write them to o11 files. The only upload is a finished cut to its video in o11 with `o11 ostack launch-videos upload`, once the user agrees to it (a content calendar row asking for the video counts). Never type the user's passwords.
 - **Spend only with a quote.** Every paid generation is quoted first and fits the budget; a failed call is never resubmitted blindly.
 
 When the user corrects how something looks or sounds, ask whether it holds for every video. If it does, offer to save it to the brand kit with the ostack-setup skill, so the next video starts there; if it is about this video only, save it to the video's brief with `o11 ostack launch-videos update`. The brand kit never holds one video's audience, story, screens, length or budget.

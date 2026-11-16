@@ -7,19 +7,19 @@ import { print, printText } from "../../lib/output.js";
 import { remote, type VideoFileInput, type VideoRemote, type VideoUploadPart } from "../../lib/remote.js";
 import { FORMATS } from "./kit.js";
 import { libraryFiles, libraryRecipe, libraryVideo, VIDEO_LIBRARY } from "./library.js";
+import { ASPECTS, filmSlug, libraryFilm, videoId } from "./links.js";
 import { ffmpeg, makePreviewAndPoster, makeWebCopy, needsWebCopy, probe, runs } from "./media.js";
 
 /** The video's page in o11: where the team picks its template, edits the brief and watches every cut. */
-const pageUrl = (id: string) => `${remote().origin}/wallet/ostack/launch-videos/${id}`;
+export const pageUrl = (id: string) => `${remote().origin}/wallet/ostack/launch-videos/${id}`;
 
 const BRIEF_TEXT = ["goal", "audience", "storyboard", "material", "notes"] as const;
-const ASPECTS = ["16:9", "9:16", "4:5", "1:1"] as const;
 /** A brief part a format adds, in camelCase, such as a UGC video's creator or hook. */
 const PART_NAME = /^[a-z][a-zA-Z0-9]{0,39}$/;
 const MAX_WAIT_SECONDS = 600;
 
 /** Videos live in the o11 workspace; a CLI older than them says how to update. */
-function videos(): VideoRemote {
+export function videos(): VideoRemote {
   const client = remote().videos;
   if (!client) throw new OstackError("update_cli", 'This o11 CLI predates videos in o11. Update it: run "o11 update".');
   return client;
@@ -27,9 +27,7 @@ function videos(): VideoRemote {
 
 /** A film template's recipe: study the film, keep its shape and look, fill it with the team's own material. */
 function recipe(slug: string): string {
-  const film = libraryVideo(slug);
-  if (!film) throw new OstackError("not_found", `No template "${slug}". Run "o11 ostack launch-videos templates --search <text>" to find one.`);
-  return libraryRecipe(film);
+  return libraryRecipe(libraryFilm(slug));
 }
 
 /**
@@ -50,7 +48,7 @@ export async function templatesCommand(args: Args): Promise<void> {
   });
 }
 
-/** `o11 ostack launch-videos template <slug>`: the recipe a version follows. */
+/** `o11 ostack launch-videos template <slug or film link>`: the recipe a version follows. */
 export async function templateCommand(args: Args): Promise<void> {
   printText(recipe(args.positionals[1] ?? required(args, "slug")));
 }
@@ -66,7 +64,7 @@ export async function videosCommand(): Promise<void> {
  * one read. --wait (up to 600) first waits for someone to pick a template on the video's page.
  */
 export async function videoCommand(args: Args): Promise<void> {
-  const id = args.positionals[1] ?? required(args, "id");
+  const id = videoId(args.positionals[1] ?? required(args, "id"));
   const wait = optional(args, "wait");
   const seconds = wait === undefined ? 0 : Number(wait);
   if (!Number.isInteger(seconds) || seconds < 0 || seconds > MAX_WAIT_SECONDS) throw new OstackError("invalid_flag", `--wait takes 0 to ${MAX_WAIT_SECONDS} seconds.`);
@@ -84,11 +82,11 @@ export async function videoCommand(args: Args): Promise<void> {
   });
 }
 
-/** `o11 ostack launch-videos create --title <text> --format <format> [--template <slug>]` */
+/** `o11 ostack launch-videos create --title <text> --format <format> [--template <slug or film link>]` */
 export async function createCommand(args: Args): Promise<void> {
   const format = oneOf(args, "format", FORMATS);
-  const templateSlug = optional(args, "template") ?? null;
-  if (templateSlug) recipe(templateSlug);
+  const template = optional(args, "template");
+  const templateSlug = template ? filmSlug(template) : null;
   const created = await videos().create({ title: required(args, "title"), format, templateSlug });
   print({
     id: created.id, title: created.title, format: created.format, template: created.templateSlug, url: pageUrl(created.id),
@@ -129,15 +127,14 @@ function briefFlags(args: Args, current: Record<string, unknown>): Record<string
  * --part sets one part this kind of video adds to the brief, such as a UGC video's hook.
  */
 export async function updateCommand(args: Args): Promise<void> {
-  const id = args.positionals[1] ?? required(args, "id");
+  const id = videoId(args.positionals[1] ?? required(args, "id"));
   const client = videos();
   const patch: { title?: string; templateSlug?: string | null; brief?: Record<string, unknown> } = {};
   const title = optional(args, "title");
   if (title !== undefined) patch.title = title;
   const template = optional(args, "template");
   if (template !== undefined) {
-    if (template !== "blank") recipe(template);
-    patch.templateSlug = template === "blank" ? null : template;
+    patch.templateSlug = template === "blank" ? null : filmSlug(template);
   }
   const touchesBrief = [...BRIEF_TEXT, "length", "aspect", "part"].some((flag) => optional(args, flag) !== undefined);
   if (touchesBrief) {
@@ -207,7 +204,7 @@ async function sendFile(client: VideoRemote, versionId: string, fileId: string, 
  * cuts are the same version in other shapes, such as 9:16 beside 16:9. Without --preview and --poster, ffmpeg makes them.
  */
 export async function uploadCommand(args: Args): Promise<void> {
-  const videoId = args.positionals[1] ?? required(args, "id");
+  const id = videoId(args.positionals[1] ?? required(args, "id"));
   const originals = args.positionals.slice(2);
   if (!originals.length) throw new OstackError("missing_flag", "Name the finished cut to upload: upload <video-id> <cut>.");
   const scratch = mkdtempSync(join(tmpdir(), "ostack-video-"));
@@ -224,7 +221,7 @@ export async function uploadCommand(args: Args): Promise<void> {
       ...(posterPath ? [{ role: "poster" as const, ...fileInfo(posterPath) }] : []),
     ];
     const client = videos();
-    const started = await client.startVersion(videoId, {
+    const started = await client.startVersion(id, {
       files: files.map(({ path: _path, ...file }) => file),
       ...(optional(args, "note") ? { changeNote: optional(args, "note") } : {}),
     });
@@ -235,7 +232,7 @@ export async function uploadCommand(args: Args): Promise<void> {
         parts[reserved.id] = await sendFile(client, started.id, reserved.id, file.path, started.partBytes, reserved.parts);
       }
       const done = await client.completeVersion(started.id, parts);
-      print({ video: videoId, version: done.number, id: done.id, cuts: cuts.length, preview: Boolean(previewPath), poster: Boolean(posterPath), url: pageUrl(videoId) });
+      print({ video: id, version: done.number, id: done.id, cuts: cuts.length, preview: Boolean(previewPath), poster: Boolean(posterPath), url: pageUrl(id) });
     } catch (error) {
       await client.abandonVersion(started.id).catch(() => undefined);
       throw error;

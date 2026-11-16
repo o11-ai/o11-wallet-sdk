@@ -2,6 +2,12 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.9.3
+- Content calendar (social beta): plan posts in your own Google Sheet, Notion database or calendar, one row per post with a date and a plain prompt. Every night at 12:01 your agent makes what is due in the next three days: the videos (uploaded to o11 in every shape the platforms need) and a caption for each platform, then writes the links and drafts back to the row and marks it ready for review. Nothing is published. Run `o11 ostack setup` to connect your calendar, then schedule `social/calendar`.
+- Every film in the launch videos library has its own link: open a film and use Copy link, or copy a tile's address. Paste it as a calendar row's reference, or anywhere a video to follow is wanted.
+- `o11 ostack launch-videos` commands take a video's o11 link in place of its id, and a film's link in place of its slug.
+- `o11 ostack launch-videos download <link>` saves a library film or a cut of one of your videos (`--version`, `--aspect 9:16` or `all`), so a new video can follow one you already made.
+
 ## 0.9.2
 - Meetings go on the calendar you choose: setup asks each person which calendar (usually the one you send from, or another account's or a shared one) and how the agent reaches it (a connector, an MCP, the browser), then proves it by creating and deleting a test event. Run `o11 ostack setup` to answer it; until it passes, meeting replies come to you instead of being booked.
 - No booking link unless you ask for one: replies offer two or three open times from your calendar. Once the lead picks one, they get the invite (with your video link), and a one-line confirmation in the thread.

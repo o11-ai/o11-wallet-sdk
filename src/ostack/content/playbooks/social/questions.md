@@ -21,7 +21,7 @@ Check: Draft comments for three of the posts from the niche check and ask whethe
 ## limits
 Since: 0.9.2
 Ask: How much per day on each platform? Follows, likes, comments, and reposts or quotes on X. Any platform to leave out?
-Default: The ranges in the skill's pacing reference: X up to 300 follows, 300 likes and 30 comments a day; LinkedIn up to 50 follows, 80 likes and 20 comments; Instagram up to 100 follows, 140 likes and 10 comments; hourly ceilings as listed there. New or small accounts start at half for the first two weeks.
+Default: The ranges in the skill's pacing reference: X up to 350 follows, 350 likes and 30 comments a day; LinkedIn up to 50 follows, 80 likes and 20 comments; Instagram up to 100 follows, 140 likes and 10 comments; hourly ceilings as listed there. New or small accounts start at half for the first two weeks.
 Writes: `social/limits.md` with daily ranges and hourly ceilings per platform.
 Check: Read the table back and say roughly how long a full day takes at that pace.
 
@@ -47,4 +47,33 @@ Scope: personal
 Ask: Growth runs every day at 11:00 in your timezone and takes a few hours at a safe pace. Keep it, or change the time or days? The computer has to stay awake with the browser open.
 Default: Daily at 11:00. Avoid times another ostack workflow uses the same LinkedIn account.
 Writes: The schedule (`o11 ostack schedule`), created paused until the person confirms their accounts are signed in.
+Check: Show the schedule as it will run, and turn it on when they say so.
+
+## calendar
+Since: 0.9.3
+Ask: Where do you plan your posts? (A Google Sheet, a Notion database, Airtable, a calendar, nothing yet.) Which columns hold the date, the platforms, the prompt, the reference video and the material, and what do you call each status? How many days ahead should posts be ready (the default is three)?
+Default: The tool they already plan in; with none, a new Google Sheet with the default columns in the calendar step (Date, Platforms, Prompt, Reference, Material, Status, Videos, one column per platform, Agent note). Three days ahead.
+Writes: `social/calendar.md`: the tool and how to reach it (its connector, MCP, API or the browser), which column or property holds what, the status names, and the lead days. Create missing columns once they agree.
+Check: Read the next five rows back as the run would see them, mark which would be due tonight, then write and clear a test note on one row.
+
+## captions
+Since: 0.9.3
+Ask: How should captions read on each platform you post to? Length, tone, hashtags, links, words you never use, and anything to draft every time (a first comment, alt text, a thread). Paste a few posts you liked if you have them.
+Default: The captions reference in the content calendar skill: one punchy line on X, a short story with one next step on LinkedIn, a hook, call to action and a few hashtags on Instagram.
+Writes: `social/captions.md` with the rules per platform, the extras to always draft, and their example posts.
+Check: Draft captions for one real upcoming row on every platform it names and ask whether they would post them.
+
+## videos
+Since: 0.9.3
+Ask: When a post goes to several platforms, should it be one video in each shape or a separate video per platform? A film to follow when a row names none? And how much may one night's run spend on narration, music and sound?
+Default: One video, rendered in each shape the platforms need. No default film: the run picks the closest library film and says which. No paid calls until they set a nightly cap.
+Writes: `social/videos.md` with the default video plan, the default reference film link, and the nightly spending cap.
+Check: Plan two real upcoming rows (videos, shapes, reference) and read the plans back without making them.
+
+## calendar-schedule
+Since: 0.9.3
+Scope: personal
+Ask: The calendar runs every night at 12:01 and makes what is due in the next few days. Should it run on this computer? It has to be on and awake then, with the browser signed in to your product for demos. One person on the team is enough.
+Default: Daily at 00:01, only on the computer of the person who owns the calendar. Runs on other computers skip rows already claimed.
+Writes: The schedule (`o11 ostack schedule`), or nothing when they decline.
 Check: Show the schedule as it will run, and turn it on when they say so.
