@@ -1,12 +1,9 @@
-import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
 import { listContent, readContent } from "./content.js";
 import { getPlaybook } from "./playbooks.js";
 import { parseFrontmatter } from "./paths.js";
 import type { RemoteFile } from "./remote.js";
 import type { Step } from "./steps.js";
-import { audienceFolder, DEFAULT_AUDIENCE, LOCAL_DIR, type Workspace } from "./workspace.js";
+import { audienceFolder, DEFAULT_AUDIENCE, type TeamView } from "./team-view.js";
 
 /**
  * Customizations are plain-language markdown files stacked over a playbook's baseline, lowest priority first:
@@ -37,7 +34,7 @@ export function presetFiles(playbook: string, name: string): { path: string; tex
 }
 
 /** Presets one playbook has on, from the team's settings ("gtm/gmail"). */
-export function playbookPresets(workspace: Workspace, playbook: string): string[] {
+export function playbookPresets(workspace: Pick<TeamView, "settings">, playbook: string): string[] {
   return (workspace.settings.presets ?? []).filter((ref) => ref.startsWith(`${playbook}/`)).map((ref) => ref.slice(playbook.length + 1));
 }
 
@@ -56,15 +53,10 @@ function remoteLayer(name: string, source: "team" | "me", files: RemoteFile[], f
   };
 }
 
-async function localLayer(name: string, dir: string, scope: Layer["scope"]): Promise<Layer> {
-  if (!existsSync(dir)) return { name, scope, files: [] };
-  const entries = await readdir(dir, { withFileTypes: true });
-  const names = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => entry.name).sort();
-  const files = await Promise.all(names.map(async (file) => {
-    const path = join(dir, file);
-    return { layer: name, source: "local" as const, file, path, text: (await Bun.file(path).text()).trim() };
-  }));
-  return { name, scope, files };
+/** Files on this computer, when there is one. Over MCP there is none, so these layers are empty. */
+async function localLayer(name: string, workspace: TeamView, folder: string | null, scope: Layer["scope"]): Promise<Layer> {
+  const files = workspace.localFiles ? await workspace.localFiles(folder) : [];
+  return { name, scope, files: files.map(({ file, path, text }) => ({ layer: name, source: "local" as const, file, path, text: text.trim() })) };
 }
 
 /** The folders an audience's files come from, lowest priority first. Default also reads gtm/audiences/default/ and, for gtm, 0.7's campaigns/<name>/ from 0.7. */
@@ -73,7 +65,7 @@ function audienceFolders(playbook: string, audience: string): string[] {
   return [...(playbook === LEGACY_OWNER ? [`${LEGACY_CAMPAIGNS}/${legacy}`] : []), audienceFolder(playbook, audience)];
 }
 
-async function layersFor(workspace: Workspace, playbook: string, audience: string): Promise<Layer[]> {
+async function layersFor(workspace: TeamView, playbook: string, audience: string): Promise<Layer[]> {
   const layers: Layer[] = [];
   for (const preset of playbookPresets(workspace, playbook)) {
     const files = presetFiles(playbook, preset) ?? [];
@@ -91,8 +83,8 @@ async function layersFor(workspace: Workspace, playbook: string, audience: strin
     layers.push(remoteLayer(`${source}/${playbook}`, source, files, playbook, "playbook"));
     for (const folder of audienceFolders(playbook, audience)) layers.push(remoteLayer(`${source}/${folder}`, source, files, folder, "playbook"));
   }
-  layers.push(await localLayer("local", join(workspace.root, LOCAL_DIR), "shared"));
-  layers.push(await localLayer(`local/${playbook}`, join(workspace.root, LOCAL_DIR, playbook), "playbook"));
+  layers.push(await localLayer("local", workspace, null, "shared"));
+  layers.push(await localLayer(`local/${playbook}`, workspace, playbook, "playbook"));
   return layers.filter((layer) => layer.files.length > 0);
 }
 
@@ -124,7 +116,7 @@ export type ClassifiedFile = { file: SetupFile; target: FileTarget; scope: Layer
  * Every file that applies to a playbook's audience, with what it customizes. In shared layers only general files
  * count, except gtm's step files from before playbooks (marked `legacy`). Templates are listed by audienceTemplates.
  */
-export async function playbookFiles(workspace: Workspace, playbook: string, audience: string, steps: Step[]): Promise<ClassifiedFile[]> {
+export async function playbookFiles(workspace: TeamView, playbook: string, audience: string, steps: Step[]): Promise<ClassifiedFile[]> {
   const ids = new Set(steps.map((step) => step.id));
   const aliases = stepAliases(steps);
   const result: ClassifiedFile[] = [];
@@ -146,7 +138,7 @@ export async function playbookFiles(workspace: Workspace, playbook: string, audi
 
 export type StepContext = { step: string; summary: string; default: string; before: SetupFile[]; files: SetupFile[]; after: SetupFile[] };
 
-export async function stepContext(workspace: Workspace, audience: string, step: Step, steps: Step[]): Promise<StepContext> {
+export async function stepContext(workspace: TeamView, audience: string, step: Step, steps: Step[]): Promise<StepContext> {
   const context: StepContext = { step: step.ref, summary: step.summary, default: step.body, before: [], files: [], after: [] };
   for (const { file, target } of await playbookFiles(workspace, step.playbook, audience, steps)) {
     if (!("step" in target) || target.step !== step.id) continue;
@@ -155,7 +147,7 @@ export async function stepContext(workspace: Workspace, audience: string, step: 
   return context;
 }
 
-export async function generalFiles(workspace: Workspace, playbook: string, audience: string, steps: Step[]): Promise<SetupFile[]> {
+export async function generalFiles(workspace: TeamView, playbook: string, audience: string, steps: Step[]): Promise<SetupFile[]> {
   return (await playbookFiles(workspace, playbook, audience, steps)).filter(({ target }) => target.kind === "general").map(({ file }) => file);
 }
 
@@ -183,7 +175,7 @@ function templatesIn(files: RemoteFile[], folders: string[]): Template[] {
  * of its own uses the default audience's (gtm/template*.md). Each carries the version id a CRM record keeps, so any
  * agent can open the exact text that was sent.
  */
-export function allAudienceTemplates(workspace: Workspace, playbook: string, audience: string): Template[] {
+export function allAudienceTemplates(workspace: TeamView, playbook: string, audience: string): Template[] {
   const team = workspace.setup.files.team;
   const defaults = templatesIn(team, [playbook, ...audienceFolders(playbook, DEFAULT_AUDIENCE)]);
   if (audience === DEFAULT_AUDIENCE) return defaults;
@@ -195,12 +187,12 @@ export function allAudienceTemplates(workspace: Workspace, playbook: string, aud
  * The templates an audience sends: those in use. Two or more is an A/B test, split evenly (or by an optional
  * `weight:`). Pausing every template sends first messages from the write step alone.
  */
-export function audienceTemplates(workspace: Workspace, playbook: string, audience: string): Template[] {
+export function audienceTemplates(workspace: TeamView, playbook: string, audience: string): Template[] {
   return allAudienceTemplates(workspace, playbook, audience).filter((template) => template.active);
 }
 
 /** Audiences that have files of their own, plus default. 0.7's campaigns/main/ is the default audience. */
-export function listAudiences(workspace: Workspace, playbook: string): string[] {
+export function listAudiences(workspace: TeamView, playbook: string): string[] {
   const prefixes = [`${playbook}/audiences/`, ...(playbook === LEGACY_OWNER ? [`${LEGACY_CAMPAIGNS}/`] : [])];
   const names = workspace.setup.files.team.flatMap((file) => {
     const prefix = prefixes.find((item) => file.path.startsWith(item));
@@ -215,7 +207,7 @@ export function listAudiences(workspace: Workspace, playbook: string): string[] 
  * An audience's own team file by name, such as audience.md or follow-up.md, lowest priority first. Main's files sit
  * in the playbook's folder (gtm/follow-up.md); other audiences' in their folder (gtm/audiences/customers/follow-up.md).
  */
-export function audienceFile(workspace: Workspace, playbook: string, audience: string, name: string): RemoteFile[] {
+export function audienceFile(workspace: TeamView, playbook: string, audience: string, name: string): RemoteFile[] {
   const folders = [...(audience === DEFAULT_AUDIENCE ? [playbook] : []), ...audienceFolders(playbook, audience)];
   return folders.flatMap((folder) => workspace.setup.files.team.filter((file) => file.path === `${folder}/${name}`));
 }

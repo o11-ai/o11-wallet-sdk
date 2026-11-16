@@ -3,12 +3,10 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, wr
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Args } from "../lib/args.js";
-import { contentFolders, listContent } from "../lib/content.js";
 import { OstackError } from "../lib/errors.js";
-import { loadPlaybooks, type Playbook } from "../lib/playbooks.js";
-import { canUse, grantedFeatures } from "../lib/access.js";
 import { print } from "../lib/output.js";
 import { remote } from "../lib/remote.js";
+import { shippedSkills, skillAllowed as allowed } from "../lib/skill-catalog.js";
 import { VERSION } from "../lib/version.js";
 
 /** Where each coding agent reads personal skills from. */
@@ -24,25 +22,16 @@ const HOSTS = Object.keys(SKILL_HOSTS) as Host[];
 /** Marks a skill folder written by this CLI, with the ostack version and content hash it holds. Folders without it are never touched. */
 const MARKER = ".o11-ostack";
 
-type Shipped = { name: string; playbook: Playbook | null; files: { path: string; text: string }[] };
-
-/** Every shipped skill: core ones in skills/, each playbook's in playbooks/<id>/skills/. Names are unique across them. */
-function shippedSkills(): Shipped[] {
-  return [
-    ...contentFolders("skills").map((name) => ({ name, playbook: null, files: listContent(`skills/${name}`) })),
-    ...loadPlaybooks().flatMap((playbook) => contentFolders(`${playbook.dir}/skills`)
-      .map((name) => ({ name, playbook, files: listContent(`${playbook.dir}/skills/${name}`) }))),
-  ];
-}
-
 /**
- * Whether a skill may be on this computer: yes for core and open playbooks, and for a beta playbook only with a grant.
- * Null when the grants could not be read (signed out or offline): beta skills already there are kept and refreshed,
- * and none are added.
+ * The beta features granted to the signed-in person, or null when that cannot be read (signed out or offline).
+ * Null means "unknown": beta skills are then left as they are rather than added or removed.
  */
-function allowed(skill: Shipped, granted: string[] | null): boolean | null {
-  if (!skill.playbook || skill.playbook.access !== "beta") return true;
-  return granted === null ? null : canUse(granted, skill.playbook);
+async function grantedFeatures(): Promise<string[] | null> {
+  try {
+    return (await remote().setup()).access ?? [];
+  } catch {
+    return null;
+  }
 }
 
 const hostDir = (host: Host) => join(homedir(), SKILL_HOSTS[host]);

@@ -22,3 +22,8 @@ An account under about three months old or with few followers starts at half the
 Spread actions across the whole run and never burst: rotate platforms in rounds, mix action types, never more than 10 of
 one action in a row, and wait a random 10 to 60 seconds between actions on the same platform. A full day takes 6 hours
 or more, mostly on X.
+
+Aim to reach every target by the end of the day: 23:00 in the person's timezone unless `social/limits.md` sets another
+time. After each round, compare what is left of each target with the hours left. When behind, work that platform in more
+rounds per hour, up to its hourly ceilings and never above them, and never with waits under 10 seconds. When ahead, slow
+down rather than finish early in a burst.

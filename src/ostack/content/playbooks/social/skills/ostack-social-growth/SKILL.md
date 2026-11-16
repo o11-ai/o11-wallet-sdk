@@ -14,15 +14,17 @@ defaults, except for the rules at the end of this file.
 
 A run keeps working across turns until the day is done, not one batch. Start the run with this exact line:
 
-    /goal Today's ostack-social-growth run is finished: every platform in my accounts file ends met (every target picked at the start reached with confirmed actions), stopped (a quoted warning, rate limit, login problem or action that did not stick) or exhausted (every search term searched for top and latest posts inside its freshness window, nothing left worth acting on), shown in the latest progress line; o11 ostack run end social/growth has recorded the run and the report is written. Only actions seen to stick count; no post gets a second comment; no DMs or connection requests.
+    /goal Today's ostack-social-growth run is finished: every platform in my accounts file ends met (every target picked at the start reached with confirmed actions), stopped (a quoted warning, rate limit, login problem or action that did not stick) or out of day (the day's end time in my limits file has passed, default 23:00 my time, with the shortfall and what was searched reported), shown in the latest progress line; o11 ostack run end social/growth has recorded the run and the report is written. Only actions seen to stick count; no post gets a second comment; no DMs or connection requests.
 
 - Scheduled runs already start with that line. If someone starts a run in chat without an active goal, give them the
   line once so they can paste it, then keep working toward the same condition anyway.
 - The goal checker only sees the conversation. Print today's picked targets first, then one progress line after every
   round: `progress | x: follows 42/287, likes 40/291, comments 4/27, reposts 1/5, working | linkedin: ... | instagram: ...`
 - Every turn takes real browser actions. A turn that only plans or summarizes ends the loop.
-- A full day can take several hours at a safe pace. Length is never a reason to stop. Targets are a ceiling, not a
-  quota: never post a weak comment or touch an off-niche post to reach a number. Exhausted is a valid finish.
+- A full day takes many hours at a safe pace. Length is never a reason to stop, and neither is running out of good
+  posts: widen the search as the find step says, and if that still turns up nothing, wait 20 to 30 minutes and search
+  latest again, since new posts appear all day. Work toward every target by the end of the day, never above the hourly
+  ceilings. Never post a weak comment or touch an off-niche post to reach a number; widen or wait instead.
 
 ## Start every run
 
@@ -40,7 +42,7 @@ A run keeps working across turns until the day is done, not one batch. Start the
 ## The day
 
 The first time you reach a step, run `o11 ostack context social/<step>` and follow its default, refined by the team's
-files. `accounts`, then rounds of `find` and `engage` across the platforms until each is met, stopped or exhausted,
+files. `accounts`, then rounds of `find` and `engage` across the platforms until each is met, stopped or out of day,
 then `report`.
 
 ## Rules no customization can change

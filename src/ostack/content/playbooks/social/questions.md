@@ -20,9 +20,9 @@ Check: Draft comments for three of the posts from the niche check and ask whethe
 
 ## limits
 Since: 0.9.2
-Ask: How much per day on each platform? Follows, likes, comments, and reposts or quotes on X. Any platform to leave out?
-Default: The ranges in the skill's pacing reference: X up to 350 follows, 350 likes and 30 comments a day; LinkedIn up to 50 follows, 80 likes and 20 comments; Instagram up to 100 follows, 140 likes and 10 comments; hourly ceilings as listed there. New or small accounts start at half for the first two weeks.
-Writes: `social/limits.md` with daily ranges and hourly ceilings per platform.
+Ask: How much per day on each platform? Follows, likes, comments, and reposts or quotes on X. Any platform to leave out? When should the day's run wrap up?
+Default: The ranges in the skill's pacing reference: X up to 350 follows, 350 likes and 30 comments a day; LinkedIn up to 50 follows, 80 likes and 20 comments; Instagram up to 100 follows, 140 likes and 10 comments; hourly ceilings as listed there. New or small accounts start at half for the first two weeks. The day ends at 23:00 their time.
+Writes: `social/limits.md` with daily ranges and hourly ceilings per platform, and when the day ends.
 Check: Read the table back and say roughly how long a full day takes at that pace.
 
 ## accounts

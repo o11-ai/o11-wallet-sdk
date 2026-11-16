@@ -9,7 +9,7 @@ import { describePreset, playbookPresets, presetFiles } from "../lib/layers.js";
 import { findWorkflow, getPlaybook, loadPlaybooks } from "../lib/playbooks.js";
 import { print, printText } from "../lib/output.js";
 import { loadSetup, remote, requireManager, requireOnline } from "../lib/remote.js";
-import { canUse, requireAccess } from "../lib/access.js";
+import { canUse, requireAccess, usablePlaybooks } from "../lib/access.js";
 import { defaultState, STATE_FILE, writeState } from "../lib/state.js";
 import { VERSION } from "../lib/version.js";
 import { checkName, DEFAULT_AUDIENCE, enabledPlaybooks, findWorkspaceRoot, loadLocalWorkspace, loadWorkspace, LOCAL_DIR, rememberWorkspace, type Workspace } from "../lib/workspace.js";
@@ -26,9 +26,8 @@ export async function initCommand(args: Args): Promise<void> {
   const root = resolve(optional(args, "dir") ?? (cwd === resolve(homedir()) ? join(cwd, "ostack") : cwd));
   const existing = findWorkspaceRoot(root);
   if (existing) throw new OstackError("workspace_exists", `${existing} is already an ostack workspace.`, { root: existing });
-  // Beta playbooks are never on by default: they need a grant, added later with "playbooks add".
-  const playbooks = list(optional(args, "playbooks") ?? optional(args, "modules"))
-    ?? loadPlaybooks().filter((playbook) => playbook.access === "open").map((playbook) => playbook.id);
+  // Every playbook this person may use is on by default: each open one, and each beta one they were granted.
+  const playbooks = list(optional(args, "playbooks") ?? optional(args, "modules")) ?? usablePlaybooks({ access: await grantedOrNone() }).map((playbook) => playbook.id);
   for (const playbook of playbooks) getPlaybook(playbook);
   await mkdir(join(root, LOCAL_DIR), { recursive: true });
   await writeState(root, defaultState(VERSION, playbooks));
@@ -43,6 +42,15 @@ export async function initCommand(args: Args): Promise<void> {
     files: [join(root, STATE_FILE), join(root, LOCAL_DIR)],
     next: `Agents: work in ${root} (cd there), then run "o11 ostack setup status". People: ask your agent to "set up ostack" so it can interview you.`,
   });
+}
+
+/** Beta grants when the wallet can be read; none when signed out or offline, so only open playbooks are on. */
+async function grantedOrNone(): Promise<string[]> {
+  try {
+    return (await remote().setup()).access ?? [];
+  } catch {
+    return [];
+  }
 }
 
 function list(value: string | undefined): string[] | undefined {

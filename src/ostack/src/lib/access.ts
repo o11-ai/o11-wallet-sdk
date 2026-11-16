@@ -1,6 +1,6 @@
 import { OstackError } from "./errors.js";
 import { loadPlaybooks, type Playbook } from "./playbooks.js";
-import { remote, type RemoteSetup } from "./remote.js";
+import type { RemoteSetup } from "./remote.js";
 
 /**
  * Beta playbooks reach only the people and workspaces o11 granted them from team.o11.ai. The wallet decides and
@@ -25,16 +25,4 @@ export function requireAccess(setup: Pick<RemoteSetup, "access">, playbook: Play
   throw new OstackError("feature_not_available", `${playbook.name} is in beta, and this workspace does not have access yet. Ask o11 to join the beta.`, {
     playbook: playbook.id,
   });
-}
-
-/**
- * The beta features granted to the signed-in person, or null when that cannot be read (signed out or offline).
- * Null means "unknown": callers then leave beta skills as they are rather than adding or removing them.
- */
-export async function grantedFeatures(): Promise<string[] | null> {
-  try {
-    return (await remote().setup()).access ?? [];
-  } catch {
-    return null;
-  }
 }

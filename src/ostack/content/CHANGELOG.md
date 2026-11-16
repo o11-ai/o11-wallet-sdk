@@ -2,6 +2,12 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.10.0
+- Social growth (beta) no longer stops when good posts run out: it widens the search (fresh posts, replies under strong posts, the people you followed, related terms) and checks back for new posts until every daily target is met, a platform shows a warning, or the day ends (23:00 your time; change it in `social/limits.md`). It still stays under the hourly limits and never posts a weak comment to reach a number. The report lists any related terms worth adding to your niche.
+- Use ostack without the o11 CLI: in a cloud chat (Claude, ChatGPT and others) with the o11 MCP connected, ask for outbound or setup and the agent reads the skills and your team's setup through o11's ostack tools. Nothing to install, and the skills there are always the current ones.
+- Every playbook you can use is installed and turned on; setup asks only which one to set up now.
+- Your schedules live in o11, so they are the same on every computer and in cloud chats. Your own `custom.local/` files can live there too. Run `o11 ostack setup import` once to upload both (it never overwrites what you already have, and keeps a copy of the moved files in `.ostack/uploaded-local/`). Scheduled tasks you already created keep working.
+
 ## 0.9.3
 - Content calendar (social beta): plan posts in your own Google Sheet, Notion database or calendar, one row per post with a date and a plain prompt. Every night at 12:01 your agent makes what is due in the next three days: the videos (uploaded to o11 in every shape the platforms need) and a caption for each platform, then writes the links and drafts back to the row and marks it ready for review. Nothing is published. Run `o11 ostack setup` to connect your calendar, then schedule `social/calendar`.
 - Every film in the launch videos library has its own link: open a film and use Copy link, or copy a tile's address. Paste it as a calendar row's reference, or anywhere a video to follow is wanted.

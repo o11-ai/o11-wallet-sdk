@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.44
+
+**New**
+- Ostack 0.10: your schedules are kept in o11, so they match on every computer and in cloud chats. `o11 ostack schedule set|on|off` saves them there.
+- `o11 ostack init` turns on every playbook you can use. `o11 ostack setup import` uploads your `custom.local/` files and the schedules this computer kept.
+- Ostack also works without the CLI: o11's MCP connection has `ostack_read`, `ostack_write` and `ostack_run`.
+
 ## 0.1.43
 
 **New**

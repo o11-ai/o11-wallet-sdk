@@ -36,7 +36,18 @@ export type RemoteSetup = {
   cards: { id: string; name: string; status: string }[];
   /** Beta playbooks and workflows ("seo", "seo/growth") this person may use here. Older wallets send none. */
   access?: string[];
+  /** This person's workflow schedules. Older wallets send none. */
+  schedules?: RemoteSchedule[];
 };
+/**
+ * One rule of a schedule, as a playbook manifest writes it: { days: "weekdays", at: "09:00" }, or
+ * { days, every_minutes, from, to, offset }.
+ */
+export type RemoteScheduleRule =
+  | { days: string; at: string }
+  | { days: string; every_minutes: number; from: string; to: string; offset: number };
+/** When this person's agent runs a workflow. `audience` is null for a workflow that covers the whole playbook. */
+export type RemoteSchedule = { workflow: string; audience: string | null; rules: RemoteScheduleRule[]; status: "active" | "paused"; updatedAt: string };
 /** Sent, replied and meetings since a run started, per template file version id. */
 export type TemplateCounts = Record<string, { sent?: number; replied?: number; meetings?: number }>;
 
@@ -54,6 +65,9 @@ export interface PlaybookRemote {
   saveSettings(input: { scope: FileScope; values: SettingsPatch }): Promise<RemoteSettings>;
   startRun(input: { workflow: string; scheduled: boolean; audience?: string | null }): Promise<{ id: string; startedAt: string }>;
   endRun(input: { id: string; summary?: string; counts?: Record<string, number>; templateCounts?: TemplateCounts }): Promise<{ id: string; endedAt: string }>;
+  /** Saves this person's schedule for a workflow, replacing the one before. */
+  saveSchedule(input: Omit<RemoteSchedule, "updatedAt">): Promise<RemoteSchedule>;
+  deleteSchedule(input: Pick<RemoteSchedule, "workflow" | "audience">): Promise<void>;
   /** Counts a skills install for the signed-in workspace. Best effort: skipped when signed out or offline. */
   reportInstall?(input: InstallReport): Promise<void>;
   /** The workspace's videos. Absent on wallet CLIs older than videos in o11. */
@@ -160,17 +174,6 @@ async function readCache(root: string, origin: string): Promise<SetupSnapshot | 
 }
 
 /** The person's own value wins over the team's, key by key inside each playbook; answers from both count. */
-export function effectiveSettings(setup: Pick<RemoteSetup, "settings">): RemoteSettings {
-  const { team, mine } = setup.settings;
-  const ids = new Set([...Object.keys(team.playbooks), ...Object.keys(mine.playbooks)]);
-  return {
-    timezone: mine.timezone ?? team.timezone,
-    presets: team.presets,
-    setupAnswers: { ...team.setupAnswers, ...mine.setupAnswers },
-    playbooks: Object.fromEntries([...ids].map((id) => [id, { ...team.playbooks[id], ...mine.playbooks[id] }])),
-  };
-}
-
 export function requireOnline(setup: SetupSnapshot, action: string): void {
   if (setup.offline) throw new OstackError("offline", `The wallet cannot be reached, so ${action} has to wait. Nothing was changed.`);
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { OstackError, runOstack, type PlaybookRemote, type VideoRemote } from './ostack/src/index.js';
 import {
-  playbookFileSchema, playbookFileVersionSchema, playbookSettingsSchema, playbookSetupSchema, runEndedSchema, runStartedSchema, skillsInstalledSchema,
+  playbookFileSchema, playbookFileVersionSchema, playbookSettingsSchema, playbookSetupSchema, runEndedSchema, runStartedSchema, skillsInstalledSchema, workflowScheduleSchema,
 } from './contracts/playbooks.js';
 import {
   videoDetailSchema, videoListSchema, videoUploadPartSchema, videoVersionStartedSchema,
@@ -96,6 +96,12 @@ export function walletRemote(profile: string | undefined): PlaybookRemote {
     },
     async endRun({ id, ...input }) {
       return runEndedSchema.parse(await request('POST', `/v1/ostack/runs/${z.uuid().parse(id)}/end`, input));
+    },
+    async saveSchedule(input) {
+      return workflowScheduleSchema.parse(await request('PUT', '/v1/ostack/schedules', input));
+    },
+    async deleteSchedule(input) {
+      await request('DELETE', '/v1/ostack/schedules', input);
     },
     async reportInstall(input) {
       await request('POST', '/v1/ostack/installs', skillsInstalledSchema.parse(input));

@@ -1,4 +1,5 @@
 import { OstackError } from "./errors.js";
+import type { RemoteScheduleRule as ScheduleRule } from "./remote.js";
 import { formatClock, formatDays, localTime, parseClock, parseDays } from "./time.js";
 
 /**
@@ -67,13 +68,18 @@ export function withoutDays(spec: ScheduleSpec, days: number[]): ScheduleSlot[] 
   return spec.map((slot) => ({ ...slot, days: slot.days.filter((day) => !days.includes(day)) })).filter((slot) => slot.days.length > 0);
 }
 
-function storeSlot(slot: ScheduleSlot): Record<string, unknown> {
+function storeSlot(slot: ScheduleSlot): ScheduleRule {
   if ("at" in slot) return { days: formatDays(slot.days), at: formatClock(slot.at) };
   return { days: formatDays(slot.days), every_minutes: slot.every_minutes, from: formatClock(slot.from), to: formatClock(slot.to), offset: slot.offset };
 }
 
+/** The rules as the wallet keeps them: always a list, each in the form a playbook manifest uses. */
+export function scheduleRules(spec: ScheduleSpec): ScheduleRule[] {
+  return spec.map(storeSlot);
+}
+
 /** The form kept in ostack.json, readable by people: one object for a single rule, so older files stay the same. */
-export function storeSchedule(spec: ScheduleSpec): Record<string, unknown> | Record<string, unknown>[] {
+export function storeSchedule(spec: ScheduleSpec): ScheduleRule | ScheduleRule[] {
   return spec.length === 1 ? storeSlot(spec[0]!) : spec.map(storeSlot);
 }
 

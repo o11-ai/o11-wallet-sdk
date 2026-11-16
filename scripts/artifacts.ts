@@ -13,14 +13,15 @@ export const sdkSourceFiles = ['client', 'cli', 'cli-help', 'cli-inspect', 'cli-
 export const ostackSourceFiles = [
   'src/cli', 'src/commands/customize', 'src/commands/doctor', 'src/commands/files', 'src/commands/run',
   'src/commands/schedule', 'src/commands/setup', 'src/commands/setup-import', 'src/commands/skills',
-  'src/commands/workspace', 'src/index', 'src/lib/access', 'src/lib/args', 'src/lib/codex-effort', 'src/lib/content', 'src/lib/csv', 'src/lib/errors',
-  'src/lib/layers', 'src/lib/o11-path', 'src/lib/output', 'src/lib/paths', 'src/lib/playbooks', 'src/lib/remote',
-  'src/lib/schedule', 'src/lib/state', 'src/lib/steps', 'src/lib/time', 'src/lib/version', 'src/lib/workspace',
+  'src/commands/workspace', 'src/core', 'src/index', 'src/lib/access', 'src/lib/args', 'src/lib/codex-effort', 'src/lib/content', 'src/lib/csv', 'src/lib/errors',
+  'src/lib/layers', 'src/lib/mcp-guide', 'src/lib/o11-path', 'src/lib/output', 'src/lib/paths', 'src/lib/playbooks', 'src/lib/remote',
+  'src/lib/schedule', 'src/lib/setup-progress', 'src/lib/skill-catalog', 'src/lib/state', 'src/lib/steps', 'src/lib/team-context',
+  'src/lib/team-view', 'src/lib/time', 'src/lib/version', 'src/lib/workflow-schedules', 'src/lib/workspace',
   'src/playbooks/gtm/audience-settings', 'src/playbooks/gtm/audiences-command', 'src/playbooks/gtm/homepage-check',
   'src/playbooks/gtm/index', 'src/playbooks/gtm/ledger-command', 'src/playbooks/gtm/settings',
   'src/playbooks/gtm/tam-command', 'src/playbooks/index', 'src/playbooks/launch-videos/download',
   'src/playbooks/launch-videos/index', 'src/playbooks/launch-videos/kit', 'src/playbooks/launch-videos/library',
-  'src/playbooks/launch-videos/links', 'src/playbooks/launch-videos/media', 'src/playbooks/launch-videos/videos', 'src/playbooks/types', 'content/index', 'content/kits', 'content/markdown.d'
+  'src/playbooks/launch-videos/links', 'src/playbooks/launch-videos/media', 'src/playbooks/launch-videos/videos', 'src/playbooks/settings-views', 'src/playbooks/types', 'content/index', 'content/kits', 'content/markdown.d'
 ] as const;
 /** Every markdown file bundled into the CLI, read from the generated packages/ostack/content/index.ts. */
 export const ostackContentFiles = Object.keys(CONTENT).sort().map(path => `content/${path}`);

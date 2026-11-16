@@ -7,9 +7,11 @@ import { listAudiences } from "../lib/layers.js";
 import { findWorkflow, loadPlaybooks, type Workflow } from "../lib/playbooks.js";
 import { WALLET_LAUNCHER_DIR, walletOnPath } from "../lib/o11-path.js";
 import { print } from "../lib/output.js";
-import { describeSchedule, parseSchedule, runsPerDay, shiftSchedule, slotLabel, toCron, toRRule, withoutDays, withSlot, zoneOffset, type ScheduleSpec } from "../lib/schedule.js";
+import { remote, requireOnline } from "../lib/remote.js";
+import { describeSchedule, parseSchedule, runsPerDay, scheduleRules, shiftSchedule, slotLabel, toCron, toRRule, withoutDays, withSlot, zoneOffset } from "../lib/schedule.js";
 import { parseDays } from "../lib/time.js";
-import { writeState } from "../lib/state.js";
+import { writeState, type ScheduleState } from "../lib/state.js";
+import { effectiveSchedule, savedSchedule, scheduleAudience, type EffectiveSchedule } from "../lib/workflow-schedules.js";
 import { systemTimeZone } from "../lib/time.js";
 import { DEFAULT_AUDIENCE, enabledPlaybooks, loadWorkspace, type Workspace } from "../lib/workspace.js";
 import { audienceOf } from "./customize.js";
@@ -20,7 +22,7 @@ type Host = (typeof HOSTS)[number];
 /** A workflow to schedule: per-audience workflows (outbound) once for each audience, the others once. */
 type Entry = { workflow: Workflow; audience: string };
 
-function entries(workspace: Workspace): Entry[] {
+export function scheduleEntries(workspace: Workspace): Entry[] {
   const enabled = enabledPlaybooks(workspace);
   return loadPlaybooks().filter((playbook) => enabled.includes(playbook.id)).flatMap((playbook) => playbook.workflows.flatMap((workflow) =>
     (workflow.perAudience ? listAudiences(workspace, playbook.id) : [DEFAULT_AUDIENCE]).map((audience) => ({ workflow, audience }))));
@@ -33,11 +35,14 @@ export function scheduleKey(workflow: Workflow, audience: string = DEFAULT_AUDIE
 
 const audienceFlag = (audience: string) => (audience === DEFAULT_AUDIENCE ? "" : ` --audience ${audience}`);
 
-/** The schedule a workflow runs on: the user's own, or the playbook's default until they set one. Other audiences start unscheduled. */
-export function effective(workspace: Workspace, workflow: Workflow, audience: string = DEFAULT_AUDIENCE): { spec: ScheduleSpec | null; enabled: boolean; source: "custom" | "default" } {
-  const own = workspace.state.schedules[scheduleKey(workflow, audience)];
-  if (own) return { spec: own.spec, enabled: own.enabled, source: "custom" };
-  return { spec: workflow.schedule, enabled: false, source: "default" };
+/** The schedule a workflow runs on: this person's own from the wallet, one this computer kept before, or the default. */
+export function effective(workspace: Workspace, workflow: Workflow, audience: string = DEFAULT_AUDIENCE): EffectiveSchedule {
+  return effectiveSchedule(savedSchedule(workspace.setup.schedules, workflow, audience), workspace.state.schedules[scheduleKey(workflow, audience)], workflow);
+}
+
+/** Where this computer created the workflow's tasks; the entry is made when first needed. */
+function localEntry(workspace: Workspace, workflow: Workflow, audience: string): ScheduleState {
+  return (workspace.state.schedules[scheduleKey(workflow, audience)] ??= { installed: {} });
 }
 
 function taskName({ workflow, audience }: Entry): string {
@@ -159,7 +164,7 @@ async function cronBlock(workspace: Workspace, agent: "claude" | "codex"): Promi
   const logs = join(workspace.root, ".ostack", "logs");
   const codexEffort = agent === "codex" ? codexRunEffort() : null;
   const lines = [CRON_BEGIN(workspace.root), `CRON_TZ=${workspace.timezone}`, `PATH=${process.env.PATH ?? "/usr/bin:/bin"}`];
-  for (const entry of entries(workspace)) {
+  for (const entry of scheduleEntries(workspace)) {
     const { spec, enabled } = effective(workspace, entry.workflow, entry.audience);
     if (!spec || !enabled) continue;
     // The same /goal instruction the Desktop and Codex tasks store, so a headless run also keeps going until it is done.
@@ -196,7 +201,7 @@ export async function scheduleCommand(args: Args): Promise<void> {
   const workspace = await loadWorkspace();
   const sub = args.positionals[1] ?? "list";
   if (sub === "list") {
-    print({ timezone: workspace.timezone, workflows: entries(workspace).map((entry) => view(workspace, entry)) });
+    print({ timezone: workspace.timezone, workflows: scheduleEntries(workspace).map((entry) => view(workspace, entry)) });
     return;
   }
   if (sub === "cron") {
@@ -209,9 +214,8 @@ export async function scheduleCommand(args: Args): Promise<void> {
       mkdirSync(join(workspace.root, ".ostack", "logs"), { recursive: true });
       writeCrontab([...withoutBlock(readCrontab(), workspace.root), ...block]);
       const at = new Date().toISOString();
-      for (const { workflow, audience } of entries(workspace)) {
-        const entry = workspace.state.schedules[scheduleKey(workflow, audience)];
-        if (entry?.enabled) entry.installed.cron = { name: `crontab (${agent})`, at };
+      for (const { workflow, audience } of scheduleEntries(workspace)) {
+        if (effective(workspace, workflow, audience).enabled) localEntry(workspace, workflow, audience).installed.cron = { name: `crontab (${agent})`, at };
       }
       await writeState(workspace.root, workspace.state);
       print({ installed: block.length - 4, lines: block });
@@ -232,13 +236,31 @@ export async function scheduleCommand(args: Args): Promise<void> {
   if (audience !== DEFAULT_AUDIENCE && !listAudiences(workspace, workflow.playbook).includes(audience)) {
     throw new OstackError("unknown_audience", `No audience named "${audience}".`, { audiences: listAudiences(workspace, workflow.playbook) });
   }
-  const key = scheduleKey(workflow, audience);
+  if (sub === "spec") return print(hostSpec(workspace, { workflow, audience }, oneOf(args, "host", HOSTS)));
+  if (sub === "installed" || sub === "uninstalled") {
+    const entry = localEntry(workspace, workflow, audience);
+    if (sub === "installed") entry.installed[oneOf(args, "host", HOSTS)] = { name: required(args, "name"), at: new Date().toISOString() };
+    else delete entry.installed[oneOf(args, "host", HOSTS)];
+  } else if (sub === "set" || sub === "on" || sub === "off") {
+    await changeSchedule(workspace, workflow, audience, sub, args);
+  } else {
+    throw new OstackError("unknown_command", "Use: o11 ostack schedule list | set|on|off|spec|installed|uninstalled <workflow> [--audience <name>] [--days <days>] | cron show|install|remove.");
+  }
+  await writeState(workspace.root, workspace.state);
+  const result = view(workspace, { workflow, audience });
+  const hosts = Object.keys(result.installed);
+  print({ ...result, ...(hosts.length > 0 && sub !== "installed" && sub !== "uninstalled" ? { update_hosts: `Also update the task in: ${hosts.join(", ")} (o11 ostack schedule spec ${workflow.ref}${audienceFlag(audience)} --host <host>).` } : {}) });
+}
+
+/**
+ * `set`, `on` and `off` change this person's schedule in the wallet, so it is the same on every computer and in cloud
+ * chats. Only the days named change; other days keep their rule, so weekdays and weekends can differ.
+ */
+async function changeSchedule(workspace: Workspace, workflow: Workflow, audience: string, sub: "set" | "on" | "off", args: Args): Promise<void> {
+  requireOnline(workspace.setup, "changing a schedule");
   const current = effective(workspace, workflow, audience);
-  const entry = (workspace.state.schedules[key] ??= {
-    spec: current.spec ?? parseSchedule({ days: "weekdays", at: "09:00" }),
-    enabled: current.enabled,
-    installed: {},
-  });
+  let spec = current.spec ?? parseSchedule({ days: "weekdays", at: "09:00" });
+  let enabled = current.enabled;
   if (sub === "set") {
     const days = optional(args, "days") ?? "weekdays";
     const at = optional(args, "at");
@@ -247,28 +269,22 @@ export async function scheduleCommand(args: Args): Promise<void> {
     const [slot] = at
       ? parseSchedule({ days, at })
       : parseSchedule({ days, every_minutes: every, from: optional(args, "from") ?? "08:00", to: optional(args, "to") ?? "18:00", offset: optional(args, "offset") ?? 7 });
-    // Only the days named change; other days keep their rule, so weekdays and weekends can differ.
-    entry.spec = withSlot(entry.spec, slot!);
-    entry.enabled = true;
+    spec = withSlot(spec, slot!);
+    enabled = true;
   } else if (sub === "off" && optional(args, "days") !== undefined) {
-    const rest = withoutDays(entry.spec, parseDays(optional(args, "days")!));
+    const rest = withoutDays(spec, parseDays(optional(args, "days")!));
     // Dropping every day turns the schedule off and keeps its last rules for "on".
-    if (rest.length > 0) entry.spec = rest;
-    else entry.enabled = false;
-  } else if (sub === "on" || sub === "off") {
-    entry.enabled = sub === "on";
-  } else if (sub === "spec") {
-    print(hostSpec(workspace, { workflow, audience }, oneOf(args, "host", HOSTS)));
-    return;
-  } else if (sub === "installed") {
-    entry.installed[oneOf(args, "host", HOSTS)] = { name: required(args, "name"), at: new Date().toISOString() };
-  } else if (sub === "uninstalled") {
-    delete entry.installed[oneOf(args, "host", HOSTS)];
+    if (rest.length > 0) spec = rest;
+    else enabled = false;
   } else {
-    throw new OstackError("unknown_command", "Use: o11 ostack schedule list | set|on|off|spec|installed|uninstalled <workflow> [--audience <name>] [--days <days>] | cron show|install|remove.");
+    enabled = sub === "on";
   }
-  await writeState(workspace.root, workspace.state);
-  const result = view(workspace, { workflow, audience });
-  const hosts = Object.keys(result.installed);
-  print({ ...result, ...(hosts.length > 0 && sub !== "installed" && sub !== "uninstalled" ? { update_hosts: `Also update the task in: ${hosts.join(", ")} (o11 ostack schedule spec ${workflow.ref}${audienceFlag(audience)} --host <host>).` } : {}) });
+  const saved = await remote().saveSchedule({
+    workflow: workflow.ref, audience: scheduleAudience(workflow, audience), rules: scheduleRules(spec), status: enabled ? "active" : "paused",
+  });
+  workspace.setup.schedules = [...(workspace.setup.schedules ?? []).filter((item) => item !== savedSchedule(workspace.setup.schedules, workflow, audience)), saved];
+  // A schedule this computer kept before now lives in the wallet.
+  const entry = localEntry(workspace, workflow, audience);
+  delete entry.spec;
+  delete entry.enabled;
 }

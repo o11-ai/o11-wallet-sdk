@@ -7,6 +7,7 @@ import { print } from "../lib/output.js";
 import { remote } from "../lib/remote.js";
 import { VERSION } from "../lib/version.js";
 import { enabledPlaybooks, loadWorkspace } from "../lib/workspace.js";
+import { effective, scheduleEntries, scheduleKey } from "./schedule.js";
 import { setupStatus } from "./setup.js";
 import { SKILL_HOSTS } from "./skills.js";
 
@@ -84,20 +85,22 @@ export async function doctorCommand(): Promise<void> {
       status.changed_defaults.length > 0 && `${status.changed_defaults.length} customized step(s) whose default changed`,
       status.unknown_steps.length > 0 && `${status.unknown_steps.length} file(s) for unknown steps`,
       status.local_setup_to_import > 0 && `${status.local_setup_to_import} file(s) from before teams to import (o11 ostack setup import)`,
+      status.my_local_setup_to_upload > 0 && `${status.my_local_setup_to_upload} personal file(s) or schedule(s) only on this computer; upload them with o11 ostack setup import`,
     ].filter(Boolean);
     checks.push({
       check: "customizations",
       status: open.length > 0 ? "warn" : "ok",
       detail: open.length > 0 ? `${open.join("; ")}. Run the ostack-setup skill to review.` : `up to date with ${VERSION}`,
     });
-    const uninstalled = Object.entries(workspace.state.schedules).filter(([, entry]) => entry.enabled && Object.keys(entry.installed).length === 0);
+    const enabled = scheduleEntries(workspace).filter(({ workflow, audience }) => effective(workspace, workflow, audience).enabled);
+    const uninstalled = enabled.filter(({ workflow, audience }) => Object.keys(workspace.state.schedules[scheduleKey(workflow, audience)]?.installed ?? {}).length === 0);
     checks.push({
       check: "schedules",
       status: uninstalled.length > 0 ? "warn" : "ok",
       detail:
         uninstalled.length > 0
-          ? `${uninstalled.map(([ref]) => ref).join(", ")} scheduled but not created in Claude, Codex or cron yet. Run "o11 ostack schedule spec <workflow> --host <host>".`
-          : `${Object.values(workspace.state.schedules).filter((entry) => entry.enabled).length} enabled (${workspace.timezone})`,
+          ? `${uninstalled.map(({ workflow, audience }) => scheduleKey(workflow, audience)).join(", ")} scheduled but not created in Claude, Codex or cron on this computer yet. Run "o11 ostack schedule spec <workflow> --host <host>".`
+          : `${enabled.length} enabled (${workspace.timezone})`,
     });
   } catch (error) {
     const signedOut = error instanceof OstackError && ["not_signed_in", "forbidden", "offline"].includes(error.code);

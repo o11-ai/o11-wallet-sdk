@@ -1,15 +1,18 @@
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readdir, rename } from "node:fs/promises";
+import { dirname, join, relative } from "node:path";
 import type { Args } from "../lib/args.js";
 import { classify } from "../lib/layers.js";
 import { print } from "../lib/output.js";
 import { isRecord } from "../lib/paths.js";
 import { remote, requireManager, requireOnline, type Answer, type SettingsPatch } from "../lib/remote.js";
-import { PREVIOUS_STATE_FILE } from "../lib/state.js";
+import { loadPlaybooks } from "../lib/playbooks.js";
+import { scheduleRules } from "../lib/schedule.js";
+import { PREVIOUS_STATE_FILE, writeState } from "../lib/state.js";
+import { savedSchedule, scheduleAudience } from "../lib/workflow-schedules.js";
 import { loadQuestions, loadSteps } from "../lib/steps.js";
 import { checkTimeZone } from "../lib/time.js";
-import { LEGACY_CAMPAIGNS_DIR, LEGACY_CUSTOM_DIR, loadWorkspace } from "../lib/workspace.js";
+import { DEFAULT_AUDIENCE, LEGACY_CAMPAIGNS_DIR, LEGACY_CUSTOM_DIR, LOCAL_DIR, loadWorkspace, type Workspace } from "../lib/workspace.js";
 import { readSettings, toPatch } from "../playbooks/gtm/settings.js";
 
 type LegacyFile = { file: string; path: string };
@@ -69,10 +72,66 @@ async function legacySettings(root: string): Promise<{ values: SettingsPatch; an
   return { values, answered };
 }
 
+const FILE_PATH = /^(?:[a-z0-9][a-z0-9-]*\/){0,3}[a-z0-9][a-z0-9_-]*\.md$/;
+
+/**
+ * This person's own setup that only this computer has: files in custom.local/, which become their own files in the
+ * wallet (custom.local/gtm/write.md becomes gtm/write.md), and schedules kept in ostack.json before they moved to the
+ * wallet. Over MCP and on other computers they would otherwise be missing. Their own files and schedules already in
+ * the wallet are never overwritten.
+ */
+export async function localUploads(workspace: Workspace) {
+  const mine = new Set(workspace.setup.files.mine.map((file) => file.path));
+  const files: { from: string; to: string }[] = [];
+  const kept: { from: string; reason: string }[] = [];
+  for (const folder of [null, ...await folders(join(workspace.root, LOCAL_DIR))]) {
+    for (const file of await workspace.localFiles(folder)) {
+      const to = folder ? `${folder}/${file.file}` : file.file;
+      if (!FILE_PATH.test(to)) kept.push({ from: file.path, reason: "its name cannot be a wallet file; rename it in lowercase letters, digits and dashes" });
+      else if (mine.has(to)) kept.push({ from: file.path, reason: `you already have your own ${to}` });
+      else files.push({ from: file.path, to });
+    }
+  }
+  const workflows = loadPlaybooks().flatMap((playbook) => playbook.workflows);
+  const schedules = Object.entries(workspace.state.schedules).flatMap(([key, entry]) => {
+    const [ref = "", audience = DEFAULT_AUDIENCE] = key.split("@");
+    const workflow = workflows.find((item) => item.ref === ref);
+    if (!entry.spec || !workflow) return [];
+    // A schedule set in the wallet since wins over this computer's older one.
+    const replaced = savedSchedule(workspace.setup.schedules, workflow, audience) !== undefined;
+    return [{ key, replaced, schedule: {
+      workflow: workflow.ref, audience: scheduleAudience(workflow, audience), rules: scheduleRules(entry.spec), status: entry.enabled === false ? "paused" as const : "active" as const,
+    } }];
+  });
+  return { files, kept, schedules };
+}
+
+/** Uploads what localUploads found, then moves the uploaded files out of custom.local/ so they are not applied twice. */
+async function uploadLocal(workspace: Workspace, local: Awaited<ReturnType<typeof localUploads>>): Promise<string | null> {
+  const client = remote();
+  for (const item of local.files) await client.saveFile({ scope: "me", path: item.to, content: await Bun.file(item.from).text(), baseVersion: null });
+  for (const item of local.schedules) if (!item.replaced) await client.saveSchedule(item.schedule);
+  for (const item of local.schedules) {
+    const entry = workspace.state.schedules[item.key]!;
+    delete entry.spec;
+    delete entry.enabled;
+  }
+  const at = new Date().toISOString();
+  const backup = join(workspace.root, ".ostack", "uploaded-local", at.replaceAll(":", "-"));
+  for (const item of local.files) {
+    const target = join(backup, relative(join(workspace.root, LOCAL_DIR), item.from));
+    await mkdir(dirname(target), { recursive: true });
+    await rename(item.from, target);
+  }
+  workspace.state.imported_at = at;
+  await writeState(workspace.root, workspace.state);
+  return local.files.length > 0 ? backup : null;
+}
+
 /**
  * `o11 ostack setup import [--dry-run]`: copies a folder's pre-teams setup (custom/, campaigns/, settings and
- * answers) into the team's setup in the wallet. Never overwrites what the team already has. custom.local/ stays
- * on this computer and keeps applying for this person.
+ * answers) into the team's setup in the wallet, and this person's custom.local/ files and older schedules into their
+ * own. Never overwrites what the team or this person already has there.
  */
 export async function importCommand(args: Args): Promise<void> {
   const workspace = await loadWorkspace();
@@ -98,9 +157,16 @@ export async function importCommand(args: Args): Promise<void> {
     settings: [...Object.keys(settings).filter((key) => key !== "playbooks"), ...Object.keys(settings.playbooks?.gtm ?? {}).map((key) => `gtm.${key}`)],
     answers: [...Object.keys(teamAnswers), ...Object.keys(myAnswers)],
   };
-  if (dryRun) return print({ dry_run: true, ...plan });
+  const local = await localUploads(workspace);
+  const mineToUpload = {
+    my_files: local.files,
+    my_files_kept: local.kept,
+    schedules: local.schedules.map((item) => ({ workflow: item.key, ...(item.replaced ? { kept: "you already set this schedule in the wallet" } : {}) })),
+  };
+  if (dryRun) return print({ dry_run: true, ...plan, ...mineToUpload });
   requireOnline(workspace.setup, "importing");
-  requireManager(workspace.setup, "import a folder's setup into the team");
+  const teamWork = plan.files.length > 0 || plan.settings.length > 0 || Object.keys(teamAnswers).length > 0;
+  if (teamWork) requireManager(workspace.setup, "import a folder's setup into the team");
   const client = remote();
   for (const item of plan.files) {
     await client.saveFile({ scope: "team", path: item.to, content: await Bun.file(item.from).text(), baseVersion: null });
@@ -109,5 +175,12 @@ export async function importCommand(args: Args): Promise<void> {
     await client.saveSettings({ scope: "team", values: { ...settings, setupAnswers: teamAnswers } });
   }
   if (Object.keys(myAnswers).length > 0) await client.saveSettings({ scope: "me", values: { setupAnswers: myAnswers } });
-  print({ dry_run: false, ...plan, next: "The files in custom/ and campaigns/ are no longer read. Delete them once the team setup looks right." });
+  const moved = await uploadLocal(workspace, local);
+  print({
+    dry_run: false, ...plan, ...mineToUpload,
+    next: [
+      plan.files.length > 0 && "The files in custom/ and campaigns/ are no longer read. Delete them once the team setup looks right.",
+      moved && `Your custom.local/ files are now your own files in the wallet, used everywhere you use ostack. The originals were moved to ${moved}.`,
+    ].filter(Boolean).join(" ") || "Nothing else to do.",
+  });
 }

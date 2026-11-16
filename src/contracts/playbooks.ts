@@ -108,6 +108,41 @@ export const playbookSettingsPatchSchema = z.object({
 });
 export type PlaybookSettingsPatch = z.infer<typeof playbookSettingsPatchSchema>;
 
+const clockSchema = z.string().regex(/^(?:[01]?\d|2[0-3]):[0-5]\d$|^24:00$/);
+/** weekdays, weekends, daily, mon-fri or mon,wed,fri. */
+const daysSchema = z.string().min(3).max(40).regex(/^[a-z,-]+$/);
+/**
+ * One rule of a workflow's schedule in the member's Ostack timezone, in the same form as a playbook's manifest:
+ * once a day `at` a time, or every `every_minutes` between `from` and `to`, `offset` minutes past the hour.
+ */
+export const scheduleRuleSchema = z.union([
+  z.object({ days: daysSchema, at: clockSchema }).strict(),
+  z.object({
+    days: daysSchema,
+    every_minutes: z.union([z.literal(15), z.literal(20), z.literal(30), z.literal(60), z.literal(120), z.literal(180), z.literal(240)]),
+    from: clockSchema,
+    to: clockSchema,
+    offset: z.number().int().min(0).max(59),
+  }).strict(),
+]);
+export type ScheduleRule = z.infer<typeof scheduleRuleSchema>;
+export const workflowScheduleStatusSchema = z.enum(["active", "paused"]);
+
+/**
+ * A member's schedule for one workflow. `audience` is the audience name for a workflow that runs once per audience
+ * ("default" included), and null for one that covers the whole playbook, as on runs.
+ */
+export const workflowScheduleSchema = z.object({
+  workflow: workflowRefSchema,
+  audience: audienceNameSchema.nullable(),
+  rules: z.array(scheduleRuleSchema).min(1).max(7),
+  status: workflowScheduleStatusSchema,
+  updatedAt: z.string(),
+});
+export type WorkflowSchedule = z.infer<typeof workflowScheduleSchema>;
+export const saveWorkflowScheduleSchema = workflowScheduleSchema.omit({ updatedAt: true });
+export const deleteWorkflowScheduleSchema = workflowScheduleSchema.pick({ workflow: true, audience: true });
+
 export const playbookSetupSchema = z.object({
   me: z.object({ id: z.string(), name: z.string(), email: z.string() }),
   role: z.string(),
@@ -118,6 +153,8 @@ export const playbookSetupSchema = z.object({
   cards: z.array(z.object({ id: z.string(), name: z.string(), status: z.string() })),
   /** Beta features (a playbook such as "seo", or one workflow) this person can use here. Older wallets send none. */
   access: z.array(z.string().max(80)).max(100).default([]),
+  /** This member's workflow schedules. Older wallets send none. */
+  schedules: z.array(workflowScheduleSchema).max(200).default([]),
 });
 export type PlaybookSetup = z.infer<typeof playbookSetupSchema>;
 

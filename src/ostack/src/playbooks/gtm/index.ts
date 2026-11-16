@@ -2,7 +2,8 @@ import type { PlaybookCode } from "../types.js";
 import { audiencesCommand } from "./audiences-command.js";
 import { ledgerCommand } from "./ledger-command.js";
 import { tamCommand } from "./tam-command.js";
-import { applySetting, fromRemote, SETTING_ALIASES, SETTING_KEYS, showSettings, toPatch } from "./settings.js";
+import { PLAYBOOK_SETTINGS_VIEWS } from "../settings-views.js";
+import { applySetting, fromRemote, SETTING_ALIASES, SETTING_KEYS, toPatch } from "./settings.js";
 
 const HELP = `  audiences [<name>]                           each audience: its files, templates (with version ids), follow-ups and settings
   tam check <in.csv> <out.csv> [--concurrency 48]   label each row's homepage (needs a domain column)
@@ -33,7 +34,7 @@ export const gtm: PlaybookCode = {
   settings: {
     keys: SETTING_KEYS,
     aliases: SETTING_ALIASES,
-    show: (settings) => showSettings(fromRemote(settings)),
+    show: PLAYBOOK_SETTINGS_VIEWS.gtm!,
     apply: (settings, key, value) => toPatch(applySetting(fromRemote(settings), key, value)),
     stored: (key) => {
       const name = SETTING_ALIASES[key] ?? key;

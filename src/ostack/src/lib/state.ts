@@ -16,7 +16,11 @@ export const PREVIOUS_STATE_FILE = "ostack.pre-0.7.json";
 /** A host (claude, codex, cron) where a schedule was created, so status can say what exists and where. */
 export type Installed = { name: string; at: string };
 
-export type ScheduleState = { spec: ScheduleSpec; enabled: boolean; installed: Record<string, Installed> };
+/**
+ * What this computer knows about a workflow's schedule: where its task was created. The schedule itself lives in the
+ * wallet; `spec` and `enabled` are only there for one kept on this computer before 0.10, until `setup import` uploads it.
+ */
+export type ScheduleState = { installed: Record<string, Installed>; spec?: ScheduleSpec; enabled?: boolean };
 
 export type State = {
   format: number;
@@ -28,10 +32,12 @@ export type State = {
    * ("gtm/outbound@customers"). A workflow without an entry uses its playbook's default, unscheduled.
    */
   schedules: Record<string, ScheduleState>;
+  /** When `setup import` last uploaded this folder's own files and schedules to the wallet, or null. */
+  imported_at: string | null;
 };
 
 export function defaultState(version: string, playbooks: string[]): State {
-  return { format: STATE_FORMAT, reviewed: version, playbooks: [...playbooks].sort(), schedules: {} };
+  return { format: STATE_FORMAT, reviewed: version, playbooks: [...playbooks].sort(), schedules: {}, imported_at: null };
 }
 
 /**
@@ -55,14 +61,15 @@ export async function readState(root: string): Promise<{ state: State; migrated:
   const schedules: Record<string, ScheduleState> = {};
   if (isRecord(raw.schedules)) {
     for (const [ref, value] of Object.entries(raw.schedules)) {
-      if (!isRecord(value) || !(isRecord(value.spec) || Array.isArray(value.spec))) continue;
+      if (!isRecord(value)) continue;
       const installed: Record<string, Installed> = {};
       if (isRecord(value.installed)) {
         for (const [host, entry] of Object.entries(value.installed)) {
           if (isRecord(entry) && typeof entry.name === "string") installed[host] = { name: entry.name, at: String(entry.at ?? "") };
         }
       }
-      schedules[ref] = { spec: parseSchedule(value.spec), enabled: value.enabled !== false, installed };
+      const local = isRecord(value.spec) || Array.isArray(value.spec) ? { spec: parseSchedule(value.spec), enabled: value.enabled !== false } : {};
+      schedules[ref] = { installed, ...local };
     }
   }
   const state: State = {
@@ -70,6 +77,7 @@ export async function readState(root: string): Promise<{ state: State; migrated:
     reviewed: typeof raw.reviewed === "string" ? raw.reviewed : "0.0.0",
     playbooks: playbooks.sort(),
     schedules,
+    imported_at: typeof raw.imported_at === "string" ? raw.imported_at : null,
   };
   const format = typeof raw.format === "number" ? raw.format : 0;
   return { state, migrated: format !== STATE_FORMAT, backup: format < 3, raw };
@@ -77,7 +85,7 @@ export async function readState(root: string): Promise<{ state: State; migrated:
 
 export async function writeState(root: string, state: State): Promise<void> {
   const schedules = Object.fromEntries(
-    Object.entries(state.schedules).map(([ref, entry]) => [ref, { ...entry, spec: storeSchedule(entry.spec) }]),
+    Object.entries(state.schedules).map(([ref, { spec, ...entry }]) => [ref, spec ? { ...entry, spec: storeSchedule(spec) } : entry]),
   );
   await Bun.write(join(root, STATE_FILE), `${JSON.stringify({ ...state, schedules }, null, 2)}\n`);
 }

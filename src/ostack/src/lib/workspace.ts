@@ -1,27 +1,34 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { OstackError } from "./errors.js";
-import { effectiveSettings, loadSetup, type RemoteSettings, type SetupSnapshot } from "./remote.js";
+import { loadSetup, type RemoteSettings, type SetupSnapshot } from "./remote.js";
 import { backupPreviousState, readState, STATE_FILE, writeState, type State } from "./state.js";
-import { checkTimeZone, systemTimeZone } from "./time.js";
+import { LOCAL_DIR, teamView, type LocalFileReader, type TeamView } from "./team-view.js";
+import { systemTimeZone } from "./time.js";
 
-/** This person's own files on this computer, which take priority over everything in the wallet. */
-export const LOCAL_DIR = "custom.local";
+export { audienceFolder, DEFAULT_AUDIENCE, LOCAL_DIR } from "./team-view.js";
 /** Where 0.6 and older kept the team's files. `setup import` copies them to the wallet. */
 export const LEGACY_CUSTOM_DIR = "custom";
 /** Where 0.6 and older kept campaign folders on this computer, and 0.7 kept them at the top of the team setup. */
 export const LEGACY_CAMPAIGNS_DIR = "campaigns";
-/** The audience a run uses unless it names another. Its files sit directly in the playbook's folder (gtm/). */
-export const DEFAULT_AUDIENCE = "default";
-
-/** Where an audience's own files live in the team's setup: gtm/audiences/customers/ for the customers audience. */
-export function audienceFolder(playbook: string, audience: string): string {
-  return `${playbook}/audiences/${audience}`;
-}
-
 export type LocalWorkspace = { root: string; state: State; migrated: boolean };
-export type Workspace = LocalWorkspace & { setup: SetupSnapshot; settings: RemoteSettings; timezone: string };
+export type Workspace = LocalWorkspace & TeamView & { setup: SetupSnapshot; settings: RemoteSettings; localFiles: LocalFileReader };
+
+/** custom.local/ (folder null) or custom.local/<playbook>/ in a workspace folder: its markdown files by name. */
+export function localFileReader(root: string): LocalFileReader {
+  return async (folder) => {
+    const dir = folder === null ? join(root, LOCAL_DIR) : join(root, LOCAL_DIR, folder);
+    if (!existsSync(dir)) return [];
+    const entries = await readdir(dir, { withFileTypes: true });
+    const names = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => entry.name).sort();
+    return Promise.all(names.map(async (file) => {
+      const path = join(dir, file);
+      return { file, path, text: await Bun.file(path).text() };
+    }));
+  };
+}
 
 export function findWorkspaceRoot(start: string): string | null {
   let current = resolve(start);
@@ -55,14 +62,8 @@ export async function loadLocalWorkspace(): Promise<LocalWorkspace> {
 export async function loadWorkspace(): Promise<Workspace> {
   const local = await loadLocalWorkspace();
   const setup = await loadSetup(local.root);
-  const settings = effectiveSettings(setup);
-  let timezone = systemTimeZone();
-  try {
-    if (settings.timezone) timezone = checkTimeZone(settings.timezone);
-  } catch {
-    // An unknown zone saved elsewhere falls back to this computer's clock rather than blocking every run.
-  }
-  return { ...local, setup, settings, timezone };
+  const localFiles = localFileReader(local.root);
+  return { ...local, ...teamView(setup, systemTimeZone(), localFiles), setup, localFiles };
 }
 
 export function enabledPlaybooks(workspace: LocalWorkspace): string[] {
