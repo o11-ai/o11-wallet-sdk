@@ -42,6 +42,21 @@ Check: Quote one line with the chosen tool, then generate it once they agree, pl
 
 ## sound
 Since: 0.8.0
-Ask: Music under the videos: none, a track you have a license for, a generated track from the wallet, or the platform's own library at upload? How much may one video spend on generated voice, music and sound without asking you?
+Ask: Music under the videos: none, a track you give the agent, a generated track from the wallet, or the platform's own library at upload? How much may one video spend on generated voice, music and sound without asking you?
 Default: No music (the voice and soft whooshes only), and ask before any paid generation.
-Writes: `launch-videos/sound.md`: the music choice and where licensed tracks live, the spending limit per video, and sounds to avoid.
+Writes: `launch-videos/sound.md`: the music choice and where the tracks live, the spending limit per video, and sounds to avoid.
+
+## generated
+Since: 0.11.0
+Ask: For generated videos, do you want a new presenter, your existing character, or a remake of a reference video? Should it use a stock/generated voice, your recording, or an authorized saved clone? What may one video spend, and which reference files may the selected service receive?
+Default: Keep the user’s chosen assets and spending limits. Ask for a total budget before paid generation when none is already set. Keep recordings and rendered media local; upload only the selected references needed for the requested generation.
+Writes: `launch-videos/generate.md`: preferred input and output constraints, permitted reference handling, saved character/voice labels and a per-video spending limit. Private recordings, access URLs and account-scoped voice records stay in the video project.
+Check: Reuse the user’s current request as the example. Resolve a public tool and quote one representative shot before generating it. An unavailable voice or video route remains a stated blocker.
+
+## presenter
+Since: 0.11.0
+Ask: For generated videos: do you have a presenter and a voice you always use, or should each video offer a few looks? Any image or video model you prefer, and anyone or anything a presenter must never look or sound like?
+Default: No standing presenter. Each video offers five to eight looks described in words, taken from the trending pull's `trending/presenter-candidates.md` when it exists, and the user picks. The pick is made on two image models and shown side by side. Never a real person's face or voice.
+Writes: `launch-videos/character.md`: the standing presenter's description and where their image is kept, the voice and how it was chosen, preferred models, and what to avoid. Not one video's hook or reference: those go in its brief.
+Check: Generate one still of the presenter and read the description back.
+

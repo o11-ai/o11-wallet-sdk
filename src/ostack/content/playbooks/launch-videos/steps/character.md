@@ -1,0 +1,6 @@
+---
+summary: Choose and retain a presenter image and voice for generated shots.
+used_by: [ugc]
+changed: 0.11.0
+---
+Reuse an accepted character or voice when one is already selected. Otherwise stop for the presenter's look first: offer five to eight looks described in words, taken from `trending/presenter-candidates.md` when the trending pull wrote it. Never use a real person's face or voice: no frame, cover or audio from a video goes to a model. Write the chosen look as a locked `character.json` (shot, subject, wardrobe, prop, setting, light, camera, exclude) saved beside the image: chest-up with the face no more than a quarter of the frame width, a calm closed-mouth first frame, a saturated lived-in room, a distinctive garment and one prop. State the price, then generate it with `n: 1` on two image models and show both. Retain the selected image and its JSON, and change one key per rerun. Character identity, voice identity and reference-camera motion are separate inputs. Store the actual local bytes and hashes, not only a prompt or expired URL. A new voice clone requires the requested speaker recording and a publicly supported ownership path. When the user asks to see different people as images, the experiment step shows two or three side by side. This step then registers the accepted frame.

@@ -5,10 +5,11 @@ import { oneOf, optional, required, type Args } from "../../lib/args.js";
 import { OstackError } from "../../lib/errors.js";
 import { print, printText } from "../../lib/output.js";
 import { remote, type VideoFileInput, type VideoRemote, type VideoUploadPart } from "../../lib/remote.js";
-import { FORMATS } from "./kit.js";
 import { libraryFiles, libraryRecipe, libraryVideo, VIDEO_LIBRARY } from "./library.js";
 import { ASPECTS, filmSlug, libraryFilm, videoId } from "./links.js";
 import { ffmpeg, makePreviewAndPoster, makeWebCopy, needsWebCopy, probe, runs } from "./media.js";
+
+const REMOTE_FORMATS = ["irl", "reel", "product-demo"] as const;
 
 /** The video's page in o11: where the team picks its template, edits the brief and watches every cut. */
 export const pageUrl = (id: string) => `${remote().origin}/wallet/ostack/launch-videos/${id}`;
@@ -35,7 +36,7 @@ function recipe(slug: string): string {
  * Films from the library whose title or publisher matches --search; without it, only how many there are.
  */
 export async function templatesCommand(args: Args): Promise<void> {
-  const format = optional(args, "format") ? oneOf(args, "format", FORMATS) : undefined;
+  const format = optional(args, "format") ? oneOf(args, "format", REMOTE_FORMATS) : undefined;
   const search = optional(args, "search")?.toLowerCase();
   const films = VIDEO_LIBRARY.filter((film) => !format || film.format === format);
   if (!search) {
@@ -84,7 +85,7 @@ export async function videoCommand(args: Args): Promise<void> {
 
 /** `o11 ostack launch-videos create --title <text> --format <format> [--template <slug or film link>]` */
 export async function createCommand(args: Args): Promise<void> {
-  const format = oneOf(args, "format", FORMATS);
+  const format = oneOf(args, "format", REMOTE_FORMATS);
   const template = optional(args, "template");
   const templateSlug = template ? filmSlug(template) : null;
   const created = await videos().create({ title: required(args, "title"), format, templateSlug });

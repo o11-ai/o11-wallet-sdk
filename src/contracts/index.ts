@@ -138,7 +138,18 @@ export interface ToolDefinition {
     | "files.ls"
     | "files.mkdir"
     | "files.mv"
-    | "files.rm";
+    | "files.rm"
+    | "avatar.capture.create"
+    | "avatar.capture.get"
+    | "avatar.capture.update"
+    | "avatars.create"
+    | "avatars.resolve"
+    | "avatars.delete"
+    | "media.upload.create"
+    | "media.upload.complete"
+    | "media.resolve"
+    | "media.delete"
+    | "media.plan";
   resourcePlan?: ResourcePlan;
   availability: "configured" | "requires_adapter";
   notes: string[];
@@ -268,6 +279,17 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
         "files.mkdir",
         "files.mv",
         "files.rm",
+        "avatar.capture.create",
+        "avatar.capture.get",
+        "avatar.capture.update",
+        "avatars.create",
+        "avatars.resolve",
+        "avatars.delete",
+        "media.upload.create",
+        "media.upload.complete",
+        "media.resolve",
+        "media.delete",
+        "media.plan",
       ])
       .optional(),
     availability: z.enum(["configured", "requires_adapter"]),

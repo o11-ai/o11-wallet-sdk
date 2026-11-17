@@ -23,6 +23,7 @@ import { executeTopUp } from './cli-topup.js';
 import { activeKeyProfile, keyArguments, manageKeys, selectDefaultCredentials, forgetKeyLabel } from './cli-keys.js';
 import { fileReport, reportArguments, ReportSubmissionError } from './cli-report.js';
 import { batchArguments, runBatch } from './cli-batch.js';
+import { avatarArguments, executeAvatar } from './cli-avatar.js';
 
 let command: string | undefined;
 let args: string[] = [];
@@ -118,6 +119,8 @@ function validateArguments() {
     executionArguments(command, args);
   } else if (command === 'batch') {
     batchArguments(args);
+  } else if (command === 'avatar') {
+    avatarArguments(args);
   } else if (command === 'create-api-key') {
     const values = args.slice(0, -2);
     if (args.at(-2) !== '--output' || !args.at(-1) || args.at(-1)!.startsWith('--') ||
@@ -555,6 +558,14 @@ try {
         const executed = await executeTopUp(client, args, { baseUrl: config.baseUrl, profile, cardId,
           invocation: namedInvocation ?? recoveryInvocation, emit: value => print(value),
           notice: value => printError(JSON.stringify(value)) });
+        result = executed.result;
+        process.exitCode = executed.exitCode;
+        break;
+      }
+      case 'avatar': {
+        // Progress sentences (the recording and consent links) go to stderr; the final object prints like every command.
+        const executed = await executeAvatar(client, args, { profile, cardId, invocation: namedInvocation ?? recoveryInvocation,
+          json: jsonOutput, notice: line => console.error(line) });
         result = executed.result;
         process.exitCode = executed.exitCode;
         break;

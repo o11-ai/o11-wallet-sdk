@@ -1,7 +1,7 @@
 ---
 summary: The edit, with shots in order, headlines on the words and the end card.
-used_by: [irl, reel, product-demo]
-changed: 0.8.0
+used_by: [irl, reel, product-demo, ugc]
+changed: 0.11.0
 ---
 `edit/timeline.js` is the one source of truth: the picture, the mix, the sound effects and the audits all read it.
 
@@ -13,3 +13,5 @@ changed: 0.8.0
 - **Frame rate** matches the camera for irl (24000/1001 for 23.976); 30 for reels and product demos.
 
 Start the video on the footage or the product, not on a title card. Never zoom or punch in on filmed clips.
+
+**ugc:** accepted generated assets enter as ordinary clip shots, with stable shot IDs and source clocks. Keep the generation plan and job journal beside the timeline. Build the edit only from downloaded/probed local assets; supplier URLs are not timeline source files. Changing captions or the CTA is a local edit, while a changed sentence invalidates only its speech, timing and dependent generated shot. Preserve intentional motion in the source.

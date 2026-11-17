@@ -20,19 +20,19 @@ never resubmitted blindly: read the receipt first.
 
 | Step | Search for | Use it for | Check |
 | --- | --- | --- | --- |
-| transcribe | `speech to text` | word timestamps for each clip (ElevenLabs speech to text) | words, not just segments; times in seconds from the clip start |
-| narrate | `text to speech` | the narration voice (ElevenLabs, Fish Audio, MiniMax voices) | the same voice and settings for every line; WAV, or convert to 48 kHz |
-| narrate | `design voice` | a new voice from a description (Fish Audio) | play a sample before the rest |
-| narrate | `speech with word timings`, `forced alignment` | word timings for generated lines (Fish Audio; ElevenLabs alignment) | one timing file per line in `media/words/` |
-| sound | `sound effects` | a sound the synthesizer cannot make (ElevenLabs) | only when the user asks for it |
-| sound | `music generation` | a licensed backing track (ElevenLabs Music, MiniMax Music) | only with a go-ahead; long enough for the video |
+| transcribe | `speech to text` | word timestamps for each clip | words, not just segments; times in seconds from the clip start |
+| narrate | `text to speech` | the narration voice | the same voice, settings and seed for every line; WAV, or convert to 48 kHz |
+| narrate | `design voice` | a new voice from a description | play a sample before the rest |
+| narrate | `speech with word timings`, `forced alignment` | word timings for generated lines | one timing file per line in `media/words/` |
+| sound | `sound effects` | a sound the synthesizer cannot make | short, and well under the voice |
+| sound | `music generation` | a backing track | only with a go-ahead; long enough for the video |
+| sound | `stem separation` | the instrumental of a song with vocals, and its vocals for the end card | both stems the song's full length |
 | overlays | `brand logo`, `company logo` | real logos and brand colors for components (brand.dev) | the logo is the current one; SVG or a large PNG |
 
 Not from the wallet:
 - **Screen capture.** Product screens come from the user's own app through `scripts/capture.mjs` on their computer;
   the wallet's browser tools fetch and search pages but do not record sessions.
-- **AI-generated footage.** Filmed videos use real clips. Generated video is never mixed into an IRL cut unless the user
-  asks for it by name.
+- **AI-generated footage.** Use the `ostack-ugc` skill for generated presenters and reference-driven remakes; it discovers public generation tools and journals paid jobs. Existing IRL cuts keep real footage unless generated material is requested.
 - **Voice clean-up.** Voice isolation exists in the wallet, but the camera's voice stays untouched unless the user asks.
 
 ## Money
@@ -41,3 +41,5 @@ Not from the wallet:
 - Generate a sample first (one narration line, a short music preview) and get a yes before the rest.
 - Regenerate only what changed: one edited line, not the whole script.
 - Report what the video cost from `o11 run-status <id>` at handover.
+
+For generated-video work, inspect the complete chain before submitting: selected-reference upload, generation, owning invocation/status, verified download, and voice/timing resource compatibility. Save request/quote/receipt files and a stable idempotency key per logical attempt. A transport timeout is recovered through its existing invocation or saved key, never a fresh untracked submit.

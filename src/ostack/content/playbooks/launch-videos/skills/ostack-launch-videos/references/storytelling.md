@@ -31,6 +31,18 @@ A demo shows one job done from start to finish, fast, with the real product:
 Narration says what the viewer gets ("every invoice lands in one inbox"), never which button to press. One narration
 line per camera rest. Cut anything that is setup, loading or settings unless it is the point.
 
+## Narrated motion film
+
+The narration is the script: one line per idea, each scene built for its line ([motion-films.md](motion-films.md)).
+
+1. **Logo first**, then a one-line hook about what changed for the viewer.
+2. **How it works**, one step per line, in the order the product does them, each with its real component.
+3. **Proof:** a measured number, a real price, or the film itself as the product's output.
+4. **The close and the sign-off** from the brand kit.
+
+Show each idea as the thing itself, not a label for it: a search typed into two engines, a pull request with its
+files, a report with its numbers. Name products and show their logos as they are said.
+
 ## Copy
 
 - The user's own words wherever they gave them; their product name exactly as written.

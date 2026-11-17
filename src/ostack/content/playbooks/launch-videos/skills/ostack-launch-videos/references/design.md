@@ -25,10 +25,15 @@ truth is `page/styles.css`; brand specifics come from `edit/brand.js` and `launc
 ## The glass recipe
 
 Clear glass, not frosted milk: a 4px backdrop blur so the picture reads through it. Legibility comes from a bright top
-edge, a faint inner glow and a quiet text shadow (`.glass` in `styles.css`).
+edge and a faint inner glow (`.glass` in `styles.css`). No text shadows, anywhere: on glass, on footage or on a
+gradient. Where white type sits on glass over a bright part of the picture, add a light dark tint inside the glass
+(`background-color: rgba(0,0,0,.25)` or the scene's darkest colour) and check the frame at full size.
 
 - The blur must blur the picture. Never put opacity, filter or `will-change` on a wrapper around glass.
-- Logo tiles are glass too; white plates behind logos were rejected.
+- Logos are the real ones, in their own colours (Google's four-colour G, Gemini's gradient, a provider's own mark),
+  and one colour only when the brand itself is (OpenAI, GitHub). Take them from the wallet's provider identities first;
+  Simple Icons are one-colour only. Show a logo wherever its product is named.
+- Logo tiles are near white, so every colour reads on any picture or glass.
 - Selected state: a brighter edge and fill, never a thick dark ring.
 - The end card's glass is clearer still, so the picture shows through.
 
@@ -46,6 +51,7 @@ for headlines. Capture at the size people use the product; zoom in to show detai
 
 ## Rejected, so it does not come back
 
-Rainbow and conic gradients, coloured blobs, tinted panels, drop shadows, dark themes, fake windows, a graphics-only
-intro before the footage, a black end card, running subtitles of every word, zooms or punch-ins on filmed clips, film
-grain, slow drifts, logos that assemble from parts.
+Rainbow and conic gradients, coloured blobs, tinted panels, drop shadows, text shadows, dark themes, fake windows, a
+graphics-only intro before the footage, a black end card, running subtitles of every word, zooms or punch-ins on filmed
+clips, film grain, slow drifts, logos that assemble from parts, one-colour logos for brands that have colour. (A
+narrated film with no footage has its own look: [motion-films.md](motion-films.md).)

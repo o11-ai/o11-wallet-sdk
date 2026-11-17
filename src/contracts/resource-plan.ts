@@ -5,6 +5,8 @@ export const resourceRequestSchema = z.object({
   baseUrl: z.url(),
   path: z.string().min(1),
   statePath: z.string().optional(),
+  /** States that mean the resource still exists, for suppliers whose ready state reads like an ending ("completed"). */
+  liveStates: z.array(z.string().min(1)).min(1).optional(),
   body: z.json().optional(),
 });
 const binding = z.object({
@@ -12,6 +14,7 @@ const binding = z.object({
   inputPath: z.string().min(1),
   optional: z.boolean().default(false),
   parentInputPath: z.string().optional(),
+  readyStates: z.array(z.string().min(1)).min(1).optional(),
 });
 export const resourcePlanSchema = z.object({
   uses: z.array(binding).default([]),
@@ -20,7 +23,10 @@ export const resourcePlanSchema = z.object({
       z.object({
         resource: z.string().min(1),
         externalIdPaths: z.array(z.string()).min(1),
+        identifierPath: z.string().min(1).optional(),
         parentInputPath: z.string().optional(),
+        /** A companion resource the supplier may omit; the call still succeeds without it. */
+        optional: z.boolean().optional(),
         release: resourceRequestSchema,
         verify: resourceRequestSchema.optional(),
         billing: z

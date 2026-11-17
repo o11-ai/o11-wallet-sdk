@@ -1,7 +1,7 @@
 ---
 summary: What is said, and the short headlines on screen.
-used_by: [irl, reel, product-demo]
-changed: 0.8.0
+used_by: [irl, reel, product-demo, ugc]
+changed: 0.11.0
 ---
 Headlines are short paraphrases of what is said, never transcripts: two lines, a few words each, in the user's own words where they gave them. Each headline spans a whole spoken phrase and holds at least 2.2 seconds; merge short neighbours instead of flashing them.
 
@@ -12,3 +12,5 @@ Headlines are short paraphrases of what is said, never transcripts: two lines, a
 **product-demo:** write the narration first: one line per screen or action, plain and spoken, about 2.5 words per second. Say what the viewer gets, not which button to press. Name the product as written in `brand.md`. Then a headline per idea. Show both and get a yes before generating any voice.
 
 Before finishing: every claim is in `brief.md`'s proof; nothing says something the user did not approve; nothing names a competitor unless `script.md` allows it.
+
+**ugc:** write the exact dialogue and a shot plan before paid generation. In reference-remake mode, preserve the reference beat sheet separately and translate the selected pacing/framing pattern into the new product story. Each shot names its duration, reference roles and generation method. Use real product footage for product behavior, and supported facts for claims. Keep accepted script/look/voice decisions; sample only what is still uncertain.

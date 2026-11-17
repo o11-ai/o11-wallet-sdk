@@ -14,7 +14,7 @@ import { refreshInstalledSkills, skillsCommand } from "./commands/skills.js";
 import { initCommand, playbooksCommand, presetsCommand, promptCommand } from "./commands/workspace.js";
 import { PLAYBOOK_CODE } from "./playbooks/index.js";
 
-const HELP = `o11 ostack: playbooks your coding agent sets up by talking to you, outbound (gtm) and launch videos (launch-videos)
+const HELP = `o11 ostack: playbooks your coding agent sets up by talking to you, outbound (gtm), launch videos (launch-videos) and growth research (growth)
 
 Your team's playbook files and settings live in your o11 workspace; sign in with "o11 login".
 Owners and admins change the team's; --me changes only yours.
@@ -22,7 +22,7 @@ Owners and admins change the team's; --me changes only yours.
 Install and workspace
   skills install [--host claude|codex|cursor|gemini|auto] | skills status | skills uninstall
                                                copy the ostack skills into your coding agents (kept current by o11 update)
-  init [--dir <path>] [--playbooks gtm,launch-videos]   create a folder on this computer for schedules and personal files
+  init [--dir <path>] [--playbooks gtm,launch-videos,growth]   create a folder on this computer for schedules and personal files
                                                (default: this folder; ~/ostack when run from your home folder)
   playbooks list | add <id> | remove <id>      which playbooks (families of workflows) this folder runs
   doctor                                       check sign-in, skills, folder, setup and schedules

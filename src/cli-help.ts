@@ -41,6 +41,7 @@ const commands = {
   balance: ['', 'Read wallet funds and card allowance'],
   topup: ['[AMOUNT] [--no-open] [--no-wait|--wait-ms MS]', 'Add USD credits and wait for payment'],
   connections: ['[PROVIDER]', 'List connected accounts'],
+  avatar: ['clone|status|video [--name NAME] [--provider P] [--connection ID] [--capture-id ID]', 'Turn a short talking video into an avatar and voice'],
   configuration: ['TOOL_ID', 'Read saved tool choices'],
   resources: ['list|get|events|release', 'Manage provisioned services'],
   events: ['RESOURCE_ID', 'Read service events'],
@@ -129,6 +130,47 @@ ${inputFlags.split('\n')[0]!.replace('--query KEY=VALUE, ', '')}\n${inputFlags.s
   keys: `  add -l LABEL [--server URL] --key-stdin\n  ${optionalServer}\n  list\n  activate -l LABEL\n  remove -l LABEL [-f]`,
   resources: '  list [-p PROVIDER] [-t TYPE] [-s STATE] [-l LIMIT] [--cursor CURSOR]\n  get RESOURCE_ID\n  events RESOURCE_ID [-l LIMIT] [--cursor CURSOR]\n  release RESOURCE_ID [-y]',
   report: '  --invocation ID, --run UUID, --note FILE, --request-id UUID\n  --retry REQUEST_UUID resumes the saved report.',
+  avatar: `  clone --name NAME [--provider captions|heygen|runway] [--connection ID] [--no-open] [--no-wait]
+    Prints a link to record a talking video (90 seconds by default), opens it and waits for the take.
+    --script TEXT, --seconds 5-120. --collect video|voice|photos (repeat or comma-separate) and --photos 1-5
+    choose what the link asks for; the default is a talking video. --collect voice records a voice
+    sample only: the person reads the script aloud, with no camera.
+  Files instead of the link: --video FILE (mp4, webm, under 32 MB), --audio FILE (mp3, wav, under 10 MB),
+    --image FILE (jpg, png, under 5 MB; up to 5), --portrait FILE. With --video, only one photo is kept:
+    --portrait, else the first --image. Without --video the images are photos and the first is the portrait.
+    The files are uploaded and saved as the take, with no browser. Running the same command again resumes
+    an unfinished upload. --audio alone saves a voice sample. With --video, Captions needs a photo;
+    Runway needs a photo and --audio; HeyGen needs --video.
+  --provider (default captions) and --connection, your account there (o11 connections PROVIDER):
+    heygen   Trains from the video and prints a consent link for the person in it (it lasts 24 hours).
+    runway   Clones the voice from the audio, then makes the avatar from the portrait. --personality TEXT.
+    captions Keeps no avatar: the capture is ready at once and each video sends the portrait and speech.
+             No connection is needed until the first video.
+    HeyGen and Runway stop after the recording without --connection. Waits up to 30 minutes.
+  clone --capture-id ID [--provider P] [--connection ID]  Resume a capture, or attach files to one still
+    waiting for its recording. A capture never trains twice on one provider.
+  clone --capture-id ID --provider heygen|runway --connection ID --retry  After a failed create with a
+    fixable cause (credits, access, a rate limit), send it again. If the first create did succeed after all,
+    this starts a second training.
+  status --capture-id ID [--provider P --connection ID]  Show the capture and what each provider made of it;
+    with --connection, that provider's live state.
+  video --capture-id ID [--connection ID] [--audio-url URL | --audio FILE] [--yes]
+    Makes one Captions video from the capture's portrait and speech audio, and prints its download link.
+    Captions has no text-to-speech. Without --audio-url or --audio it uses the recording's own audio.
+    Captions takes at most 60 seconds of speech. The video is as long as the audio and costs $1.25 from
+    your o11 wallet for each started 6 seconds: 5 seconds is $1.25, 14 seconds is $3.75, 30 seconds is
+    $6.25. With --connection, Captions bills your own key instead (about $0.90 per 6 seconds) and the
+    wallet is not charged. The length is read from the clip when
+    possible; above $1, video asks for --yes first. A video takes about 2.5 minutes. Running the same
+    command again returns the same video instead of a new charge. --audio FILE is uploaded again on
+    every run, as a new voice capture.
+  --json: clone prints only capture_id, provider, status, avatar_id, avatar_group_id, voice_id and
+    consent_url. status and video print the same object with or without it: status the capture with its
+    avatars (and live states), video capture_id, provider, invocation_id, download_url and message.
+    Progress lines go to stderr. --no-wait stops once training has started.
+  Exit code 0 means ready (or training started with --no-wait), 2 means waiting on a recording, consent,
+    --connection, --yes or a step still running, and 1 means the capture, training or video failed.
+  Example: o11 avatar clone --name "Presenter" --provider runway --connection ID --video take.mp4 --audio take.wav --image face.jpg`,
   topup: '  Amounts are USD only. Prints a Stripe link, then waits up to 10 minutes for wallet credits.\n  --no-wait returns the link immediately; --wait-ms MS changes the wait (1–3600000).\n  --request-id UUID resumes the same checkout and amount; it does not create a new request.',
 };
 

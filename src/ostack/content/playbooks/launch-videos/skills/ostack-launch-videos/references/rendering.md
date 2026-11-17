@@ -42,6 +42,24 @@ Stillness renders six consecutive frames of every hold, alternating across three
 needs identical hashes. A single page cannot see the history bug: that check passed while the video still shimmered.
 Run the audits after every change to `page/`, `edit/scenes.js` or the timeline, and before every cut you show.
 
+## Headless Chrome's limits
+
+- **Keep disk free.** With the disk nearly full, Chrome fails to load images (`ERR_INSUFFICIENT_RESOURCES`), WebGL
+  draws come back empty and the compositor crashes: it looks like a scene bug and is not. Check free space before a
+  render, delete each render's temporary files when it ends, and turn off build caches you do not need.
+- **WebGL backgrounds** draw into a 2D canvas each frame. Read one pixel back and throw when it is empty, so a failed
+  draw stops the render instead of shipping a blank frame; retry that shot once, then look for the cause.
+- **Compositor memory.** A live WebGL canvas inside a heavily zoomed 3D layer, dozens of tiles that each carry their
+  own 3D transform, or a full-frame layer fading underneath a zoomed one can crash the compositor. Draw only what the
+  camera can see, give still tiles no transform of their own (only moving ones get `move()`), and carry heavy handoffs
+  with a still of the outgoing frame.
+- **Every frame, counted.** Encode the master to the film's exact length (`-t`), never `-shortest`: the audio tail can
+  drop the last frame. Count the frames of every chunk and of the master against the timeline.
+- **Flash check:** a frame whose brightness spikes and snaps back is a render fault, but a cut from a bright scene to a
+  darker one can look the same to the check. Look at the flagged frames before re-rendering.
+- **First frame of a page:** in a short test render, a fresh page's first frame can differ from the rest while glass
+  warms up. That is not shake when every frame after it holds still and the real render starts each page on a cut.
+
 ## Speed
 
 Rebuilding every frame is slower (about 0.25s a frame at 1080p) and worth it. Iterate at `--scale 0.5` and re-render

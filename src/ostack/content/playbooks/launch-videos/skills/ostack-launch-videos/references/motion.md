@@ -46,6 +46,15 @@ beneath and its words fill from 35% to full white one after another. It holds to
 
 Rejected: a mark that assembles itself from parts, a name rising from below the frame, any fade to black.
 
+## Opens and scene changes
+
+- **Open:** the mark alone on black from the first frame; the brand gradient grows out of the mark's own tile into the
+  whole frame (about 0.8 s on `ease`, the field easing back from 8% larger); the name writes on beside the mark once
+  the mark has moved aside, so they never overlap. The open's text leaves over its last 10 frames.
+- **Scene changes:** crossfade the incoming background over 14 to 18 frames, grow the next scene out of a panel of the
+  last, or open a pale stage from the top. A hard cut belongs on the music's drop. The next scene's first element
+  lands on the cut, so the frame is never empty.
+
 ## Measuring a reference
 
 To match a reference exactly, extract it at its native frame rate and crop to the element:

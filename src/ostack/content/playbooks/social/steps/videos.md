@@ -28,3 +28,6 @@ no music), else mark the row needs help with the cost.
 
 A row that asks for something the skill cannot make (photos, carousels, animation from nothing) gets its captions
 anyway, and needs help for the rest.
+
+A row that asks for a generated presenter or an AI remake of a reference belongs to the ostack-ugc skill, which stops
+for a person's choice of presenter, frame and hooks. Draft its captions and mark the row needs help with that.

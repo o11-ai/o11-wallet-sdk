@@ -9,7 +9,7 @@ import { checkName, loadLocalWorkspace, requirePlaybook } from "../../lib/worksp
 
 const PLAYBOOK = "launch-videos";
 const KIT = `playbooks/${PLAYBOOK}/kit/`;
-export const FORMATS = ["irl", "reel", "product-demo"] as const;
+export const FORMATS = ["irl", "reel", "product-demo", "ugc"] as const;
 type Format = (typeof FORMATS)[number];
 
 /** The kit's shared files, then the format's own files in their place. */
@@ -32,14 +32,16 @@ export function kitFiles(format: Format): Map<string, string> {
       sfx: "node scripts/sound-effects.mjs", mix: "node scripts/mix.mjs",
       preview: "node scripts/render.mjs --scale 0.5 && node scripts/encode.mjs --scale 0.5",
       audit: "node scripts/audit/stillness.mjs && node scripts/audit/overlap.mjs && node scripts/audit/sound.mjs",
+      teardown: "node scripts/teardown.mjs", match: "node scripts/match.mjs", cutout: "node scripts/cutout.mjs",
+      ...(format === "ugc" ? { ugc: "node scripts/ugc.mjs", twin: "node scripts/twin.mjs" } : {}),
     },
     dependencies: { "playwright-core": "1.49.1" },
   }, null, 2)}\n`);
-  files.set(".gitignore", "node_modules/\nmedia/\noutput/\n");
+  files.set(".gitignore", "node_modules/\nmedia/\noutput/\nugc/\n.ugc/\nreferences/*/source.*\nreferences/*/audio.wav\nreferences/*/comments.json\ntrending/raw/\ntrending/*-comments.json\nmatch/\n");
   return files;
 }
 
-/** `o11 ostack launch-videos new <name> --format irl|product-demo [--dir <path>]` */
+/** `o11 ostack launch-videos new <name> --format irl|reel|product-demo|ugc [--dir <path>]` */
 export async function newCommand(args: Args): Promise<void> {
   const workspace = await loadLocalWorkspace();
   requirePlaybook(workspace, PLAYBOOK);
@@ -55,7 +57,7 @@ export async function newCommand(args: Args): Promise<void> {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, text);
   }
-  for (const folder of ["media/clips", "media/brand", "media/words", ...(format === "product-demo" ? ["media/narration"] : [])]) {
+  for (const folder of ["media/clips", "media/brand", "media/words", ...(["product-demo", "ugc"].includes(format) ? ["media/narration"] : []), ...(format === "ugc" ? ["media/references"] : [])]) {
     mkdirSync(join(dir, folder), { recursive: true });
   }
   print({
@@ -63,10 +65,11 @@ export async function newCommand(args: Args): Promise<void> {
     format,
     files: files.size,
     next: [
-      `cd ${dir} && bun install (or npm install), then run "o11 ostack launch-videos check"`,
+      `cd ${dir} && bun install, then run "o11 ostack launch-videos check"`,
       format === "product-demo" ? "Put the brand mark and font in media/brand/, and point edit/capture.js at the product."
+        : format === "ugc" ? "Run node scripts/ugc.mjs init with the approved project budget, then follow the ostack-ugc skill."
         : `Put the filmed ${format === "reel" ? "selfie clip" : "clips"} in media/clips/ and the brand mark and font in media/brand/.`,
-      `Follow the ostack-launch-videos skill: "o11 ostack context ${PLAYBOOK}/brief" is the first step.`,
+      `Follow the ${format === "ugc" ? "ostack-ugc" : "ostack-launch-videos"} skill: "o11 ostack context ${PLAYBOOK}/brief" is the first step.`,
     ],
   });
 }
@@ -91,10 +94,12 @@ function chrome(): string | null {
 /** `o11 ostack launch-videos check`: what rendering needs on this computer. */
 export async function checkCommand(): Promise<void> {
   const ffmpeg = version(process.env.FFMPEG ?? "ffmpeg", "-version");
+  const ffprobe = version(process.env.FFPROBE ?? "ffprobe", "-version");
   const browser = chrome();
   const runtime = version("node") ?? version("bun");
   const checks: Check[] = [
     { check: "ffmpeg", status: ffmpeg ? "ok" : "fail", detail: ffmpeg ?? "Not found, or it does not run on this computer (an Intel build on Apple silicon fails). Install ffmpeg (brew install ffmpeg on a Mac), or set FFMPEG to a working one." },
+    { check: "ffprobe", status: ffprobe ? "ok" : "fail", detail: ffprobe ?? "Not found. UGC shots require measured media duration. Install the ffmpeg package or set FFPROBE to its ffprobe executable." },
     { check: "chrome", status: browser ? "ok" : "fail", detail: browser ?? "Google Chrome not found. Install it, or set CHROME to a Chrome or Chromium executable." },
     { check: "node or bun", status: runtime ? "ok" : "fail", detail: runtime ?? "Neither node nor bun is on PATH. Install Node 20 or newer." },
   ];

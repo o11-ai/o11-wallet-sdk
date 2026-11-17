@@ -88,7 +88,8 @@ export const MAX_VERSION_CUTS = 4;
 /** The public video library's files: `<origin>/<format>/<company>/<id>/{video.mp4,preview.mp4,poster.webp}`. */
 export const VIDEO_LIBRARY_ORIGIN = "https://videos.o11.ai";
 /** Each upload request carries one part; storage needs every part but the last to be at least 5 MiB. */
-export const VIDEO_PART_BYTES = 16 * 1024 * 1024;
+// R2's minimum non-final part size; also fits the wallet transport and local file limits.
+export const VIDEO_PART_BYTES = 5 * 1024 * 1024;
 /** An upload not completed within a day is abandoned: its version never shows and its number is not reused. */
 export const VIDEO_UPLOAD_HOURS = 24;
 

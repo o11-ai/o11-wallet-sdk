@@ -1,18 +1,44 @@
 # Changelog
 
-## 0.1.44
+## 0.1.48
 
 **New**
-- Ostack 0.10: your schedules are kept in o11, so they match on every computer and in cloud chats. `o11 ostack schedule set|on|off` saves them there.
+- `o11 avatar video` no longer needs `--connection`: without one it runs on o11's Captions account and charges your wallet $1.25 for each started 6 seconds of video, shown before anything is sent. With `--connection`, Captions bills your own key as before.
+- Ostack schedules are kept in o11, so they match on every computer and in cloud chats. `o11 ostack schedule set|on|off` saves them there.
 - `o11 ostack init` turns on every playbook you can use. `o11 ostack setup import` uploads your `custom.local/` files and the schedules this computer kept.
 - Ostack also works without the CLI: o11's MCP connection has `ostack_read`, `ostack_write` and `ostack_run`.
-
-## 0.1.43
-
-**New**
 - Ostack content calendar (social beta): every night your agent makes the posts due in the next three days from your own Sheet, Notion or calendar, with videos uploaded to o11 and a caption for each platform, and marks them ready for review.
 - `o11 ostack launch-videos download <link>` saves a library film or a cut of one of your videos.
 - `o11 ostack launch-videos` commands take a video's o11 link in place of its id, and a film's link in place of its slug.
+
+## 0.1.47
+
+- `o11 avatar clone --audio FILE` and `--collect voice` save a voice sample on its own. Captions no longer asks for a photo when there is no video.
+- `o11 avatar clone` says when a saved take has no speech audio and shows the `--audio` flag in the next command.
+
+## 0.1.46
+
+- `o11 avatar clone`: get a secure link to record a talking video, a voice sample or photos, or attach an mp4, mp3 or images with no browser. The saved recording is reused on Captions (the default), HeyGen and Runway.
+- `o11 avatar video`: make a Captions video from a recording's portrait and speech audio, with the cost shown first.
+- `o11 avatar status`: see a recording and what each platform has made from it.
+
+## 0.1.45
+
+- Bundle Ostack 0.11.0's talking-video attachment workflow on top of 0.1.44's video skills: local portrait and voice-sample preparation, resumable native avatar-reference uploads, and the `ostack-twin` skill.
+- Saved voices, reusable avatars and native media uploads.
+
+## 0.1.44
+
+- Bundle Ostack 0.11.0's video skills: UGC videos from parts, editing in a style with `edit/style.json`, reference teardown, trending import with each video's sound, a scored match loop, side-by-side experiments and the growth playbook.
+- Save generated images and videos returned on Alibaba and MiniMax result hosts.
+- Ostack setup and the GTM playbook use the computer's timezone for schedules and send windows instead of asking for one.
+- This build does not include 0.1.43's talking-video attachment workflow, which ships with the saved-voice and avatar release.
+
+## 0.1.43
+
+- Integrate the upstream video API and multi-shape uploads while preserving local UGC workflows and historical receipt recovery.
+- Keep `project` and `projects` as aliases for the video commands.
+- Bundle Ostack 0.11.0's talking-video attachment workflow, local portrait/audio preparation and resumable native avatar-reference uploads.
 
 ## 0.1.42
 
@@ -21,16 +47,20 @@
 - `o11 ostack setup status --playbook <id>` sets up one playbook at a time.
 - Meetings go on the calendar each person chooses, and replies offer open times instead of a booking link.
 
+**Also**
+- Restore historical UGC invocations through status reads when returning to an earlier account or dependency.
+- Recover older conflicting intents without changing the saved request, creating another generation or duplicating charges.
+
 ## 0.1.41
 
-**Changed**
-- Ostack setup and the GTM playbook use the computer's timezone for schedules and send windows instead of asking for one.
+- Pin a selected customer account across UGC quotes, submissions and retries.
+- Save structured voice and avatar results, and recover existing invocations without another generation.
+- Preserve adopted stages, saved dependencies and invocation-based budget totals when switching accounts.
 
 ## 0.1.40
 
-**New**
-- `o11 ostack launch-videos` works with videos: `videos` lists them, `video <id>` shows one (`--wait` holds until a template is picked), `update --part name=text` adds a brief part a kind of video needs, and `upload <video-id> <cut> [<other shapes>...]` uploads every shape of a cut as one version, with its preview and poster.
-- Setup ends with one optional question offering Ostack. A yes installs its skills; a no changes nothing.
+- The local VM release bundles Ostack 0.10.0 with generated presenter videos, reusable UGC projects, bounded generation stages, recoverable jobs, and source-clock captions.
+- Keep accepted media and wallet receipts when a download needs retrying; collect projected video URL lists without regenerating footage.
 
 ## 0.1.39
 

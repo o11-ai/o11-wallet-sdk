@@ -1,0 +1,6 @@
+---
+summary: Generate selected shots with bounded costs and recoverable jobs.
+used_by: [ugc]
+changed: 0.11.0
+---
+Follow the UGC skill’s generation, talking-clip and project-state references. For a presenter clip, make the speech first as one audio file, then pick the route by what the clip needs: lip-sync to that exact audio (`captions.avatar.video` on o11's Captions account or a connected Captions key, otherwise Wan `driving_audio`), or a performance in a voice like it (a voice-reference route). Seedance's default filter refuses photoreal faces. Direct a calm delivery with small mouth movements, irregular blinks, one small head move and handheld tremor; no zoom, no text; never "leans closer", never shouting. State the price before each paid step. Discover and inspect a public tool that accepts the actual selected references and produces the needed output. Persist the request, schema digest, quote, project run ID and idempotency key before submitting. Follow the existing invocation; download, hash and probe completed assets promptly. Reconcile unknown outcomes and active reservations before retrying or choosing another provider. Regenerate only changed shots and their dependent work, preserving accepted assets.
