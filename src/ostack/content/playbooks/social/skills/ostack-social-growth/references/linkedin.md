@@ -1,5 +1,8 @@
 # LinkedIn
 
+Off by default. Use this file only for a person whose `social/accounts.md` has `LinkedIn: on`; LinkedIn restricts
+accounts for automated activity more strictly than X or Instagram, and every run is at the person's own risk.
+
 ## Already commented
 
 The person's comments: `https://www.linkedin.com/in/<handle>/recent-activity/comments/`. Note the posts from the last

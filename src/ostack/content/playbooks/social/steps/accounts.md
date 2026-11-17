@@ -1,10 +1,10 @@
 ---
 summary: Confirm each account before touching it.
 used_by: [growth]
-changed: 0.9.2
-change: First release.
+changed: 0.11.1
+change: LinkedIn is off unless your own accounts file turns it on.
 ---
-Read the person's `social/accounts.md`. Open each platform in the browser and confirm the signed-in profile is that
+Read the person's `social/accounts.md`. Skip LinkedIn unless that file has the line `LinkedIn: on`. Open each platform in the browser and confirm the signed-in profile is that
 account. If a platform is signed out, on another account, or shows a login or security check, skip it today and report
 it. Never type a password or a code.
 

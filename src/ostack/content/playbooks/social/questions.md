@@ -21,17 +21,25 @@ Check: Draft comments for three of the posts from the niche check and ask whethe
 ## limits
 Since: 0.9.2
 Ask: How much per day on each platform? Follows, likes, comments, and reposts or quotes on X. Any platform to leave out? When should the day's run wrap up?
-Default: The ranges in the skill's pacing reference: X up to 350 follows, 350 likes and 30 comments a day; LinkedIn up to 50 follows, 80 likes and 20 comments; Instagram up to 100 follows, 140 likes and 10 comments; hourly ceilings as listed there. New or small accounts start at half for the first two weeks. The day ends at 23:00 their time.
+Default: The ranges in the skill's pacing reference: X up to 350 follows, 350 likes and 30 comments a day; LinkedIn (only for people who turn it on) up to 50 follows, 80 likes and 20 comments; Instagram up to 100 follows, 140 likes and 10 comments; hourly ceilings as listed there. New or small accounts start at half for the first two weeks. The day ends at 23:00 their time.
 Writes: `social/limits.md` with daily ranges and hourly ceilings per platform, and when the day ends.
 Check: Read the table back and say roughly how long a full day takes at that pace.
 
 ## accounts
 Since: 0.9.2
 Scope: personal
-Ask: Which of your accounts should this grow? Your X, LinkedIn and Instagram profile links, and which browser you are signed in to them in.
-Default: None. Each person names their own.
+Ask: Which of your accounts should this grow? Your X and Instagram profile links, and which browser you are signed in to them in. Before asking, show the "Your own risk" notice from the ostack-social-growth skill word for word, and ask whether each account has its paid plan (X Premium, Meta Verified for Instagram); recommend subscribing before the first run.
+Default: None. Each person names their own. LinkedIn stays off (see the linkedin question).
 Writes: `social/accounts.md` (personal): one line per platform with the profile URL, plus the link to that platform's own list of your recent comments.
 Check: Open each profile in the browser and confirm the signed-in account matches. Never type a password; if one is signed out, ask the person to sign in.
+
+## linkedin
+Since: 0.11.1
+Scope: personal
+Ask: LinkedIn is off by default: it restricts accounts for automated activity more strictly than X or Instagram. Show the "Your own risk" notice from the ostack-social-growth skill word for word, then ask: do you want growth to work your own LinkedIn account anyway, at your own risk?
+Default: Off. Turn it on only when the person says yes after reading the notice; recommend LinkedIn Premium first.
+Writes: On yes, add `LinkedIn: on` and their LinkedIn profile and comments links to `social/accounts.md` (personal). On no, remove any `LinkedIn: on` line.
+Check: Read back which platforms the next run will work.
 
 ## voice
 Since: 0.9.2
@@ -44,7 +52,7 @@ Check: Draft two comments in their voice and ask whether they would post them.
 ## schedule
 Since: 0.9.2
 Scope: personal
-Ask: Growth runs every day at 11:00 in your timezone and takes a few hours at a safe pace. Keep it, or change the time or days? The computer has to stay awake with the browser open.
+Ask: Growth runs every day at 11:00 in your timezone and takes a few hours at a slow pace. Keep it, or change the time or days? The computer has to stay awake with the browser open.
 Default: Daily at 11:00. Avoid times another ostack workflow uses the same LinkedIn account.
 Writes: The schedule (`o11 ostack schedule`), created paused until the person confirms their accounts are signed in.
 Check: Show the schedule as it will run, and turn it on when they say so.

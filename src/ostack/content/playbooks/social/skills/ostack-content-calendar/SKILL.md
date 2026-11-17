@@ -29,7 +29,7 @@ A run keeps working across turns until every due post is handled. Start the run 
 1. `cd` to the workspace and run `o11 ostack doctor`. Stop on any `fail`. If the team has no `social/calendar.md`,
    hand over to ostack-setup (in a scheduled run, stop and report it).
 2. `o11 ostack run start social/calendar` (keep `--scheduled` when the prompt has it). `not_due`, `run_in_progress` or
-   `feature_not_available` (social is in beta and this workspace has no access): stop and say which. Run
+   `feature_not_available` (this workspace has no access to social): stop and say which. Run
    `o11 ostack run end social/calendar --summary "<one line>" --counts rows=<n>,ready=<n>,needs_help=<n>,videos=<n>`
    when you finish, including when you stop early.
 3. `o11 ostack context --playbook social` and read the team's `social/calendar.md`, `social/captions.md`,

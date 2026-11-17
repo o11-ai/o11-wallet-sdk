@@ -21,8 +21,8 @@ over the defaults, except for the rules at the end of this file.
    `o11 login` (in a scheduled run, stop and report it). Growth needs `seo/site.md` and `seo/publish.md`: if either is
    missing, ask for just that (or hand over to ostack-setup); in a scheduled run, stop and report it.
 2. `o11 ostack run start seo/growth` (a scheduled run's prompt adds `--scheduled`; keep it). `not_due`: stop and report
-   only that. `run_in_progress`: stop and say so. `feature_not_available`: SEO is in beta and this workspace has no
-   access; say so and stop. Run `o11 ostack run end seo/growth --summary "<one line>" --counts
+   only that. `run_in_progress`: stop and say so. `feature_not_available`: this workspace has no access to
+   SEO; say so and stop. Run `o11 ostack run end seo/growth --summary "<one line>" --counts
    written=<n>,refreshed=<n>,published=<n>` when you finish, including when you stop early.
 3. `o11 ostack context --playbook seo` and read every general file: `company.md`, `voice.md`, `seo/site.md` and the rest.
    Then open the content plan where `seo/publish.md` says and the latest tracking report beside it.

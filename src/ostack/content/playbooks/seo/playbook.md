@@ -2,7 +2,6 @@
 id: seo
 name: SEO
 summary: Audit the site, keep publishing and refreshing posts that win search and AI answers, and track what moves.
-access: beta
 workflows:
   - id: audit
     skill: ostack-seo-audit

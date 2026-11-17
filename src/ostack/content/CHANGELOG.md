@@ -2,6 +2,11 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.11.1
+- SEO and Social are open to every team, no beta invite needed. Add one with `o11 ostack playbooks add seo` or `o11 ostack playbooks add social`.
+- Social growth leaves LinkedIn off by default, since LinkedIn restricts accounts for automated activity most strictly. To keep it, add the line `LinkedIn: on` to your own `social/accounts.md`, or run `o11 ostack setup` and answer the new LinkedIn question.
+- Social growth runs at your own risk: X, LinkedIn and Instagram can warn, restrict or ban accounts for automated activity, and o11 is not liable for any action a platform takes against your accounts. Every report ends with that notice. We recommend running it only after subscribing to each platform's paid plan (X Premium, LinkedIn Premium, Meta Verified), since paid accounts are less likely to be restricted.
+
 ## 0.11.0
 - Make a presenter of yourself: your agent sends a secure link to record a talking video, a voice sample or photos (or takes a file you attach), saves it in your o11 wallet under Resources and makes each video on Captions. For other platforms it can also prepare a portrait and voice sample, resume their uploads and save one reusable o11 avatar reference. The twin workflow handles compatible provider setup and preserves each provider's consent and account requirements. A saved reference is reported separately from a trained clone.
 - UGC videos have working defaults: a talking clip from one character image, a short voice clip and a script, with the route, price and request for each step. The agent works in stages and stops for your choice of reference, character and hooks. Every take is checked for pace, pauses, missing words and identity before you watch it. "Recreate this video" now asks what to keep: the structure, the edit style, the motion or everything but one element. Variants of a finished video reuse every accepted clip.

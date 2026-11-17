@@ -19,8 +19,8 @@ over the defaults, except for the rules at the end of this file.
 1. `cd` to the workspace (the folder with `ostack.json`) and run `o11 ostack doctor`. Stop on any `fail`. If the login
    check fails, ask the user to run `o11 login`. If the team has no `seo/site.md`, ask only for the site and its market
    (or hand over to ostack-setup for the full seo setup) and carry on with what you have.
-2. `o11 ostack run start seo/audit`. If it reports `feature_not_available`, SEO is in beta and this workspace has no
-   access: say so and stop. If it reports `run_in_progress`, stop and say so. Run `o11 ostack run end seo/audit --summary
+2. `o11 ostack run start seo/audit`. If it reports `feature_not_available`, this workspace has no access to
+   SEO: say so and stop. If it reports `run_in_progress`, stop and say so. Run `o11 ostack run end seo/audit --summary
    "<one line>" --counts issues=<n>,fixed=<n>` when you finish, including when you stop early.
 3. `o11 ostack context --playbook seo` and read every general file: `company.md`, `seo/site.md`, and anything else the
    team saved.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.49
+
+**New**
+- Ostack 0.11.1: SEO and Social are open to every team. Social growth leaves LinkedIn off unless you turn it on for your own account, and runs at your own risk.
+
 ## 0.1.48
 
 **New**
