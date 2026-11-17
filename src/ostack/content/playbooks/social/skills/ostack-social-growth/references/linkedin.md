@@ -11,7 +11,7 @@ week already commented on.
 ## Find posts
 
 - Content search: `https://www.linkedin.com/search/results/content/?keywords=<terms>&datePosted=%22past-24h%22` (or
-  `%22past-week%22`). Sort by relevance for strong posts, by latest for fresh ones.
+  `%22past-week%22`). Sort by relevance for the best posts, by latest for fresh and close ones.
 - Click "more" to read the whole post. Open carousels and documents.
 
 ## Follow

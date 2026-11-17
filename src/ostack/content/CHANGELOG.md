@@ -2,6 +2,9 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.11.2
+- Social growth ranks every post it reads as best, close or skip. Best posts get the follows, likes, comments and reposts first; once they are used up, the run keeps following and liking as many close posts as it can find (smaller accounts, neighboring topics, slightly older posts, good replies under strong posts) instead of waiting. Comments still go only where there is something specific to say, and the skip list and no-brands rule never loosen.
+
 ## 0.11.1
 - SEO and Social are open to every team, no beta invite needed. Add one with `o11 ostack playbooks add seo` or `o11 ostack playbooks add social`.
 - Social growth leaves LinkedIn off by default, since LinkedIn restricts accounts for automated activity most strictly. To keep it, add the line `LinkedIn: on` to your own `social/accounts.md`, or run `o11 ostack setup` and answer the new LinkedIn question.

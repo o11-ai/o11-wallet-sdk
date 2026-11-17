@@ -1,11 +1,11 @@
 ---
 summary: The summary at the end of every run.
 used_by: [growth, calendar]
-changed: 0.10.0
-change: Growth says how each platform ended, and for any target still short at the end of the day, what was searched.
+changed: 0.11.2
+change: Growth splits each platform's actions between best and close posts.
 ---
 **growth:** start with today's picked targets. Then one short block per platform: account confirmed, people followed,
-posts liked, comments posted (each with the post link and exact text), reposts and quotes on X, anything skipped or
+posts liked (how many were best posts and how many close), comments posted (each with the post link and exact text), reposts and quotes on X, anything skipped or
 stopped and why, and how it ended (met, stopped, or out of day). For any target still short at the end of the day, say
 what was searched, including the widened terms worth adding to `social/niche.md`. Pass the numbers to `o11 ostack run end`: `--counts follows=<n>,likes=<n>,comments=<n>,reposts=<n>`.
 

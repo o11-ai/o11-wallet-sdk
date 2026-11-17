@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.50
+
+**New**
+- Ostack 0.11.2: social growth ranks posts as best, close or skip, and keeps following and liking close posts once the best are used up instead of waiting.
+
 ## 0.1.49
 
 **New**

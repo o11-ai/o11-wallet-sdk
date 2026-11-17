@@ -8,7 +8,8 @@ weeks already commented on.
 ## Find posts
 
 Hashtag pages: `https://www.instagram.com/explore/tags/<tag>/` with the tags in `social/niche.md`. Most posts are reels,
-and the caption rarely says what the video is about.
+and the caption rarely says what the video is about. Top posts are usually the best ones; once they are used up, work
+the recent posts and neighboring tags for close posts.
 
 ## Understand the post before commenting
 
