@@ -1,8 +1,8 @@
 ---
 summary: Build and grow the list of every company that might fit, so find always has fresh companies to work.
 used_by: [outbound]
-changed: 0.6.0
-change: The list lives in the user's own tool next to the people, with an owner per company.
+changed: 0.12.0
+change: Each company also keeps how far it has been worked, in o11_company_status and o11_people_tried (the companies step).
 ---
 The TAM is a list of companies, not people. It is where companies come from, not a verdict on them. Every company still goes through qualify before anyone there gets a message, so a few wrong rows are fine. Never loosen qualify to make up for a noisy list.
 
@@ -15,6 +15,7 @@ One row per company. Fields: `id, domain, name, location, source, source_id, siz
 - `id` is the registry ID when the source has one (FDIC cert, USDOT, NPI, permit number). Otherwise it is the bare domain, lowercase, with no `www.`.
 - `source` names every source that returned the row, joined with `+`. Overlap between sources is useful evidence.
 - `status` is blank until find takes the company, then `taken`, with the teammate who took it as `owner`. It is `skip` when the user, the homepage check or qualify ruled the company out, with the reason in `note`.
+- Once find takes a company, it also keeps `o11_company_status` and `o11_people_tried`, as the companies step says.
 - Append only new IDs and never delete rows. The list is also the record of what was already pulled.
 
 

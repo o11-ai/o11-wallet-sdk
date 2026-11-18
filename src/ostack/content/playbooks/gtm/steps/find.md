@@ -1,13 +1,13 @@
 ---
 summary: Where new leads come from and how many to look at per run.
 used_by: [outbound]
-changed: 0.8.1
-change: People are found through o11 routes (o11.people.search, o11.leads.from_topic), which pick the provider; a named lead-data tool is used only when your files say so.
+changed: 0.12.0
+change: A company from the TAM gets a ranked list of the people there who fit, found once. The first ones are worked now and the rest wait their turn (the companies step).
 ---
 Find people who might fit, then add them to the user's own tool (see the record step) with status `new`, their source and owner.
 
 Default sources, in order:
-1. The TAM, when the user keeps one (a `gtm/tam.md` file). Take the next companies nobody has taken, mark them `taken` with you as owner, and find the right person at each one with `o11.people.search`: the company's domain, the title from the qualify file, and a judge sentence about that title. Link each person to their TAM company. If too few untaken companies are left for this run, run the `tam` step to grow the list first.
+1. The TAM, when the user keeps one (a `gtm/tam.md` file). Take the next companies nobody has taken, mark them `taken` with you as owner, and find the people there who fit with `o11.people.search`: the company's domain, the titles from the qualify file, and a judge sentence about those titles. Rank them and add them as the companies step says: the first ones as `new`, the rest as `queued` without emails. Link each person to their TAM company. If too few untaken companies are left for this run, run the `tam` step to grow the list first.
 2. A file or list the user gave you (CSV, JSON, a spreadsheet, a CRM view).
 3. A topic the buyers post about. `o11.leads.from_topic` takes the topic and the ICP from `company.md`, and returns the people engaging with it, each with a fit score, what they did and a work email marked verified or not.
 4. A description of the buyer. `o11.people.search` takes it as `q`, with `country`, `seniority`, `company_headcount` and `funding_stage` as filters. `route.merge` returns one list from several providers and `route.judge` scores each row.

@@ -8,6 +8,26 @@ import { invocationRunInputSchema } from "./invocation-run.js";
 
 const id = z.strictObject({ id: z.string().uuid() });
 /**
+ * Why a result was not useful. `wrong`: about another person or company. `inaccurate`: the right one, wrong details.
+ * `missing_fields`: requested fields absent; `fields` names them. `off_target`: not what was asked for.
+ */
+export const resultRatingIssues = ["empty", "wrong", "inaccurate", "stale", "missing_fields", "off_target"] as const;
+export type ResultRatingIssue = typeof resultRatingIssues[number];
+export const maxRatingsPerBatch = 50;
+/** One rating of one completed call. An issue applies only to a result that was not useful. */
+export const resultRatingSchema = z.strictObject({
+  invocationId: invocationReferenceSchema,
+  useful: z.boolean(),
+  issue: z.enum(resultRatingIssues).optional().describe("Only when useful is false: empty, wrong (another person or company), inaccurate (right one, wrong details), stale, missing_fields or off_target."),
+  fields: z.array(z.string().trim().min(1).max(100)).min(1).max(20).optional().describe("Output fields that were wrong or missing."),
+  reason: z.string().max(300).optional(),
+}).refine(rating => rating.useful === false || rating.issue === undefined && rating.fields === undefined,
+  { message: "issue and fields apply only when useful is false", path: ["issue"] });
+/** Why `rate_results` did not store one rating. The other ratings in the call are unaffected. */
+export const ratingRejections = ["not_found", "not_completed", "ambiguous_reference", "duplicate"] as const;
+export type RatingRejection = typeof ratingRejections[number];
+
+/**
  * Why a route call or quote was refused before anything was held. Every route refusal carries one. `option_disabled`:
  * an option the call sent, or the tool itself, is turned off for now; the same call without that option still runs.
  */
@@ -124,10 +144,10 @@ export const publicOperationSchemas = {
     maxEffectivePriceMicros: moneySchema.optional().describe("Exclude tools whose price per call is higher or unknown, in USD micros."),
     limit: z.number().int().min(1).max(25).default(3),
   }),
-  rate_result: z.strictObject({
-    invocationId: invocationReferenceSchema,
-    useful: z.boolean(),
-    reason: z.string().max(300).optional(),
+  rate_result: resultRatingSchema,
+  rate_results: z.strictObject({
+    ratings: z.array(resultRatingSchema).min(1).max(maxRatingsPerBatch)
+      .describe(`Up to ${maxRatingsPerBatch} ratings, one per call. Each is accepted or rejected on its own.`),
   }),
   ...serviceOperationSchemas,
 };
@@ -166,7 +186,8 @@ export const publicOperationDescriptions: Record<keyof typeof publicOperationSch
   list_invocations: "List this selected card's invocation summaries, newest first. Follow cursor with the same filters. Filter runId to recover one task, or parentId (a route or recipe call's full id) to list the calls it made; retrieve full results with get_invocation.",
   get_run: "Read wallet charges and outstanding reservations for this selected card's labeled run. When a call set runMaxMicros, ceiling shows the run's maximum, spent, held and remaining. External supplier charges may be unknown.",
   search_tools: "Search the tool index for one task described in words. Returns at most limit compact summaries (default 3); inspect the closest toolId first. Check match, category and alternatives; confident describes the task category, not certainty that a tool fits. Quality combines classified output, explicit ratings and a prior. Retain searchId for invoke. Use find_tools for a named provider or endpoint.",
-  rate_result: "Rate whether a completed call's result was useful, with an optional short reason about the output.",
+  rate_result: "Rate one completed call's result: useful or not, an issue type when it was not, and an optional short reason about the output. Use rate_results for several calls.",
+  rate_results: `Rate up to ${maxRatingsPerBatch} completed calls in one request, for example after a long turn. Each rating names the call, whether it was useful and, when it was not, the issue (empty, wrong, inaccurate, stale, missing_fields, off_target). Each is accepted or rejected on its own. Ratings are checked against o11's own evidence before they rank providers, and never change billing.`,
   quote: "Estimate the price of an allowed tool call without submitting it.",
   cancel: "Request cancellation of this card's call by shortId or full UUID. Cancellation is not guaranteed after supplier acceptance.",
   resources: "List services funded by this card. Requires service access.",

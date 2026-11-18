@@ -25,7 +25,7 @@ For anything else, find the tool by what it does, inspect it, and call it: `o11 
 then `o11 inspect <id>`. Search by capability, never by provider name, and prefer the result with the best usable rate.
 What to look for that way: organic competitors of a domain, a domain's top pages, keyword difficulty and search intent,
 referring domains, backlink gaps between domains, Google's AI Overview and AI Mode, ChatGPT, Gemini and Copilot answers,
-page speed and Core Web Vitals, and an on-page audit of a URL. Rate each result you used (`o11 rate <id> useful|not-useful`).
+page speed and Core Web Vitals, and an on-page audit of a URL. Flag any result you used that was bad (`o11 rate <id> not-useful --issue empty`).
 
 Search Console is the site's own truth for clicks, impressions, average position and which pages Google indexed. Read it
 through the user's connected account (`o11 discover "search console performance"`, customer connection). Third-party

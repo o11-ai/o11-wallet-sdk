@@ -1,13 +1,13 @@
 ---
 summary: Where leads, messages, replies and opt-outs are kept, and the routine that stops anyone getting two messages.
 used_by: [outbound, follow-ups]
-changed: 0.9.0
-change: New statuses scheduled (a message waiting to go out at scheduled_for) and needs you (a reply handed to the user, with handoff_reason). Add the scheduled_for and handoff_reason fields.
+changed: 0.12.0
+change: New status queued (found at a company, waiting their turn) and field o11_rank (their place in the company's queue). Companies keep o11_company_status and o11_people_tried (the companies step).
 ---
 ostack keeps no lead data. Everything lives in the user's own tool: a CRM (Attio, Lightfield, HubSpot), Airtable, a Google Sheet or a CSV. This step's file says which tool, how to reach it, and which fields hold what. Every other step reads and writes there, and teammates on other computers see the same records. Without a file, use `leads.csv` in the workspace and say so in the report. That only works for one person; a team needs a shared tool. Start it with these columns, adding others only when a file asks for them:
 
 ```
-name,email,linkedin,company,domain,tam_id,title,source,owner,status,reason,evidence,research,o11_audience,o11_template,o11_follow_up,messages_sent,last_message_at,message_id,thread_id,draft_id,scheduled_for,next_follow_up,replies_handled,defer_until,defer_reason,handoff_reason
+name,email,linkedin,company,domain,tam_id,title,source,owner,status,o11_rank,reason,evidence,research,o11_audience,o11_template,o11_follow_up,messages_sent,last_message_at,message_id,thread_id,draft_id,scheduled_for,next_follow_up,replies_handled,defer_until,defer_reason,handoff_reason
 ```
 
 Keep a message log next to it, `messages.csv`, one row per message: `sent_at,email_or_linkedin,o11_audience,o11_template,o11_follow_up,subject,message_id,thread_id,sender`. In a CRM, use its activity, note or email log on the person instead.
@@ -21,8 +21,10 @@ Use the tool's own fields where they exist and add the rest:
   - `o11_audience`: the audience that reached them (`default`, or a folder name such as `customers`). It decides their follow-up timing.
   - `o11_template`: the version id of the template their first message used (from `o11 ostack context gtm/write`), empty when there was none. `o11 ostack files show --version <id>` opens the exact text.
   - `o11_follow_up`: how many follow-ups they have had (0 after the first message).
-- status: `new`, `qualified`, `disqualified`, `sending`, `scheduled`, `drafted`, `contacted`, `replied`, `needs you`, `meeting`, `closed`, `opted out`, `bounced`
+  - `o11_rank`: their place in their company's queue, 1 first (the companies step).
+- status: `queued`, `new`, `qualified`, `disqualified`, `sending`, `scheduled`, `drafted`, `contacted`, `replied`, `needs you`, `meeting`, `closed`, `opted out`, `bounced`
   - `scheduled`: a message is waiting to go out at `scheduled_for` (a scheduled send or a draft the follow-ups run sends then). Once its time has passed and it is in the Sent folder, it is `contacted`.
+  - `queued`: found at a company that is being worked, waiting their turn; no email looked up yet (the companies step).
   - `needs you`: a reply the user answers themselves, with `handoff_reason` (the handoff step). Nothing more goes to this person until the user acts.
 - why they qualified or not, with evidence, and research notes
 - messages sent so far, the date of the last one, its message and thread IDs, the next follow-up date, and the IDs of replies already handled

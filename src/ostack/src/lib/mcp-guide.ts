@@ -29,6 +29,6 @@ What needs a computer, and how to handle it here:
 - skills install, init, doctor and playbooks add are CLI only. Nothing needs installing to use Ostack here.
 - Playbook commands that keep local files (such as gtm ledger and tam) are CLI only. Keep lists in the team's CRM,
   Airtable, Sheet or CSV through their own tools, as the skills say.
-- Setup questions are answered with ostack_write answer once the interview covered them, as with the CLI.
+- Setup questions are answered with ostack_write answer once setup covered them, as with the CLI.
 
 Everything else in the skills works as written: read the context before each run, ask before sending, record runs.`;

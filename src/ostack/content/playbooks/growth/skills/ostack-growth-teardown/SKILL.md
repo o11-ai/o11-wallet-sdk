@@ -186,4 +186,4 @@ Follow [references/stages.md](references/stages.md). The question it answers is 
 
 Offer the next skill by name with the play that needs it. Do not start it unasked.
 
-When the user corrects how you did something, ask whether it holds every time. If it does, offer to save it to the team's files (`growth/<step>.md`) with the ostack-setup skill so it sticks.
+When the user corrects how you did something, save what holds every time right away to the team's files (`growth/<step>.md`), as the ostack-setup skill's `references/first-run.md` says, and say so in one line.

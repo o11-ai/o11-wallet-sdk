@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.53
+
+**New**
+- `o11 rate` rates several calls in one request: `o11 rate ID not-useful --issue empty ID2 useful`, or `o11 rate --input FILE|-` with a JSON list. Flag a bad result with `--issue` (`empty`, `wrong`, `inaccurate`, `stale`, `missing_fields`, `off_target`) and `--fields`. Rating is optional; o11 checks each rating before it ranks providers.
+- `rateResults({ ratings })` in the SDK rates up to 50 calls at once; each is accepted or rejected on its own.
+- Against a wallet that does not take several ratings, `--issue` or `--fields` yet, `o11 rate` says so and how to rate instead.
+
+## 0.1.52
+
+**New**
+- Ostack 0.12.0: every skill works the first time with nothing set up, saves what it learns without asking, and gives feedback on your outreach, SEO, social and videos without being asked.
+- Ostack 0.12.0: setup is one short conversation that shows two real drafted messages in its first reply and asks only what it cannot find, and your agent coaches your email template and reports how each template is doing every week.
+- Ostack 0.12.0: outbound works each company two people at a time, best fit first. When one person's follow-ups run out, the next person there starts on the next outbound run, up to 20 per company. All of it is customizable in your own words.
+
+## 0.1.51
+
+- `o11 login --key-stdin` accepts `--card ID` and checks the key can use that card before saving it.
+- `o11 ostack` reports an upload or request the wallet refuses as too large or invalid with the wallet's reason, instead of "offline, try again shortly".
+
 ## 0.1.50
 
 **New**

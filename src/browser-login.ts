@@ -28,21 +28,28 @@ export function loginOptions(args: string[]) {
   if (flags["--auth"] === "browser" && flags["--email"]) throw new Error("Use --email with email sign-in, or --auth browser without --email");
   return { flags, noBrowser, reauth, origin: walletServer(flags["--server"]) };
 }
-export function keyStdinServer(args: string[]) {
-  let server: string | undefined, stdin = false;
+/** Key import options. A global --card is accepted and checked against the key's cards after stdin is read. */
+export function keyStdinOptions(args: string[]) {
+  const usage = "Use login [--server URL] [--card ID] --key-stdin";
+  let server: string | undefined, cardId: string | undefined, stdin = false;
   for (let index = 0; index < args.length; index++) {
     const name = args[index]!;
     if (name === "--key-stdin") {
-      if (stdin) throw new Error("Use login [--server URL] --key-stdin");
+      if (stdin) throw new Error(usage);
       stdin = true;
       continue;
     }
-    if (name !== "--server" || server || !args[index + 1] || args[index + 1]!.startsWith("--"))
-      throw new Error("Use login [--server URL] --key-stdin");
-    server = args[++index]!;
+    const value = args[index + 1];
+    if (name === "--card" && !cardId && value && !value.startsWith("--")) { cardId = z.uuid().parse(value); index++; continue; }
+    if (name !== "--server" || server || !value || value.startsWith("--")) throw new Error(usage);
+    server = value;
+    index++;
   }
-  if (!stdin) throw new Error("Use login [--server URL] --key-stdin");
-  return walletServer(server);
+  if (!stdin) throw new Error(usage);
+  return { origin: walletServer(server), cardId };
+}
+export function keyStdinServer(args: string[]) {
+  return keyStdinOptions(args).origin;
 }
 export async function browserLogin(args: string[], profile?: string) {
   const { flags, noBrowser, reauth, origin } = loginOptions(args);

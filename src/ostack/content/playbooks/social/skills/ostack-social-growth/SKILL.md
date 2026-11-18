@@ -40,8 +40,11 @@ A run keeps working across turns until the day is done, not one batch. Start the
 
 ## Start every run
 
-1. `cd` to the workspace and run `o11 ostack doctor`. Stop on any `fail`. If the person has no `social/accounts.md`
-   or the team has no `social/niche.md`, hand over to ostack-setup (in a scheduled run, stop and report it).
+1. `cd` to the workspace and run `o11 ostack doctor`. Stop on any `fail`. If the team has no `social/niche.md`, learn
+   it as the ostack-setup skill's `references/first-run.md` says and save it. If the person has no `social/accounts.md`, find
+   their accounts the same way, then show the "Your own risk" notice and get their own yes before any account is touched;
+   until then, show the posts you would act on and draft comments without acting. In a scheduled run, stop and report
+   either.
 2. `o11 ostack run start social/growth` (keep `--scheduled` when the prompt has it). `not_due`, `run_in_progress` or
    `feature_not_available` (this workspace has no access to social): stop and say which. Run
    `o11 ostack run end social/growth --summary "<one line>" --counts follows=<n>,likes=<n>,comments=<n>,reposts=<n>`
@@ -55,7 +58,9 @@ A run keeps working across turns until the day is done, not one batch. Start the
 
 The first time you reach a step, run `o11 ostack context social/<step>` and follow its default, refined by the team's
 files. `accounts`, then rounds of `find` and `engage` across the platforms until each is met, stopped or out of day,
-then `report`.
+then `report`. Coach without being asked: [coaching.md](references/coaching.md) has the red flags and the "What's
+working" note every report ends with. When the user corrects how you did something, save it right away as the
+ostack-setup skill's `references/first-run.md` says and say so in one line.
 
 ## Rules no customization can change
 

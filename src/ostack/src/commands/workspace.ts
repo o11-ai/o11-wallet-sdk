@@ -40,7 +40,7 @@ export async function initCommand(args: Args): Promise<void> {
     workspace: root,
     playbooks,
     files: [join(root, STATE_FILE), join(root, LOCAL_DIR)],
-    next: `Agents: work in ${root} (cd there), then run "o11 ostack setup status". People: ask your agent to "set up ostack" so it can interview you.`,
+    next: `Agents: work in ${root} (cd there), then run "o11 ostack setup status". People: ask your agent to "set up ostack" so it can set it up with you.`,
   });
 }
 

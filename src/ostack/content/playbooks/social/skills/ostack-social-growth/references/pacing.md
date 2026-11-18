@@ -7,9 +7,9 @@ start of the run, so the totals differ every day:
 |-|-|-|-|-|-|
 | X | 330-350 | 330-350 | 25-30 | 4-5 | 1-2 |
 | LinkedIn | 45-50 | 70-80 | 17-20 | none | none |
+| Instagram | 90-100 | 133-143 | 8-10 | none | none |
 
 LinkedIn rows apply only for a person who turned LinkedIn on (`LinkedIn: on` in their accounts file).
-| Instagram | 90-100 | 133-143 | 8-10 | none | none |
 
 Hourly ceilings per platform:
 

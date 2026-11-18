@@ -449,9 +449,13 @@ export class ToolClient {
   cancel(id: string) {
     return this.call("cancel", { id });
   }
-  /** Record whether a completed call's result was useful; it ranks providers and never changes billing. */
+  /** Rate one completed call: useful or not, and the issue when it was not. Checked ratings rank providers; billing never changes. */
   rateResult(input: z.input<typeof publicOperationSchemas.rate_result>) {
     return this.call("rate_result", publicOperationSchemas.rate_result.parse(input));
+  }
+  /** Rate up to 50 completed calls in one request. Each rating is accepted or rejected on its own (`ratings[i].status`). */
+  rateResults(input: z.input<typeof publicOperationSchemas.rate_results>) {
+    return this.call("rate_results", publicOperationSchemas.rate_results.parse(input));
   }
   resources() {
     return this.call("resources", {});

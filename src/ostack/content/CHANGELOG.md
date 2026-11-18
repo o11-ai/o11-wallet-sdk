@@ -2,6 +2,18 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.12.0
+- Every skill works the first time, with nothing set up. Ask for outbound, an SEO audit, a reel or social growth and the agent learns what it needs about your company (what you said, your repo, your website, the web and your connected tools), does the work, and saves what it learned without asking. When you correct something, it updates just that part and says so.
+- Every playbook gives feedback without being asked: weak templates and replies for outbound, titles, topics and slipping pages for SEO, comments, bios and captions for social, hooks, length and endings for videos. It improves its own work and says so; your own text changes only after your yes.
+- Search Console is always your own Google account, connected in your o11 wallet.
+- Setup is one short conversation. Your agent learns what it can first (what you said, your repo, your website, the web and your connected CRM, mail and calendar), and its first full reply shows who it will reach and two real drafted messages. It asks only what it cannot find, uses sensible defaults for the rest, and saves everything, checks your tools and turns on the suggested schedules when you say go. Runs still draft until you choose to send.
+- Your agent coaches your email template. Paste one and it kindly names what will cost replies, shows a rewrite, and asks whether to keep yours, use its version, or test both. A template it finds in your sent mail is tightened for the first emails automatically, and it says so.
+- Outbound adds a short "How your messages are doing" note to the first run of each week: replies per template from your CRM, a winner once there is enough data, and one specific change to try when replies are low. It only suggests; nothing changes until you agree.
+- Outbound works each company, not just one person there. It finds the people who fit at a company once, best fit first, and contacts two at a time. As soon as one person's follow-ups are used up with no reply, the next person there starts on the next outbound run, with no waiting period, up to 20 people per company. Emails for people further down are looked up only when their turn comes.
+- A reply from anyone at a company pauses the rest there, a meeting stops all cold messages to it, and "we're not interested" for the company skips it. One person opting out affects only them; a referral goes to the front of the line.
+- Change any of it in your own words with a `gtm/companies.md` file (or per audience): how many at once, the most per company, which titles first, a wait between people, rules by company size, or whether later emails mention earlier ones. `o11 ostack settings set gtm.per_company <n>` sets how many at once.
+- New fields in your CRM or sheet: `o11_rank` and the status `queued` on people, `o11_company_status` and `o11_people_tried` on companies. Run `o11 ostack setup` to add them and answer the new companies question. Teams that saved 1 per company before keep it until they change it.
+
 ## 0.11.2
 - Social growth ranks every post it reads as best, close or skip. Best posts get the follows, likes, comments and reposts first; once they are used up, the run keeps following and liking as many close posts as it can find (smaller accounts, neighboring topics, slightly older posts, good replies under strong posts) instead of waiting. Comments still go only where there is something specific to say, and the skip list and no-brands rule never loosen.
 

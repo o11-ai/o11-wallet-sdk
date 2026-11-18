@@ -9,6 +9,7 @@ export type Mode = (typeof MODES)[number];
 export type Limits = {
   new_per_day: number;
   touches_per_day: number;
+  /** People at one company being contacted at once (the companies step). */
   per_company: number;
   max_touches: number;
 };
@@ -31,7 +32,7 @@ export type GtmSettings = {
   send_at: number | null;
 };
 
-export const DEFAULT_LIMITS: Limits = { new_per_day: 20, touches_per_day: 60, per_company: 1, max_touches: 4 };
+export const DEFAULT_LIMITS: Limits = { new_per_day: 20, touches_per_day: 60, per_company: 2, max_touches: 4 };
 export const DEFAULT_FOLLOW_UP_DAYS = [3, 4, 7];
 /** Messages go out the moment a run writes them, at any hour, unless a team sets sending hours. */
 export const DEFAULT_SEND_WINDOW: Window | null = null;

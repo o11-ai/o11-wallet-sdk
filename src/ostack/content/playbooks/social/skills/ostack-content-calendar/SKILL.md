@@ -27,7 +27,8 @@ A run keeps working across turns until every due post is handled. Start the run 
 ## Start every run
 
 1. `cd` to the workspace and run `o11 ostack doctor`. Stop on any `fail`. If the team has no `social/calendar.md`,
-   hand over to ostack-setup (in a scheduled run, stop and report it).
+   find their calendar as the ostack-setup skill's `references/first-run.md` says (or start the default Sheet), save it and carry on
+   (in a scheduled run, stop and report it).
 2. `o11 ostack run start social/calendar` (keep `--scheduled` when the prompt has it). `not_due`, `run_in_progress` or
    `feature_not_available` (this workspace has no access to social): stop and say which. Run
    `o11 ostack run end social/calendar --summary "<one line>" --counts rows=<n>,ready=<n>,needs_help=<n>,videos=<n>`
@@ -42,7 +43,9 @@ A run keeps working across turns until every due post is handled. Start the run 
 
 The first time you reach a step, run `o11 ostack context social/<step>` and follow its default, refined by the team's
 files. `calendar` (read the due rows and claim them), then for each row in date order: `plan`, `videos`, `captions`,
-and `calendar` again to write it back. Finish with `report`.
+and `calendar` again to write it back. Finish with `report`. Raise weak captions or plans without being asked, as the
+ostack-social-growth skill's `references/coaching.md` says, and save corrections right away as the ostack-setup
+skill's `references/first-run.md` says.
 
 One row at a time, start to finish: claim it, make it, write it back, then the next. A row that fails never blocks
 the others.

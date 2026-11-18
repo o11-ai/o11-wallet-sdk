@@ -9,7 +9,7 @@ import { readFile, open, readlink, realpath, unlink } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { version } from '../package.json';
-import { browserLogin, keyStdinServer } from './browser-login.js';
+import { browserLogin, keyStdinOptions } from './browser-login.js';
 import { managementOperationSchemas } from './contracts/agent-permissions.js';
 import { searchArguments } from './cli-search.js';
 import { invocationHistoryInputSchema, invocationShortIdSchema } from './contracts/invocation-lifecycle.js';
@@ -24,6 +24,7 @@ import { activeKeyProfile, keyArguments, manageKeys, selectDefaultCredentials, f
 import { fileReport, reportArguments, ReportSubmissionError } from './cli-report.js';
 import { batchArguments, runBatch } from './cli-batch.js';
 import { avatarArguments, executeAvatar } from './cli-avatar.js';
+import { rateArguments, sendRatings } from './cli-rate.js';
 
 let command: string | undefined;
 let args: string[] = [];
@@ -426,9 +427,16 @@ try {
       }
       print(connected);
     } else {
-      const config = { baseUrl: keyStdinServer(args), apiKey: (await Bun.stdin.text()).trim() };
+      const { origin, cardId: selectedCard } = keyStdinOptions(args);
+      const config = { baseUrl: origin, apiKey: (await Bun.stdin.text()).trim() };
       const client = new ToolClient(config);
-      await client.cards();
+      let page = await client.cards();
+      if (selectedCard) {
+        while (!page.items.some(card => card.id === selectedCard)) {
+          if (!page.cursor) throw new Error(`This key cannot use card ${selectedCard}. Nothing was saved.`);
+          page = await client.cards(page.cursor);
+        }
+      }
       await saveConfig(config, profile);
       if (!profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
       await (await import('./cli-install.js')).linkInstall(config.baseUrl, config.apiKey);
@@ -547,10 +555,7 @@ try {
       }
       case 'cancel': result = await client.cancel(required(0)); break;
       case 'rate': {
-        const [invocationId, verdict, flag, reason, ...extra] = args;
-        if (!invocationId || !['useful', 'not-useful'].includes(verdict ?? '') || flag && (flag !== '--reason' || !reason) || extra.length)
-          throw new Error('Use o11 rate ID useful|not-useful [--reason TEXT]');
-        result = await client.rateResult({ invocationId: invocationId!, useful: verdict === 'useful', ...(flag ? { reason } : {}) });
+        result = await sendRatings(client, await rateArguments(args, () => Bun.stdin.text()), args[0] === '--input');
         break;
       }
       case 'balance': result = await client.balance(); break;

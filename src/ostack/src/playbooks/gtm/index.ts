@@ -17,7 +17,8 @@ template*.md files are its email templates (two or more is an A/B test, split by
 audience.md and follow-up.md front matter can set the settings below for that audience alone.
 
 Settings (o11 ostack settings set gtm.<key> <value> [--me])
-  send_mode draft|send, new_per_day, touches_per_day, per_company,
+  send_mode draft|send, new_per_day, touches_per_day,
+  per_company (people at one company contacted at once, 2 by default; see the gtm/companies step),
   follow_up_days (days after the previous message for each follow-up, e.g. 3,4,7, or off),
   send_window (any, the default, sends whenever a run writes; or hours cold messages wait for, e.g. "weekdays 08:00-18:00"),
   send_at (off, the default, sends first messages as the run writes them; a time such as 08:00 schedules them to land

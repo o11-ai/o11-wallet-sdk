@@ -14,11 +14,11 @@ over the defaults, except for the rules at the end of this file.
 
 0. **Set the goal.** The run is finished only when `o11 ostack run end seo/audit` has recorded it and the report is
    written, or when it stopped early in one of the ways below and you said so. When someone starts a run by hand and their
-   agent has `/goal`, give them this line once so they can rerun under a goal: `/goal Run the ostack-seo-audit skill in
+   agent has `/goal`, give them this line once (on a first run, after the first result) so they can rerun under a goal: `/goal Run the ostack-seo-audit skill in
    <workspace> until o11 ostack run end seo/audit has recorded the run and the report is written.` Then carry on.
 1. `cd` to the workspace (the folder with `ostack.json`) and run `o11 ostack doctor`. Stop on any `fail`. If the login
-   check fails, ask the user to run `o11 login`. If the team has no `seo/site.md`, ask only for the site and its market
-   (or hand over to ostack-setup for the full seo setup) and carry on with what you have.
+   check fails, ask the user to run `o11 login`. If the team has no `seo/site.md`, learn the site and its market as
+   the ostack-setup skill's `references/first-run.md` says, save it and carry on; ask only when nothing names a site.
 2. `o11 ostack run start seo/audit`. If it reports `feature_not_available`, this workspace has no access to
    SEO: say so and stop. If it reports `run_in_progress`, stop and say so. Run `o11 ostack run end seo/audit --summary
    "<one line>" --counts issues=<n>,fixed=<n>` when you finish, including when you stop early.
@@ -37,7 +37,7 @@ files (where they conflict, the later file wins).
    three to five buyer questions from `seo/site.md`.
 4. `topics`: from that data, the ten pieces that would bring the most qualified visitors, bottom of the funnel first.
 5. `links`: the links worth earning first.
-6. `report`: every fix in order of what it is worth, each with the pages it affects, the evidence and how to fix it,
+6. `report`: open with the three fixes worth the most, one line each naming the page or URL and the fix itself; then every other fix in order of what it is worth, each with the pages it affects, the evidence and how to fix it,
    then the ten pieces and the links. Offer to fix what can be fixed in the site's repo now (titles, canonicals,
    structured data, sitemap, robots.txt, llms.txt, internal links), one pull request per kind of fix, never merged by you.
 
@@ -53,4 +53,4 @@ note open questions in the report.
 - **No tricks.** Never recommend buying links, link schemes, hidden text, doorway pages or scaled pages with nothing new.
 - **Paid calls are quoted.** Spend what the audit needs on the best data; say what it cost.
 
-When the user corrects how you did something, offer to save it as a file with the ostack-setup skill so it sticks.
+When the user corrects how you did something, save it right away as the ostack-setup skill's `references/first-run.md` says (only the part that changed) and say so in one line. Raise the worst problems without being asked, as the ostack-seo-growth skill's `references/coaching.md` says.

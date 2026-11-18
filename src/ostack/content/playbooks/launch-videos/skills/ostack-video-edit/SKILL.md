@@ -206,4 +206,4 @@ Say, in this order:
 
 Ask before a full-size render or before anything is uploaded or posted.
 
-When the user corrects how you did something, ask whether it holds every time. If it does, offer to save it to the team's files (`launch-videos/<step>.md`) with the ostack-setup skill so it sticks. A change for this video only stays in its `edit/style.json`.
+When the user corrects how you did something, save what holds every time right away to the team's files (`launch-videos/<step>.md`), as the ostack-setup skill's `references/first-run.md` says, and say so in one line. A change for this video only stays in its `edit/style.json`.

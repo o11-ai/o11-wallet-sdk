@@ -32,7 +32,7 @@ const commands = {
   // Hidden alias for one release: receipts from 0.1.35 to 0.1.37 print o11 wait.
   wait: ['ID [--timeout MS] [-o NEW_FILE [--overwrite]]', 'No longer needed: call returns the result'],
   cancel: ['ID', 'Request cancellation'],
-  rate: ['ID useful|not-useful [--reason TEXT]', 'Rate a call result'],
+  rate: ['ID useful|not-useful [--issue ISSUE] [--fields A,B] [--reason TEXT] [ID ...] | --input FILE|-', 'Rate call results, several at once'],
   history: ['[--limit 1-25] [--since 30m|2h|1d] [--parent ID] [--cursor CURSOR]', 'List running and past calls with totals'],
   'session-id': ['[-j]', 'Generate a task UUID'],
   generate_session_id: ['[-j]', 'Alias for session-id'],

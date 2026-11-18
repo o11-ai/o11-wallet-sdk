@@ -1,8 +1,8 @@
 ---
 summary: Read new messages and record what happened before acting on anything.
 used_by: [follow-ups]
-changed: 0.9.0
-change: Also checks scheduled messages and handed-off replies. A reply cancels a message still scheduled, and a handed-off reply the user sent is recorded.
+changed: 0.12.0
+change: What arrives from one person also updates their company. A reply pauses it, a meeting wins it, and a company-wide no skips it.
 ---
 Check every channel the user sends from (the mailbox, LinkedIn messages if used) for anything from people you contacted, since the last run (the last two days is a safe default; re-reading older mail is harmless). Find each sender in the record tool by email or name, then record what arrived on their record, with the message ID and the text exactly as received:
 
@@ -14,7 +14,7 @@ Check every channel the user sends from (the mailbox, LinkedIn messages if used)
 | "Remove me", "stop", unsubscribe | status `opted out` |
 | A meeting they booked themselves | status `meeting` |
 
-A reply, opt-out or bounce from someone with a message still `scheduled` cancels that message (the send step). Then check:
+Then update the person's company as the companies step's "When something happens at the company" says. A reply, opt-out or bounce from someone with a message still `scheduled` cancels that message (the send step). Then check:
 - Every `scheduled` person whose `scheduled_for` has passed: if the message is in the Sent folder, record `contacted` with its IDs. If it is still a draft because the tool has no schedule-send, the send step sends it now (inside the daily limits).
 - Every `needs you` person: as the handoff step's "When the user acts" says.
 

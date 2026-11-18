@@ -378,4 +378,4 @@ Do not describe a video's cut pacing, editing or picture past its cover from its
 - A transcript call returns nothing: mark the row "no transcript" and leave its spoken columns as `-`. Do not fill them from the caption.
 - The user wants a platform with no route here: run `o11 discover "<platform> video search"`, inspect what it finds, and quote it. The `rank` command reads only TikTok, Instagram, YouTube and Pinterest results.
 
-When the user corrects how you did something, ask whether it holds every time. If it does, offer to save it to the team's files (platforms, filters and spending limits go in `launch-videos/trend.md`) with the ostack-setup skill so it sticks.
+When the user corrects how you did something, save what holds every time right away to the team's files (platforms, filters and spending limits go in `launch-videos/trend.md`), as the ostack-setup skill's `references/first-run.md` says, and say so in one line.

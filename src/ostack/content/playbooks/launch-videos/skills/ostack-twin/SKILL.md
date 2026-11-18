@@ -73,4 +73,4 @@ When the user gives a script, load the saved twin, resolve fresh source links an
 
 Show the user their twin name and finished video, plus any setup they must complete. Keep the provider plumbing in private state. Report actual charges and whether voice likeness and lip sync received playback review. Reuse the same recording, twin and accepted resources for later scripts. Deletion must distinguish the O11 reference, source recordings, provider avatars and provider voices; deleting a reference alone leaves the others intact.
 
-When the user corrects how you did something, ask whether it holds every time. If it does, offer to save it to the team's files (a standing presenter or voice goes in `launch-videos/character.md`) with the ostack-setup skill so it sticks.
+When the user corrects how you did something, save what holds every time right away to the team's files (a standing presenter or voice goes in `launch-videos/character.md`), as the ostack-setup skill's `references/first-run.md` says, and say so in one line.

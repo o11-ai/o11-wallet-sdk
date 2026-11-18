@@ -35,119 +35,125 @@ import file31 from "./playbooks/gtm/presets/recruiting/write.md" with { type: "t
 import file32 from "./playbooks/gtm/questions.md" with { type: "text" };
 import file33 from "./playbooks/gtm/skills/ostack-follow-ups/SKILL.md" with { type: "text" };
 import file34 from "./playbooks/gtm/skills/ostack-outbound/SKILL.md" with { type: "text" };
-import file35 from "./playbooks/gtm/skills/ostack-outbound/references/tam-sources.md" with { type: "text" };
-import file36 from "./playbooks/gtm/skills/ostack-outbound/references/writing.md" with { type: "text" };
-import file37 from "./playbooks/gtm/steps/book.md" with { type: "text" };
-import file38 from "./playbooks/gtm/steps/find.md" with { type: "text" };
-import file39 from "./playbooks/gtm/steps/follow-up.md" with { type: "text" };
-import file40 from "./playbooks/gtm/steps/handoff.md" with { type: "text" };
-import file41 from "./playbooks/gtm/steps/inbox.md" with { type: "text" };
-import file42 from "./playbooks/gtm/steps/qualify.md" with { type: "text" };
-import file43 from "./playbooks/gtm/steps/record.md" with { type: "text" };
-import file44 from "./playbooks/gtm/steps/reply.md" with { type: "text" };
-import file45 from "./playbooks/gtm/steps/report.md" with { type: "text" };
-import file46 from "./playbooks/gtm/steps/research.md" with { type: "text" };
-import file47 from "./playbooks/gtm/steps/send.md" with { type: "text" };
-import file48 from "./playbooks/gtm/steps/tam.md" with { type: "text" };
-import file49 from "./playbooks/gtm/steps/write.md" with { type: "text" };
-import file50 from "./playbooks/launch-videos/playbook.md" with { type: "text" };
-import file51 from "./playbooks/launch-videos/questions.md" with { type: "text" };
-import file52 from "./playbooks/launch-videos/skills/ostack-launch-videos/SKILL.md" with { type: "text" };
-import file53 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/audio.md" with { type: "text" };
-import file54 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/design.md" with { type: "text" };
-import file55 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/motion-films.md" with { type: "text" };
-import file56 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/motion.md" with { type: "text" };
-import file57 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/reels.md" with { type: "text" };
-import file58 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/rendering.md" with { type: "text" };
-import file59 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/storytelling.md" with { type: "text" };
-import file60 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/wallet-tools.md" with { type: "text" };
-import file61 from "./playbooks/launch-videos/skills/ostack-twin/SKILL.md" with { type: "text" };
-import file62 from "./playbooks/launch-videos/skills/ostack-ugc/SKILL.md" with { type: "text" };
-import file63 from "./playbooks/launch-videos/skills/ostack-ugc/references/character-image.md" with { type: "text" };
-import file64 from "./playbooks/launch-videos/skills/ostack-ugc/references/experiments.md" with { type: "text" };
-import file65 from "./playbooks/launch-videos/skills/ostack-ugc/references/full-video.md" with { type: "text" };
-import file66 from "./playbooks/launch-videos/skills/ostack-ugc/references/generation.md" with { type: "text" };
-import file67 from "./playbooks/launch-videos/skills/ostack-ugc/references/hooks.md" with { type: "text" };
-import file68 from "./playbooks/launch-videos/skills/ostack-ugc/references/match-loop.md" with { type: "text" };
-import file69 from "./playbooks/launch-videos/skills/ostack-ugc/references/primitives.md" with { type: "text" };
-import file70 from "./playbooks/launch-videos/skills/ostack-ugc/references/project-state.md" with { type: "text" };
-import file71 from "./playbooks/launch-videos/skills/ostack-ugc/references/reconstruct.md" with { type: "text" };
-import file72 from "./playbooks/launch-videos/skills/ostack-ugc/references/recreate.md" with { type: "text" };
-import file73 from "./playbooks/launch-videos/skills/ostack-ugc/references/reference-remake.md" with { type: "text" };
-import file74 from "./playbooks/launch-videos/skills/ostack-ugc/references/spend.md" with { type: "text" };
-import file75 from "./playbooks/launch-videos/skills/ostack-ugc/references/talking-clip.md" with { type: "text" };
-import file76 from "./playbooks/launch-videos/skills/ostack-ugc/references/variants.md" with { type: "text" };
-import file77 from "./playbooks/launch-videos/skills/ostack-ugc/references/voice.md" with { type: "text" };
-import file78 from "./playbooks/launch-videos/skills/ostack-video-edit/SKILL.md" with { type: "text" };
-import file79 from "./playbooks/launch-videos/skills/ostack-video-edit/references/presets.md" with { type: "text" };
-import file80 from "./playbooks/launch-videos/skills/ostack-video-edit/references/style-fields.md" with { type: "text" };
-import file81 from "./playbooks/launch-videos/skills/ostack-video-teardown/SKILL.md" with { type: "text" };
-import file82 from "./playbooks/launch-videos/skills/ostack-video-teardown/references/beats.md" with { type: "text" };
-import file83 from "./playbooks/launch-videos/skills/ostack-video-teardown/references/getting-the-video.md" with { type: "text" };
-import file84 from "./playbooks/launch-videos/skills/ostack-video-teardown/references/style.md" with { type: "text" };
-import file85 from "./playbooks/launch-videos/skills/ostack-video-trending/SKILL.md" with { type: "text" };
-import file86 from "./playbooks/launch-videos/steps/audit.md" with { type: "text" };
-import file87 from "./playbooks/launch-videos/steps/brief.md" with { type: "text" };
-import file88 from "./playbooks/launch-videos/steps/capture.md" with { type: "text" };
-import file89 from "./playbooks/launch-videos/steps/character.md" with { type: "text" };
-import file90 from "./playbooks/launch-videos/steps/deliver.md" with { type: "text" };
-import file91 from "./playbooks/launch-videos/steps/experiment.md" with { type: "text" };
-import file92 from "./playbooks/launch-videos/steps/generate.md" with { type: "text" };
-import file93 from "./playbooks/launch-videos/steps/match.md" with { type: "text" };
-import file94 from "./playbooks/launch-videos/steps/narrate.md" with { type: "text" };
-import file95 from "./playbooks/launch-videos/steps/overlays.md" with { type: "text" };
-import file96 from "./playbooks/launch-videos/steps/reference.md" with { type: "text" };
-import file97 from "./playbooks/launch-videos/steps/render.md" with { type: "text" };
-import file98 from "./playbooks/launch-videos/steps/script.md" with { type: "text" };
-import file99 from "./playbooks/launch-videos/steps/shoot.md" with { type: "text" };
-import file100 from "./playbooks/launch-videos/steps/sound.md" with { type: "text" };
-import file101 from "./playbooks/launch-videos/steps/timeline.md" with { type: "text" };
-import file102 from "./playbooks/launch-videos/steps/transcribe.md" with { type: "text" };
-import file103 from "./playbooks/launch-videos/steps/trend.md" with { type: "text" };
-import file104 from "./playbooks/seo/playbook.md" with { type: "text" };
-import file105 from "./playbooks/seo/presets/ecommerce/crawl.md" with { type: "text" };
-import file106 from "./playbooks/seo/presets/ecommerce/preset.md" with { type: "text" };
-import file107 from "./playbooks/seo/presets/ecommerce/topics.md" with { type: "text" };
-import file108 from "./playbooks/seo/presets/local/crawl.md" with { type: "text" };
-import file109 from "./playbooks/seo/presets/local/preset.md" with { type: "text" };
-import file110 from "./playbooks/seo/presets/local/topics.md" with { type: "text" };
-import file111 from "./playbooks/seo/presets/saas/preset.md" with { type: "text" };
-import file112 from "./playbooks/seo/presets/saas/topics.md" with { type: "text" };
-import file113 from "./playbooks/seo/presets/saas/write.md" with { type: "text" };
-import file114 from "./playbooks/seo/questions.md" with { type: "text" };
-import file115 from "./playbooks/seo/skills/ostack-seo-audit/SKILL.md" with { type: "text" };
-import file116 from "./playbooks/seo/skills/ostack-seo-growth/SKILL.md" with { type: "text" };
-import file117 from "./playbooks/seo/skills/ostack-seo-tracking/SKILL.md" with { type: "text" };
-import file118 from "./playbooks/seo/steps/crawl.md" with { type: "text" };
-import file119 from "./playbooks/seo/steps/links.md" with { type: "text" };
-import file120 from "./playbooks/seo/steps/publish.md" with { type: "text" };
-import file121 from "./playbooks/seo/steps/refresh.md" with { type: "text" };
-import file122 from "./playbooks/seo/steps/report.md" with { type: "text" };
-import file123 from "./playbooks/seo/steps/research.md" with { type: "text" };
-import file124 from "./playbooks/seo/steps/topics.md" with { type: "text" };
-import file125 from "./playbooks/seo/steps/tracking.md" with { type: "text" };
-import file126 from "./playbooks/seo/steps/write.md" with { type: "text" };
-import file127 from "./playbooks/social/playbook.md" with { type: "text" };
-import file128 from "./playbooks/social/questions.md" with { type: "text" };
-import file129 from "./playbooks/social/skills/ostack-content-calendar/SKILL.md" with { type: "text" };
-import file130 from "./playbooks/social/skills/ostack-content-calendar/references/captions.md" with { type: "text" };
-import file131 from "./playbooks/social/skills/ostack-social-growth/SKILL.md" with { type: "text" };
-import file132 from "./playbooks/social/skills/ostack-social-growth/references/comments.md" with { type: "text" };
-import file133 from "./playbooks/social/skills/ostack-social-growth/references/instagram.md" with { type: "text" };
-import file134 from "./playbooks/social/skills/ostack-social-growth/references/linkedin.md" with { type: "text" };
-import file135 from "./playbooks/social/skills/ostack-social-growth/references/pacing.md" with { type: "text" };
-import file136 from "./playbooks/social/skills/ostack-social-growth/references/x.md" with { type: "text" };
-import file137 from "./playbooks/social/steps/accounts.md" with { type: "text" };
-import file138 from "./playbooks/social/steps/calendar.md" with { type: "text" };
-import file139 from "./playbooks/social/steps/captions.md" with { type: "text" };
-import file140 from "./playbooks/social/steps/engage.md" with { type: "text" };
-import file141 from "./playbooks/social/steps/find.md" with { type: "text" };
-import file142 from "./playbooks/social/steps/plan.md" with { type: "text" };
-import file143 from "./playbooks/social/steps/report.md" with { type: "text" };
-import file144 from "./playbooks/social/steps/videos.md" with { type: "text" };
-import file145 from "./skills/ostack-setup/SKILL.md" with { type: "text" };
-import file146 from "./skills/ostack-setup/references/customizing.md" with { type: "text" };
-import file147 from "./skills/ostack-setup/references/questions.md" with { type: "text" };
+import file35 from "./playbooks/gtm/skills/ostack-outbound/references/coaching.md" with { type: "text" };
+import file36 from "./playbooks/gtm/skills/ostack-outbound/references/tam-sources.md" with { type: "text" };
+import file37 from "./playbooks/gtm/skills/ostack-outbound/references/writing.md" with { type: "text" };
+import file38 from "./playbooks/gtm/steps/book.md" with { type: "text" };
+import file39 from "./playbooks/gtm/steps/companies.md" with { type: "text" };
+import file40 from "./playbooks/gtm/steps/find.md" with { type: "text" };
+import file41 from "./playbooks/gtm/steps/follow-up.md" with { type: "text" };
+import file42 from "./playbooks/gtm/steps/handoff.md" with { type: "text" };
+import file43 from "./playbooks/gtm/steps/inbox.md" with { type: "text" };
+import file44 from "./playbooks/gtm/steps/qualify.md" with { type: "text" };
+import file45 from "./playbooks/gtm/steps/record.md" with { type: "text" };
+import file46 from "./playbooks/gtm/steps/reply.md" with { type: "text" };
+import file47 from "./playbooks/gtm/steps/report.md" with { type: "text" };
+import file48 from "./playbooks/gtm/steps/research.md" with { type: "text" };
+import file49 from "./playbooks/gtm/steps/send.md" with { type: "text" };
+import file50 from "./playbooks/gtm/steps/tam.md" with { type: "text" };
+import file51 from "./playbooks/gtm/steps/write.md" with { type: "text" };
+import file52 from "./playbooks/launch-videos/playbook.md" with { type: "text" };
+import file53 from "./playbooks/launch-videos/questions.md" with { type: "text" };
+import file54 from "./playbooks/launch-videos/skills/ostack-launch-videos/SKILL.md" with { type: "text" };
+import file55 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/audio.md" with { type: "text" };
+import file56 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/coaching.md" with { type: "text" };
+import file57 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/design.md" with { type: "text" };
+import file58 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/motion-films.md" with { type: "text" };
+import file59 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/motion.md" with { type: "text" };
+import file60 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/reels.md" with { type: "text" };
+import file61 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/rendering.md" with { type: "text" };
+import file62 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/storytelling.md" with { type: "text" };
+import file63 from "./playbooks/launch-videos/skills/ostack-launch-videos/references/wallet-tools.md" with { type: "text" };
+import file64 from "./playbooks/launch-videos/skills/ostack-twin/SKILL.md" with { type: "text" };
+import file65 from "./playbooks/launch-videos/skills/ostack-ugc/SKILL.md" with { type: "text" };
+import file66 from "./playbooks/launch-videos/skills/ostack-ugc/references/character-image.md" with { type: "text" };
+import file67 from "./playbooks/launch-videos/skills/ostack-ugc/references/experiments.md" with { type: "text" };
+import file68 from "./playbooks/launch-videos/skills/ostack-ugc/references/full-video.md" with { type: "text" };
+import file69 from "./playbooks/launch-videos/skills/ostack-ugc/references/generation.md" with { type: "text" };
+import file70 from "./playbooks/launch-videos/skills/ostack-ugc/references/hooks.md" with { type: "text" };
+import file71 from "./playbooks/launch-videos/skills/ostack-ugc/references/match-loop.md" with { type: "text" };
+import file72 from "./playbooks/launch-videos/skills/ostack-ugc/references/primitives.md" with { type: "text" };
+import file73 from "./playbooks/launch-videos/skills/ostack-ugc/references/project-state.md" with { type: "text" };
+import file74 from "./playbooks/launch-videos/skills/ostack-ugc/references/reconstruct.md" with { type: "text" };
+import file75 from "./playbooks/launch-videos/skills/ostack-ugc/references/recreate.md" with { type: "text" };
+import file76 from "./playbooks/launch-videos/skills/ostack-ugc/references/reference-remake.md" with { type: "text" };
+import file77 from "./playbooks/launch-videos/skills/ostack-ugc/references/spend.md" with { type: "text" };
+import file78 from "./playbooks/launch-videos/skills/ostack-ugc/references/talking-clip.md" with { type: "text" };
+import file79 from "./playbooks/launch-videos/skills/ostack-ugc/references/variants.md" with { type: "text" };
+import file80 from "./playbooks/launch-videos/skills/ostack-ugc/references/voice.md" with { type: "text" };
+import file81 from "./playbooks/launch-videos/skills/ostack-video-edit/SKILL.md" with { type: "text" };
+import file82 from "./playbooks/launch-videos/skills/ostack-video-edit/references/presets.md" with { type: "text" };
+import file83 from "./playbooks/launch-videos/skills/ostack-video-edit/references/style-fields.md" with { type: "text" };
+import file84 from "./playbooks/launch-videos/skills/ostack-video-teardown/SKILL.md" with { type: "text" };
+import file85 from "./playbooks/launch-videos/skills/ostack-video-teardown/references/beats.md" with { type: "text" };
+import file86 from "./playbooks/launch-videos/skills/ostack-video-teardown/references/getting-the-video.md" with { type: "text" };
+import file87 from "./playbooks/launch-videos/skills/ostack-video-teardown/references/style.md" with { type: "text" };
+import file88 from "./playbooks/launch-videos/skills/ostack-video-trending/SKILL.md" with { type: "text" };
+import file89 from "./playbooks/launch-videos/steps/audit.md" with { type: "text" };
+import file90 from "./playbooks/launch-videos/steps/brief.md" with { type: "text" };
+import file91 from "./playbooks/launch-videos/steps/capture.md" with { type: "text" };
+import file92 from "./playbooks/launch-videos/steps/character.md" with { type: "text" };
+import file93 from "./playbooks/launch-videos/steps/deliver.md" with { type: "text" };
+import file94 from "./playbooks/launch-videos/steps/experiment.md" with { type: "text" };
+import file95 from "./playbooks/launch-videos/steps/generate.md" with { type: "text" };
+import file96 from "./playbooks/launch-videos/steps/match.md" with { type: "text" };
+import file97 from "./playbooks/launch-videos/steps/narrate.md" with { type: "text" };
+import file98 from "./playbooks/launch-videos/steps/overlays.md" with { type: "text" };
+import file99 from "./playbooks/launch-videos/steps/reference.md" with { type: "text" };
+import file100 from "./playbooks/launch-videos/steps/render.md" with { type: "text" };
+import file101 from "./playbooks/launch-videos/steps/script.md" with { type: "text" };
+import file102 from "./playbooks/launch-videos/steps/shoot.md" with { type: "text" };
+import file103 from "./playbooks/launch-videos/steps/sound.md" with { type: "text" };
+import file104 from "./playbooks/launch-videos/steps/timeline.md" with { type: "text" };
+import file105 from "./playbooks/launch-videos/steps/transcribe.md" with { type: "text" };
+import file106 from "./playbooks/launch-videos/steps/trend.md" with { type: "text" };
+import file107 from "./playbooks/seo/playbook.md" with { type: "text" };
+import file108 from "./playbooks/seo/presets/ecommerce/crawl.md" with { type: "text" };
+import file109 from "./playbooks/seo/presets/ecommerce/preset.md" with { type: "text" };
+import file110 from "./playbooks/seo/presets/ecommerce/topics.md" with { type: "text" };
+import file111 from "./playbooks/seo/presets/local/crawl.md" with { type: "text" };
+import file112 from "./playbooks/seo/presets/local/preset.md" with { type: "text" };
+import file113 from "./playbooks/seo/presets/local/topics.md" with { type: "text" };
+import file114 from "./playbooks/seo/presets/saas/preset.md" with { type: "text" };
+import file115 from "./playbooks/seo/presets/saas/topics.md" with { type: "text" };
+import file116 from "./playbooks/seo/presets/saas/write.md" with { type: "text" };
+import file117 from "./playbooks/seo/questions.md" with { type: "text" };
+import file118 from "./playbooks/seo/skills/ostack-seo-audit/SKILL.md" with { type: "text" };
+import file119 from "./playbooks/seo/skills/ostack-seo-growth/SKILL.md" with { type: "text" };
+import file120 from "./playbooks/seo/skills/ostack-seo-growth/references/coaching.md" with { type: "text" };
+import file121 from "./playbooks/seo/skills/ostack-seo-tracking/SKILL.md" with { type: "text" };
+import file122 from "./playbooks/seo/steps/crawl.md" with { type: "text" };
+import file123 from "./playbooks/seo/steps/links.md" with { type: "text" };
+import file124 from "./playbooks/seo/steps/publish.md" with { type: "text" };
+import file125 from "./playbooks/seo/steps/refresh.md" with { type: "text" };
+import file126 from "./playbooks/seo/steps/report.md" with { type: "text" };
+import file127 from "./playbooks/seo/steps/research.md" with { type: "text" };
+import file128 from "./playbooks/seo/steps/topics.md" with { type: "text" };
+import file129 from "./playbooks/seo/steps/tracking.md" with { type: "text" };
+import file130 from "./playbooks/seo/steps/write.md" with { type: "text" };
+import file131 from "./playbooks/social/playbook.md" with { type: "text" };
+import file132 from "./playbooks/social/questions.md" with { type: "text" };
+import file133 from "./playbooks/social/skills/ostack-content-calendar/SKILL.md" with { type: "text" };
+import file134 from "./playbooks/social/skills/ostack-content-calendar/references/captions.md" with { type: "text" };
+import file135 from "./playbooks/social/skills/ostack-social-growth/SKILL.md" with { type: "text" };
+import file136 from "./playbooks/social/skills/ostack-social-growth/references/coaching.md" with { type: "text" };
+import file137 from "./playbooks/social/skills/ostack-social-growth/references/comments.md" with { type: "text" };
+import file138 from "./playbooks/social/skills/ostack-social-growth/references/instagram.md" with { type: "text" };
+import file139 from "./playbooks/social/skills/ostack-social-growth/references/linkedin.md" with { type: "text" };
+import file140 from "./playbooks/social/skills/ostack-social-growth/references/pacing.md" with { type: "text" };
+import file141 from "./playbooks/social/skills/ostack-social-growth/references/x.md" with { type: "text" };
+import file142 from "./playbooks/social/steps/accounts.md" with { type: "text" };
+import file143 from "./playbooks/social/steps/calendar.md" with { type: "text" };
+import file144 from "./playbooks/social/steps/captions.md" with { type: "text" };
+import file145 from "./playbooks/social/steps/engage.md" with { type: "text" };
+import file146 from "./playbooks/social/steps/find.md" with { type: "text" };
+import file147 from "./playbooks/social/steps/plan.md" with { type: "text" };
+import file148 from "./playbooks/social/steps/report.md" with { type: "text" };
+import file149 from "./playbooks/social/steps/videos.md" with { type: "text" };
+import file150 from "./skills/ostack-setup/SKILL.md" with { type: "text" };
+import file151 from "./skills/ostack-setup/references/customizing.md" with { type: "text" };
+import file152 from "./skills/ostack-setup/references/first-run.md" with { type: "text" };
+import file153 from "./skills/ostack-setup/references/questions.md" with { type: "text" };
 
 export const CONTENT: Readonly<Record<string, string>> = {
   "CHANGELOG.md": file0,
@@ -185,117 +191,123 @@ export const CONTENT: Readonly<Record<string, string>> = {
   "playbooks/gtm/questions.md": file32,
   "playbooks/gtm/skills/ostack-follow-ups/SKILL.md": file33,
   "playbooks/gtm/skills/ostack-outbound/SKILL.md": file34,
-  "playbooks/gtm/skills/ostack-outbound/references/tam-sources.md": file35,
-  "playbooks/gtm/skills/ostack-outbound/references/writing.md": file36,
-  "playbooks/gtm/steps/book.md": file37,
-  "playbooks/gtm/steps/find.md": file38,
-  "playbooks/gtm/steps/follow-up.md": file39,
-  "playbooks/gtm/steps/handoff.md": file40,
-  "playbooks/gtm/steps/inbox.md": file41,
-  "playbooks/gtm/steps/qualify.md": file42,
-  "playbooks/gtm/steps/record.md": file43,
-  "playbooks/gtm/steps/reply.md": file44,
-  "playbooks/gtm/steps/report.md": file45,
-  "playbooks/gtm/steps/research.md": file46,
-  "playbooks/gtm/steps/send.md": file47,
-  "playbooks/gtm/steps/tam.md": file48,
-  "playbooks/gtm/steps/write.md": file49,
-  "playbooks/launch-videos/playbook.md": file50,
-  "playbooks/launch-videos/questions.md": file51,
-  "playbooks/launch-videos/skills/ostack-launch-videos/SKILL.md": file52,
-  "playbooks/launch-videos/skills/ostack-launch-videos/references/audio.md": file53,
-  "playbooks/launch-videos/skills/ostack-launch-videos/references/design.md": file54,
-  "playbooks/launch-videos/skills/ostack-launch-videos/references/motion-films.md": file55,
-  "playbooks/launch-videos/skills/ostack-launch-videos/references/motion.md": file56,
-  "playbooks/launch-videos/skills/ostack-launch-videos/references/reels.md": file57,
-  "playbooks/launch-videos/skills/ostack-launch-videos/references/rendering.md": file58,
-  "playbooks/launch-videos/skills/ostack-launch-videos/references/storytelling.md": file59,
-  "playbooks/launch-videos/skills/ostack-launch-videos/references/wallet-tools.md": file60,
-  "playbooks/launch-videos/skills/ostack-twin/SKILL.md": file61,
-  "playbooks/launch-videos/skills/ostack-ugc/SKILL.md": file62,
-  "playbooks/launch-videos/skills/ostack-ugc/references/character-image.md": file63,
-  "playbooks/launch-videos/skills/ostack-ugc/references/experiments.md": file64,
-  "playbooks/launch-videos/skills/ostack-ugc/references/full-video.md": file65,
-  "playbooks/launch-videos/skills/ostack-ugc/references/generation.md": file66,
-  "playbooks/launch-videos/skills/ostack-ugc/references/hooks.md": file67,
-  "playbooks/launch-videos/skills/ostack-ugc/references/match-loop.md": file68,
-  "playbooks/launch-videos/skills/ostack-ugc/references/primitives.md": file69,
-  "playbooks/launch-videos/skills/ostack-ugc/references/project-state.md": file70,
-  "playbooks/launch-videos/skills/ostack-ugc/references/reconstruct.md": file71,
-  "playbooks/launch-videos/skills/ostack-ugc/references/recreate.md": file72,
-  "playbooks/launch-videos/skills/ostack-ugc/references/reference-remake.md": file73,
-  "playbooks/launch-videos/skills/ostack-ugc/references/spend.md": file74,
-  "playbooks/launch-videos/skills/ostack-ugc/references/talking-clip.md": file75,
-  "playbooks/launch-videos/skills/ostack-ugc/references/variants.md": file76,
-  "playbooks/launch-videos/skills/ostack-ugc/references/voice.md": file77,
-  "playbooks/launch-videos/skills/ostack-video-edit/SKILL.md": file78,
-  "playbooks/launch-videos/skills/ostack-video-edit/references/presets.md": file79,
-  "playbooks/launch-videos/skills/ostack-video-edit/references/style-fields.md": file80,
-  "playbooks/launch-videos/skills/ostack-video-teardown/SKILL.md": file81,
-  "playbooks/launch-videos/skills/ostack-video-teardown/references/beats.md": file82,
-  "playbooks/launch-videos/skills/ostack-video-teardown/references/getting-the-video.md": file83,
-  "playbooks/launch-videos/skills/ostack-video-teardown/references/style.md": file84,
-  "playbooks/launch-videos/skills/ostack-video-trending/SKILL.md": file85,
-  "playbooks/launch-videos/steps/audit.md": file86,
-  "playbooks/launch-videos/steps/brief.md": file87,
-  "playbooks/launch-videos/steps/capture.md": file88,
-  "playbooks/launch-videos/steps/character.md": file89,
-  "playbooks/launch-videos/steps/deliver.md": file90,
-  "playbooks/launch-videos/steps/experiment.md": file91,
-  "playbooks/launch-videos/steps/generate.md": file92,
-  "playbooks/launch-videos/steps/match.md": file93,
-  "playbooks/launch-videos/steps/narrate.md": file94,
-  "playbooks/launch-videos/steps/overlays.md": file95,
-  "playbooks/launch-videos/steps/reference.md": file96,
-  "playbooks/launch-videos/steps/render.md": file97,
-  "playbooks/launch-videos/steps/script.md": file98,
-  "playbooks/launch-videos/steps/shoot.md": file99,
-  "playbooks/launch-videos/steps/sound.md": file100,
-  "playbooks/launch-videos/steps/timeline.md": file101,
-  "playbooks/launch-videos/steps/transcribe.md": file102,
-  "playbooks/launch-videos/steps/trend.md": file103,
-  "playbooks/seo/playbook.md": file104,
-  "playbooks/seo/presets/ecommerce/crawl.md": file105,
-  "playbooks/seo/presets/ecommerce/preset.md": file106,
-  "playbooks/seo/presets/ecommerce/topics.md": file107,
-  "playbooks/seo/presets/local/crawl.md": file108,
-  "playbooks/seo/presets/local/preset.md": file109,
-  "playbooks/seo/presets/local/topics.md": file110,
-  "playbooks/seo/presets/saas/preset.md": file111,
-  "playbooks/seo/presets/saas/topics.md": file112,
-  "playbooks/seo/presets/saas/write.md": file113,
-  "playbooks/seo/questions.md": file114,
-  "playbooks/seo/skills/ostack-seo-audit/SKILL.md": file115,
-  "playbooks/seo/skills/ostack-seo-growth/SKILL.md": file116,
-  "playbooks/seo/skills/ostack-seo-tracking/SKILL.md": file117,
-  "playbooks/seo/steps/crawl.md": file118,
-  "playbooks/seo/steps/links.md": file119,
-  "playbooks/seo/steps/publish.md": file120,
-  "playbooks/seo/steps/refresh.md": file121,
-  "playbooks/seo/steps/report.md": file122,
-  "playbooks/seo/steps/research.md": file123,
-  "playbooks/seo/steps/topics.md": file124,
-  "playbooks/seo/steps/tracking.md": file125,
-  "playbooks/seo/steps/write.md": file126,
-  "playbooks/social/playbook.md": file127,
-  "playbooks/social/questions.md": file128,
-  "playbooks/social/skills/ostack-content-calendar/SKILL.md": file129,
-  "playbooks/social/skills/ostack-content-calendar/references/captions.md": file130,
-  "playbooks/social/skills/ostack-social-growth/SKILL.md": file131,
-  "playbooks/social/skills/ostack-social-growth/references/comments.md": file132,
-  "playbooks/social/skills/ostack-social-growth/references/instagram.md": file133,
-  "playbooks/social/skills/ostack-social-growth/references/linkedin.md": file134,
-  "playbooks/social/skills/ostack-social-growth/references/pacing.md": file135,
-  "playbooks/social/skills/ostack-social-growth/references/x.md": file136,
-  "playbooks/social/steps/accounts.md": file137,
-  "playbooks/social/steps/calendar.md": file138,
-  "playbooks/social/steps/captions.md": file139,
-  "playbooks/social/steps/engage.md": file140,
-  "playbooks/social/steps/find.md": file141,
-  "playbooks/social/steps/plan.md": file142,
-  "playbooks/social/steps/report.md": file143,
-  "playbooks/social/steps/videos.md": file144,
-  "skills/ostack-setup/SKILL.md": file145,
-  "skills/ostack-setup/references/customizing.md": file146,
-  "skills/ostack-setup/references/questions.md": file147,
+  "playbooks/gtm/skills/ostack-outbound/references/coaching.md": file35,
+  "playbooks/gtm/skills/ostack-outbound/references/tam-sources.md": file36,
+  "playbooks/gtm/skills/ostack-outbound/references/writing.md": file37,
+  "playbooks/gtm/steps/book.md": file38,
+  "playbooks/gtm/steps/companies.md": file39,
+  "playbooks/gtm/steps/find.md": file40,
+  "playbooks/gtm/steps/follow-up.md": file41,
+  "playbooks/gtm/steps/handoff.md": file42,
+  "playbooks/gtm/steps/inbox.md": file43,
+  "playbooks/gtm/steps/qualify.md": file44,
+  "playbooks/gtm/steps/record.md": file45,
+  "playbooks/gtm/steps/reply.md": file46,
+  "playbooks/gtm/steps/report.md": file47,
+  "playbooks/gtm/steps/research.md": file48,
+  "playbooks/gtm/steps/send.md": file49,
+  "playbooks/gtm/steps/tam.md": file50,
+  "playbooks/gtm/steps/write.md": file51,
+  "playbooks/launch-videos/playbook.md": file52,
+  "playbooks/launch-videos/questions.md": file53,
+  "playbooks/launch-videos/skills/ostack-launch-videos/SKILL.md": file54,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/audio.md": file55,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/coaching.md": file56,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/design.md": file57,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/motion-films.md": file58,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/motion.md": file59,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/reels.md": file60,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/rendering.md": file61,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/storytelling.md": file62,
+  "playbooks/launch-videos/skills/ostack-launch-videos/references/wallet-tools.md": file63,
+  "playbooks/launch-videos/skills/ostack-twin/SKILL.md": file64,
+  "playbooks/launch-videos/skills/ostack-ugc/SKILL.md": file65,
+  "playbooks/launch-videos/skills/ostack-ugc/references/character-image.md": file66,
+  "playbooks/launch-videos/skills/ostack-ugc/references/experiments.md": file67,
+  "playbooks/launch-videos/skills/ostack-ugc/references/full-video.md": file68,
+  "playbooks/launch-videos/skills/ostack-ugc/references/generation.md": file69,
+  "playbooks/launch-videos/skills/ostack-ugc/references/hooks.md": file70,
+  "playbooks/launch-videos/skills/ostack-ugc/references/match-loop.md": file71,
+  "playbooks/launch-videos/skills/ostack-ugc/references/primitives.md": file72,
+  "playbooks/launch-videos/skills/ostack-ugc/references/project-state.md": file73,
+  "playbooks/launch-videos/skills/ostack-ugc/references/reconstruct.md": file74,
+  "playbooks/launch-videos/skills/ostack-ugc/references/recreate.md": file75,
+  "playbooks/launch-videos/skills/ostack-ugc/references/reference-remake.md": file76,
+  "playbooks/launch-videos/skills/ostack-ugc/references/spend.md": file77,
+  "playbooks/launch-videos/skills/ostack-ugc/references/talking-clip.md": file78,
+  "playbooks/launch-videos/skills/ostack-ugc/references/variants.md": file79,
+  "playbooks/launch-videos/skills/ostack-ugc/references/voice.md": file80,
+  "playbooks/launch-videos/skills/ostack-video-edit/SKILL.md": file81,
+  "playbooks/launch-videos/skills/ostack-video-edit/references/presets.md": file82,
+  "playbooks/launch-videos/skills/ostack-video-edit/references/style-fields.md": file83,
+  "playbooks/launch-videos/skills/ostack-video-teardown/SKILL.md": file84,
+  "playbooks/launch-videos/skills/ostack-video-teardown/references/beats.md": file85,
+  "playbooks/launch-videos/skills/ostack-video-teardown/references/getting-the-video.md": file86,
+  "playbooks/launch-videos/skills/ostack-video-teardown/references/style.md": file87,
+  "playbooks/launch-videos/skills/ostack-video-trending/SKILL.md": file88,
+  "playbooks/launch-videos/steps/audit.md": file89,
+  "playbooks/launch-videos/steps/brief.md": file90,
+  "playbooks/launch-videos/steps/capture.md": file91,
+  "playbooks/launch-videos/steps/character.md": file92,
+  "playbooks/launch-videos/steps/deliver.md": file93,
+  "playbooks/launch-videos/steps/experiment.md": file94,
+  "playbooks/launch-videos/steps/generate.md": file95,
+  "playbooks/launch-videos/steps/match.md": file96,
+  "playbooks/launch-videos/steps/narrate.md": file97,
+  "playbooks/launch-videos/steps/overlays.md": file98,
+  "playbooks/launch-videos/steps/reference.md": file99,
+  "playbooks/launch-videos/steps/render.md": file100,
+  "playbooks/launch-videos/steps/script.md": file101,
+  "playbooks/launch-videos/steps/shoot.md": file102,
+  "playbooks/launch-videos/steps/sound.md": file103,
+  "playbooks/launch-videos/steps/timeline.md": file104,
+  "playbooks/launch-videos/steps/transcribe.md": file105,
+  "playbooks/launch-videos/steps/trend.md": file106,
+  "playbooks/seo/playbook.md": file107,
+  "playbooks/seo/presets/ecommerce/crawl.md": file108,
+  "playbooks/seo/presets/ecommerce/preset.md": file109,
+  "playbooks/seo/presets/ecommerce/topics.md": file110,
+  "playbooks/seo/presets/local/crawl.md": file111,
+  "playbooks/seo/presets/local/preset.md": file112,
+  "playbooks/seo/presets/local/topics.md": file113,
+  "playbooks/seo/presets/saas/preset.md": file114,
+  "playbooks/seo/presets/saas/topics.md": file115,
+  "playbooks/seo/presets/saas/write.md": file116,
+  "playbooks/seo/questions.md": file117,
+  "playbooks/seo/skills/ostack-seo-audit/SKILL.md": file118,
+  "playbooks/seo/skills/ostack-seo-growth/SKILL.md": file119,
+  "playbooks/seo/skills/ostack-seo-growth/references/coaching.md": file120,
+  "playbooks/seo/skills/ostack-seo-tracking/SKILL.md": file121,
+  "playbooks/seo/steps/crawl.md": file122,
+  "playbooks/seo/steps/links.md": file123,
+  "playbooks/seo/steps/publish.md": file124,
+  "playbooks/seo/steps/refresh.md": file125,
+  "playbooks/seo/steps/report.md": file126,
+  "playbooks/seo/steps/research.md": file127,
+  "playbooks/seo/steps/topics.md": file128,
+  "playbooks/seo/steps/tracking.md": file129,
+  "playbooks/seo/steps/write.md": file130,
+  "playbooks/social/playbook.md": file131,
+  "playbooks/social/questions.md": file132,
+  "playbooks/social/skills/ostack-content-calendar/SKILL.md": file133,
+  "playbooks/social/skills/ostack-content-calendar/references/captions.md": file134,
+  "playbooks/social/skills/ostack-social-growth/SKILL.md": file135,
+  "playbooks/social/skills/ostack-social-growth/references/coaching.md": file136,
+  "playbooks/social/skills/ostack-social-growth/references/comments.md": file137,
+  "playbooks/social/skills/ostack-social-growth/references/instagram.md": file138,
+  "playbooks/social/skills/ostack-social-growth/references/linkedin.md": file139,
+  "playbooks/social/skills/ostack-social-growth/references/pacing.md": file140,
+  "playbooks/social/skills/ostack-social-growth/references/x.md": file141,
+  "playbooks/social/steps/accounts.md": file142,
+  "playbooks/social/steps/calendar.md": file143,
+  "playbooks/social/steps/captions.md": file144,
+  "playbooks/social/steps/engage.md": file145,
+  "playbooks/social/steps/find.md": file146,
+  "playbooks/social/steps/plan.md": file147,
+  "playbooks/social/steps/report.md": file148,
+  "playbooks/social/steps/videos.md": file149,
+  "skills/ostack-setup/SKILL.md": file150,
+  "skills/ostack-setup/references/customizing.md": file151,
+  "skills/ostack-setup/references/first-run.md": file152,
+  "skills/ostack-setup/references/questions.md": file153,
 };

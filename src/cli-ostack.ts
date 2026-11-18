@@ -13,7 +13,7 @@ import { version } from '../package.json';
 type Method = 'GET' | 'PUT' | 'PATCH' | 'POST' | 'DELETE';
 
 /** Wallet failures become ostack's stable codes, which its skills branch on. Bodies are never echoed. */
-function failure(status: number, body: unknown): OstackError {
+export function failure(status: number, body: unknown): OstackError {
   const code = typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string' ? body.error : '';
   const message = typeof body === 'object' && body !== null && 'message' in body && typeof body.message === 'string' ? body.message.slice(0, 300) : '';
   if (status === 401) return new OstackError('not_signed_in', 'Your wallet sign-in expired or was revoked. Run "o11 login" and try again.');
@@ -22,7 +22,9 @@ function failure(status: number, body: unknown): OstackError {
   if (status === 403 && reason === 'FEATURE_NOT_AVAILABLE') return new OstackError('feature_not_available', message || 'This Ostack feature is in beta and this workspace does not have access yet.');
   if (status === 403) return new OstackError('forbidden', message || 'Your role in this workspace cannot make that change.');
   if (status === 404) return new OstackError('not_found', message || 'Not found in this workspace.');
-  if (status === 400) return new OstackError('invalid_input', message || 'The wallet rejected the input.', code ? { wallet: code } : undefined);
+  // Other 4xx answers (413 body too large, 422, 410) are final: retrying the same request cannot succeed.
+  if (status >= 400 && status < 500 && status !== 408 && status !== 429)
+    return new OstackError('invalid_input', message || `The wallet rejected the request (HTTP ${status}).`, code || reason ? { ...(code ? { wallet: code } : {}), ...(reason ? { reason } : {}) } : undefined);
   return new OstackError('offline', `The wallet answered HTTP ${status}. Try again shortly.`);
 }
 
