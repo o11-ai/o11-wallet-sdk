@@ -1,3 +1,4 @@
+import { audioSeconds } from './contracts/audio-seconds.js';
 /** How long a speech clip runs, from its WAV header or, for MP3, its size. Used to price and limit Captions videos. */
 const mp3BytesPerSecond = 16_000; // 128 kbit/s, the common speech bitrate; an estimate only.
 
@@ -39,4 +40,24 @@ export async function linkSeconds(fetcher: typeof fetch, url: string, contentTyp
     if (!first.ok) return undefined;
     return wavSeconds(new Uint8Array(await first.arrayBuffer()).slice(0, 512), length);
   } catch { return undefined; }
+}
+
+const exactBytes = 20 * 1024 * 1024;
+/**
+ * The exact playback length of a WAV or MP3, counted frame by frame the way the wallet counts it before an Avatar 6 call.
+ * Downloads the clip (20 MB at most); any refusal, other format or unreadable file returns undefined.
+ */
+export async function exactLinkSeconds(fetcher: typeof fetch, url: string, contentType?: string | null) {
+  try {
+    const response = await fetcher(url, { redirect: 'follow', signal: AbortSignal.timeout(60_000) });
+    const declared = Number(response.headers.get('content-length'));
+    if (!response.ok || declared > exactBytes) { await response.body?.cancel(); return undefined; }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > exactBytes) return undefined;
+    return exactSeconds(bytes, contentType ?? response.headers.get('content-type'));
+  } catch { return undefined; }
+}
+export function exactSeconds(bytes: Uint8Array, contentType?: string | null) {
+  const type = (contentType ?? '').split(';')[0]!.trim().toLowerCase();
+  return audioSeconds(bytes, type === 'audio/x-wav' || type === 'audio/wave' ? 'audio/wav' : type === 'audio/mp3' ? 'audio/mpeg' : type);
 }

@@ -164,6 +164,17 @@ ${inputFlags.split('\n')[0]!.replace('--query KEY=VALUE, ', '')}\n${inputFlags.s
     possible; above $1, video asks for --yes first. A video takes about 2.5 minutes. Running the same
     command again returns the same video instead of a new charge. --audio FILE is uploaded again on
     every run, as a new voice capture.
+  video --capture-id ID | --avatar-id ID --model avatar-6|avatar-6-turbo [--resolution 1080p|2K] [--expressiveness default|less]
+      [--prompt TEXT] [--audio FILE] [--audio-seconds N] [--yes]
+    Makes the video with HeyGen Avatar 6 through OpenRouter. Nothing is trained: each video sends the
+    capture's portrait (and its MP4 take, when under 50 MB) and speech audio. --avatar-id uses a saved
+    reference avatar (o11.avatar.create) instead: its first photo, clip and voice sample. Per second of video:
+    Avatar 6 $0.10 at 1080p, $0.145 at 2K; Avatar 6 Turbo $0.05 and $0.0875. The wallet holds the
+    clip's length and charges what OpenRouter reports. Before sending it measures the audio and
+    refuses, charging nothing, if the audio runs longer than the hold; --audio-seconds N sets the
+    length when it cannot be read. Speech must be saved in o11, so pass --audio FILE, not --audio-url.
+    --expressiveness less gives calmer gestures; --prompt TEXT directs gestures, expression and camera.
+    Up to 300 seconds of speech; above $1, video asks for --yes first.
   --json: clone prints only capture_id, provider, status, avatar_id, avatar_group_id, voice_id and
     consent_url. status and video print the same object with or without it: status the capture with its
     avatars (and live states), video capture_id, provider, invocation_id, download_url and message.

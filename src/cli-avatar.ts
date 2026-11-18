@@ -2,10 +2,11 @@ import { cliRecoveryCommand } from './cli-execution.js';
 import { cloneAvatar } from './avatar-clone.js';
 import { readConsent, readTraining } from './avatar-heygen.js';
 import { readRunway } from './avatar-runway.js';
-import { makeVideo } from './avatar-captions.js';
+import { makeVideo, type VideoOptions } from './avatar-captions.js';
+import { makeAvatar6Video } from './avatar-openrouter.js';
 import { AvatarStepPending, captureSchema, getCapture, step, providerEntry, type AvatarClient, type AvatarDeps, type AvatarOutcome } from './avatar-steps.js';
 import { attachFiles, defaultReader, prepareFiles, uploadPlan, type CaptureFileReader } from './avatar-upload.js';
-import { fileSeconds, linkSeconds } from './avatar-audio.js';
+import { exactLinkSeconds, exactSeconds, fileSeconds, linkSeconds } from './avatar-audio.js';
 import { avatarArguments, openLink } from './avatar-arguments.js';
 export { avatarArguments, openLink, type AvatarArguments } from './avatar-arguments.js';
 
@@ -38,7 +39,7 @@ export async function executeAvatar(client: AvatarClient, args: string[], contex
   try {
     if (input.action === 'video') {
       const audio = uploads?.[0];
-      const video = await makeVideo(deps, { captureId: input.captureId!, audioUrl: input.audioUrl, yes: input.yes === true,
+      const shared: VideoOptions = { captureId: input.captureId!, audioUrl: input.audioUrl, yes: input.yes === true,
         measure: (url, contentType) => linkSeconds(fetcher, url, contentType),
         ...(audio ? { audioFile: { sha256: audio.sha256, seconds: await fileSeconds((start, end) => reader.read(audio.path, start, end), audio.sizeBytes, audio.contentType),
           upload: async (name: string) => {
@@ -48,7 +49,14 @@ export async function executeAvatar(client: AvatarClient, args: string[], contex
             const saved = await getCapture(deps, voice.capture_id);
             if (!saved.audio_url) throw new Error(`The audio was saved as capture ${voice.capture_id} but has no link yet. Try again shortly.`);
             return saved.audio_url;
-          } } } : {}) });
+          } } } : {}) };
+      // Avatar 6 states the hold from the exact length, so the clip is read in full rather than estimated from its size.
+      const video = input.model ? await makeAvatar6Video(deps, { ...shared, model: input.model, resolution: input.resolution ?? '1080p',
+        expressiveness: input.expressiveness, prompt: input.prompt, audioSeconds: input.audioSeconds, avatarId: input.avatarId, ...(audio ? { audioPath: audio.path } : {}),
+        measure: (url, contentType) => exactLinkSeconds(fetcher, url, contentType),
+        ...(audio && shared.audioFile ? { audioFile: { ...shared.audioFile,
+          seconds: audio.sizeBytes <= 20 * 1024 * 1024 ? exactSeconds(await reader.read(audio.path, 0, audio.sizeBytes), audio.contentType) : undefined } } : {}) })
+        : await makeVideo(deps, shared);
       return { result: video.result, exitCode: video.exitCode };
     }
     if (input.action === 'status') {
