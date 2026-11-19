@@ -6,6 +6,8 @@ import {
   type InvocationReceipt,
 } from "./contracts/receipts.js";
 import { z } from "zod";
+import { sandboxRequestSchema, sandboxResultSchema, type SandboxRequest } from "./contracts/sandboxes.js";
+export type { SandboxRequest, SandboxResult } from "./contracts/sandboxes.js";
 import { cliVersionHeader } from "./contracts/cli-version.js";
 import { version as sdkVersion } from "../package.json";
 import { publicOperationSchemas, topUpResultSchema, topUpLimitsSchema, topUpStatusSchema } from "./contracts/public-api.js";
@@ -23,6 +25,7 @@ import { connectionSummarySchema } from "./contracts/provider-authorization.js";
 import { ToolCallError, ToolClientError, TopUpRequestError, type TopUpFailureField } from "./client-errors.js";
 export { ToolCallError, ToolClientError, TopUpRequestError } from "./client-errors.js";
 import { serializedTokenProvider, TokenNotRenewableError, type AccessTokenProvider } from "./token-provider.js";
+import { sandboxRelayDownload } from "./client-sandbox-download.js";
 import { lostSubmission, streamToolCall, type StreamToolOptions } from "./call-streamed.js";
 export { streamCall, CallStreamError, type CallStreamEvent, type CallStreamOptions } from "./call-stream.js";
 export { serializedTokenProvider, type AccessTokenProvider } from "./token-provider.js";
@@ -56,6 +59,12 @@ export type ToolCallOptions = z.input<typeof publicOperationSchemas.call>;
 export const defaultCallWaitMs = 600_000;
 /** waitMs: 0 answers at once; reattach: false stops after the first answer; onPending sees a running call's receipt. */
 export type CallWaitOptions = { waitMs?: number; reattach?: boolean; onPending?: (receipt: InvocationReceipt) => void };
+export class SandboxRequestError extends Error {
+  constructor(public readonly requestId: string, public readonly cause: unknown) {
+    super('Sandbox request was not confirmed. Inspect the operation using its request ID before issuing another mutation.');
+    this.name = 'SandboxRequestError';
+  }
+}
 export class ToolClient {
   readonly runId: string;
   private readonly baseUrl: URL;
@@ -147,6 +156,18 @@ export class ToolClient {
     return result;
   }
   withCard(cardId: string) { return new ToolClient({ ...this.options, runId: this.runId, ...(this.tokenProvider ? { tokenProvider: this.tokenProvider } : {}), cardId: z.uuid().parse(cardId) }); }
+  async sandbox(input: SandboxRequest) {
+    const request = sandboxRequestSchema.parse({ ...input, requestId: input.requestId ?? crypto.randomUUID() });
+    try { return sandboxResultSchema.parse(await this.call('sandbox', request, 120_000)); }
+    catch (error) { throw new SandboxRequestError(request.requestId!, error); }
+  }
+  /** Streams only from the authenticated o11 relay; supplier URLs never reach the client. */
+  async sandboxDownload(id: string, path: string, options: { signal?: AbortSignal } = {}) {
+    const response = await sandboxRelayDownload({ baseUrl: this.baseUrl, runId: this.runId, apiKey: this.options.apiKey, cardId: this.options.cardId,
+      fetch: this.options.fetch, tokenProvider: this.tokenProvider }, id, path, options.signal);
+    if (!response.ok) throw new ToolClientError(response.status, await response.json().catch(() => ({ error: 'UNAVAILABLE' })));
+    return response;
+  }
   async doctor() {
     const cards = await this.cards();
     if (!cards.items.length) return { connected: true as const, cards, ready: false, message: "Saved access works, but no cards are available. Create or approve a card in your wallet." };

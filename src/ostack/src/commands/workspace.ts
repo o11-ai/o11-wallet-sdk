@@ -14,6 +14,7 @@ import { defaultState, STATE_FILE, writeState } from "../lib/state.js";
 import { VERSION } from "../lib/version.js";
 import { checkName, DEFAULT_AUDIENCE, enabledPlaybooks, findWorkspaceRoot, loadLocalWorkspace, loadWorkspace, LOCAL_DIR, rememberWorkspace, type Workspace } from "../lib/workspace.js";
 import { listAudiences } from "../lib/layers.js";
+import { BROWSER_MCP, hasHostBrowser } from "../lib/host-browser.js";
 
 const IGNORED = [".ostack/", `${LOCAL_DIR}/`, "setup-export/"];
 
@@ -146,7 +147,9 @@ export async function promptCommand(args: Args): Promise<void> {
     [
       `Use the ${workflow.skill} skill for ${target} in ${workspace.root}${mode}.`,
       flag ? `Work in that folder and pass${flag} to every o11 ostack command that takes it.` : "Work in that folder.",
-      `This is a scheduled run of ${workflow.ref}. Nobody is present: do not ask questions. Defer problem items with a reason and continue.`,
+      `This is a scheduled run of ${workflow.ref}. Nobody is present: do not ask questions or wait for an answer, even where the skill says to ask the user. Defer problem items with a reason and continue.`,
+      `When something needs the person (a site sign-in, a mail, CRM or calendar tool that is missing or disconnected, an answer the setup lacks, a choice only they can make), record it with \`o11 ostack run need ${workflow.ref}${flag} --kind sign_in|connect|question|choice --ask "<what to ask them>" [--url <https page to sign in on, or to connect the tool>] [--question <setup question id>]\` and skip the work that needs it. Their own agent relays it to them and saves the answer in o11 for the next run.`,
+      ...(hasHostBrowser() ? [`For anything done in a browser, use the \`${BROWSER_MCP}\` MCP tools: they drive this computer's Chrome, where the person signs in to sites. Work in a page you open and close it when done. If the browser tools fail to start, another run may have the browser: skip that work and say so in the report. If a site shows you signed out, record a sign_in need with its login page as --url and skip that work; never type a password or code.`] : []),
       `Start with \`o11 ostack run start ${workflow.ref}${flag} --scheduled\`. If it reports run_in_progress or not_due, stop and report only that line. Otherwise end with \`o11 ostack run end ${workflow.ref}${flag} --summary "<one line>" --counts <name=n,...> [--template-counts '<json>']\`.`,
       "Finish with the report the skill asks for, plus anything unresolved.",
     ].join("\n"),

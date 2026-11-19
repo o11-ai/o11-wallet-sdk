@@ -9,6 +9,7 @@ import {
 import { profileTokenProvider, readConfig } from './config.js';
 import { walletOrigin } from './access-tokens.js';
 import { version } from '../package.json';
+import { hostRemote } from './ostack-host.js';
 
 type Method = 'GET' | 'PUT' | 'PATCH' | 'POST' | 'DELETE';
 
@@ -109,6 +110,7 @@ export function walletRemote(profile: string | undefined): PlaybookRemote {
       await request('POST', '/v1/ostack/installs', skillsInstalledSchema.parse(input));
     },
     videos: videoRemote(request),
+    host: hostRemote(profile),
   };
 }
 

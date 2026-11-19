@@ -1,20 +1,18 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { oneOf, optional, required, type Args } from "../lib/args.js";
 import { codexRunEffort } from "../lib/codex-effort.js";
 import { OstackError } from "../lib/errors.js";
 import { listAudiences } from "../lib/layers.js";
 import { findWorkflow, loadPlaybooks, type Workflow } from "../lib/playbooks.js";
-import { WALLET_LAUNCHER_DIR, walletOnPath } from "../lib/o11-path.js";
 import { print } from "../lib/output.js";
 import { remote, requireOnline } from "../lib/remote.js";
 import { describeSchedule, parseSchedule, runsPerDay, scheduleRules, shiftSchedule, slotLabel, toCron, toRRule, withoutDays, withSlot, zoneOffset } from "../lib/schedule.js";
 import { parseDays } from "../lib/time.js";
-import { writeState, type ScheduleState } from "../lib/state.js";
+import { isHostedCron, writeState, type ScheduleState } from "../lib/state.js";
 import { effectiveSchedule, savedSchedule, scheduleAudience, type EffectiveSchedule } from "../lib/workflow-schedules.js";
 import { systemTimeZone } from "../lib/time.js";
 import { DEFAULT_AUDIENCE, enabledPlaybooks, loadWorkspace, type Workspace } from "../lib/workspace.js";
 import { audienceOf } from "./customize.js";
+import { cronCommand } from "./schedule-cron.js";
 
 export const HOSTS = ["claude", "codex", "cron"] as const;
 type Host = (typeof HOSTS)[number];
@@ -45,7 +43,7 @@ function localEntry(workspace: Workspace, workflow: Workflow, audience: string):
   return (workspace.state.schedules[scheduleKey(workflow, audience)] ??= { installed: {} });
 }
 
-function taskName({ workflow, audience }: Entry): string {
+export function taskName({ workflow, audience }: Entry): string {
   return `ostack-${workflow.playbook}-${workflow.id}${audience === DEFAULT_AUDIENCE ? "" : `-${audience}`}`;
 }
 
@@ -69,9 +67,8 @@ export function instruction(workspace: Workspace, { workflow, audience }: Entry)
  * Highest reasoning effort for scheduled runs. Claude Code also reads `effort: max` from the skill. Codex uses max
  * when its model list says the configured model offers it, otherwise xhigh (codex-effort.ts).
  */
-const CLAUDE_EFFORT = "max";
+export const CLAUDE_EFFORT = "max";
 
-const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
 function view(workspace: Workspace, entry: Entry) {
   const { workflow, audience } = entry;
@@ -148,53 +145,7 @@ function hostSpec(workspace: Workspace, entry: Entry, host: Host) {
       timezone_note: timezoneNote,
     };
   }
-  return { ...base, host, cron: toCron(spec), install: "o11 ostack schedule cron install", timezone_note: timezoneNote };
-}
-
-const CRON_BEGIN = (root: string) => `# >>> ostack ${root}`;
-const CRON_END = (root: string) => `# <<< ostack ${root}`;
-
-/** The crontab block for every enabled schedule in this workspace. Each run starts the agent headless with the workspace prompt. */
-async function cronBlock(workspace: Workspace, agent: "claude" | "codex"): Promise<string[]> {
-  const { path: o11, wallet } = walletOnPath();
-  const binary = Bun.which(agent);
-  if (!o11) throw new OstackError("not_on_path", `o11 is not on PATH. Install the o11 CLI (https://go.o11.ai/skill.md), then put ${WALLET_LAUNCHER_DIR} first on PATH.`);
-  if (!wallet) throw new OstackError("not_on_path", `${o11} is not the o11 wallet CLI. Put ${WALLET_LAUNCHER_DIR} first on PATH, then retry.`);
-  if (!binary) throw new OstackError("not_on_path", `${agent} is not on PATH, so cron cannot start it.`);
-  const logs = join(workspace.root, ".ostack", "logs");
-  const codexEffort = agent === "codex" ? codexRunEffort() : null;
-  const lines = [CRON_BEGIN(workspace.root), `CRON_TZ=${workspace.timezone}`, `PATH=${process.env.PATH ?? "/usr/bin:/bin"}`];
-  for (const entry of scheduleEntries(workspace)) {
-    const { spec, enabled } = effective(workspace, entry.workflow, entry.audience);
-    if (!spec || !enabled) continue;
-    // The same /goal instruction the Desktop and Codex tasks store, so a headless run also keeps going until it is done.
-    const prompt = shellQuote(instruction(workspace, entry));
-    const run =
-      agent === "claude"
-        ? `${binary} -p ${prompt} --effort ${CLAUDE_EFFORT} --permission-mode auto --permission-prompts none`
-        : `${binary} exec --cd ${workspace.root} --sandbox workspace-write -c model_reasoning_effort=${codexEffort} ${prompt}`;
-    for (const cron of toCron(spec)) lines.push(`${cron} cd ${workspace.root} && ${run} >> ${join(logs, `${taskName(entry)}.log`)} 2>&1`);
-  }
-  lines.push(CRON_END(workspace.root));
-  return lines;
-}
-
-function readCrontab(): string {
-  const result = Bun.spawnSync(["crontab", "-l"], { stdout: "pipe", stderr: "pipe" });
-  return result.exitCode === 0 ? result.stdout.toString() : "";
-}
-
-function withoutBlock(crontab: string, root: string): string[] {
-  const lines = crontab.trim() === "" ? [] : crontab.replace(/\n+$/, "").split("\n");
-  const start = lines.indexOf(CRON_BEGIN(root));
-  const end = lines.indexOf(CRON_END(root));
-  return start >= 0 && end > start ? [...lines.slice(0, start), ...lines.slice(end + 1)] : lines;
-}
-
-function writeCrontab(lines: string[]): void {
-  const text = `${lines.join("\n").replace(/\n+$/, "")}\n`;
-  const result = Bun.spawnSync(["crontab", "-"], { stdin: new TextEncoder().encode(text), stdout: "pipe", stderr: "pipe" });
-  if (result.exitCode !== 0) throw new OstackError("cron_failed", `crontab refused the change: ${result.stderr.toString().trim()}`);
+  return { ...base, host, cron: toCron(local), install: "o11 ostack schedule cron install", timezone_note: timezoneNote };
 }
 
 export async function scheduleCommand(args: Args): Promise<void> {
@@ -204,32 +155,7 @@ export async function scheduleCommand(args: Args): Promise<void> {
     print({ timezone: workspace.timezone, workflows: scheduleEntries(workspace).map((entry) => view(workspace, entry)) });
     return;
   }
-  if (sub === "cron") {
-    const action = args.positionals[2] ?? "show";
-    const agent = (optional(args, "agent") ?? "claude") as "claude" | "codex";
-    if (!["claude", "codex"].includes(agent)) throw new OstackError("invalid_flag", "--agent must be claude or codex.");
-    if (action === "show") return print({ lines: await cronBlock(workspace, agent) });
-    if (action === "install") {
-      const block = await cronBlock(workspace, agent);
-      mkdirSync(join(workspace.root, ".ostack", "logs"), { recursive: true });
-      writeCrontab([...withoutBlock(readCrontab(), workspace.root), ...block]);
-      const at = new Date().toISOString();
-      for (const { workflow, audience } of scheduleEntries(workspace)) {
-        if (effective(workspace, workflow, audience).enabled) localEntry(workspace, workflow, audience).installed.cron = { name: `crontab (${agent})`, at };
-      }
-      await writeState(workspace.root, workspace.state);
-      print({ installed: block.length - 4, lines: block });
-      return;
-    }
-    if (action === "remove") {
-      writeCrontab(withoutBlock(readCrontab(), workspace.root));
-      for (const entry of Object.values(workspace.state.schedules)) delete entry.installed.cron;
-      await writeState(workspace.root, workspace.state);
-      print({ removed: true });
-      return;
-    }
-    throw new OstackError("unknown_command", "Use: o11 ostack schedule cron show|install|remove [--agent claude|codex].");
-  }
+  if (sub === "cron") return cronCommand(workspace, args);
   const workflow = findWorkflow(args.positionals[2] ?? required(args, "workflow"), enabledPlaybooks(workspace));
   const audience = audienceOf(args);
   if (audience !== DEFAULT_AUDIENCE && !workflow.perAudience) throw new OstackError("invalid_flag", `${workflow.ref} covers every audience in one run; it takes no --audience.`);
@@ -248,8 +174,13 @@ export async function scheduleCommand(args: Args): Promise<void> {
   }
   await writeState(workspace.root, workspace.state);
   const result = view(workspace, { workflow, audience });
-  const hosts = Object.keys(result.installed);
-  print({ ...result, ...(hosts.length > 0 && sub !== "installed" && sub !== "uninstalled" ? { update_hosts: `Also update the task in: ${hosts.join(", ")} (o11 ostack schedule spec ${workflow.ref}${audienceFlag(audience)} --host <host>).` } : {}) });
+  const hosted = isHostedCron(workspace.state.schedules[scheduleKey(workflow, audience)]?.installed.cron);
+  const hosts = Object.keys(result.installed).filter((host) => !(hosted && host === "cron"));
+  const updates = [
+    ...(hosts.length > 0 ? [`Also update the task in: ${hosts.join(", ")} (o11 ostack schedule spec ${workflow.ref}${audienceFlag(audience)} --host <host>).`] : []),
+    ...(hosted ? ["It runs on the hosted computer, which picks the change up within 15 minutes (o11 ostack host schedule applies it now)."] : []),
+  ];
+  print({ ...result, ...(updates.length > 0 && sub !== "installed" && sub !== "uninstalled" ? { update_hosts: updates.join(" ") } : {}) });
 }
 
 /**

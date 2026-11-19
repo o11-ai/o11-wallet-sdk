@@ -28,9 +28,13 @@ export function binaryName(platform: string = process.platform, arch: string = p
 }
 /** Large program files live on GitHub Releases; their SHA-256 comes from the wallet's own checksums.json. */
 /** O11_RELEASE_BASE_URL points at a mirror; the bytes must still match the wallet's checksums. */
-export function binaryDownloadUrl(releaseVersion: string, name: string) {
+/** A trusted wallet origin whose checksums.json lists bin/v<version>/<name> serves that program itself (dev releases
+ * aren't on GitHub); otherwise GitHub. The SHA-256 check against the manifest applies either way. */
+export function binaryDownloadUrl(releaseVersion: string, name: string, wallet?: { origin: string; files: Release['files'] }) {
   const mirror = process.env.O11_RELEASE_BASE_URL?.replace(/\/+$/, '');
   if (mirror && !/^(?:https:\/\/|http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\/)/.test(mirror + '/')) throw new Error('O11_RELEASE_BASE_URL must use HTTPS');
+  const walletPath = `bin/v${releaseVersion}/${name}`;
+  if (!mirror && wallet && wallet.files[walletPath]) return `${trustedReleaseOrigin(wallet.origin)}/downloads/${walletPath}`;
   return `${mirror ?? 'https://github.com/o11-ai/o11-wallet-sdk/releases/download'}/v${releaseVersion}/${name}`;
 }
 const binaryLimit = 512 * 1024 * 1024;
@@ -90,7 +94,7 @@ export async function updateCli(origin: string, installedVersion = version, fetc
   const base = trustedReleaseOrigin(origin), release = await releaseAt(base, fetcher, deadline), status = releaseStatus(release, installedVersion);
   if (status.status !== 'update_available') return { ...status, updated: false };
   if (compiledCli) {
-    const command = await replaceBinary(release, fetcher, deadline);
+    const command = await replaceBinary(release, base, fetcher, deadline);
     return { installedVersion, latestVersion: release.version, status: 'current' as const, updated: true, version: release.version,
       command, invocation: command, args: [], activeVersion: release.version, message: 'Use the returned command. Restart MCP to load this version.' };
   }
@@ -124,13 +128,15 @@ export async function updateCli(origin: string, installedVersion = version, fetc
 }
 
 /** Downloads this computer's program, checks it against the trusted manifest, and swaps it in place of the running one. */
-async function replaceBinary(release: Release, fetcher: typeof fetch, deadline: number) {
-  const name = binaryName(), expected = name ? release.files[name]?.sha256 : undefined;
+async function replaceBinary(release: Release, origin: string, fetcher: typeof fetch, deadline: number) {
+  const name = binaryName(), url = name ? binaryDownloadUrl(release.version, name, { origin, files: release.files }) : '';
+  // The wallet's own copy is checked against its versioned entry; a GitHub or mirror copy against the release entry.
+  const expected = name ? (url.includes('/downloads/bin/') ? release.files[`bin/v${release.version}/${name}`] : release.files[name])?.sha256 : undefined;
   if (!name || !expected) throw new Error('This release has no o11 program for this computer; existing installation preserved');
   const target = process.execPath, temporary = join(dirname(target), `.${basename(target)}.${crypto.randomUUID()}.download`);
   if (process.platform === 'win32') await rm(`${target}.old`, { force: true }).catch(() => undefined);
   try {
-    const response = await fetcher(binaryDownloadUrl(release.version, name), { redirect: 'follow', credentials: 'omit',
+    const response = await fetcher(url, { redirect: 'follow', credentials: 'omit',
       signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())) });
     if (!response.ok || !response.body || Number(response.headers.get('content-length')) > binaryLimit)
       throw new Error('o11 download is unavailable; existing installation preserved');

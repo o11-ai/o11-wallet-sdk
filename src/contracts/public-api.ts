@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sandboxRequestSchema } from "./sandboxes.js";
 import { invocationSchema, inputSchema, moneySchema } from "./index.js";
 import { purchaseOperationSchemas, purchaseOperationDescriptions } from "./purchases.js";
 import { managementOperationSchemas, managementOperationDescriptions } from "./agent-permissions.js";
@@ -92,6 +93,7 @@ export const discoveryPageSize = 50;
 /** A run's spending maximum: settled charges plus open holds across every call with this run id on this wallet. */
 const runMaxSchema = moneySchema.optional().describe("Spending maximum for the whole run, in USD micros: settled charges plus open holds across every call with this runId. Needs runId (or the x-o11-run-id header). Raise it any time; lower it no further than the run has spent and holds. A call past it is refused with reason run_ceiling.");
 export const publicOperationSchemas = {
+  sandbox: sandboxRequestSchema,
   ...reportOperationSchemas,
   ...managementOperationSchemas,
   ...purchaseOperationSchemas,
@@ -168,6 +170,7 @@ export function publicOperationJsonSchema(name: keyof typeof publicOperationSche
 }
 
 export const publicOperationDescriptions: Record<keyof typeof publicOperationSchemas, string> = {
+  sandbox: "Create and manage E2B, Boat or Vercel sandboxes through o11. Use help for command schemas and operation with requestId for recovery. A connected supplier account pays its provider directly; without one, where o11 turns it on, the sandbox runs on o11's account and is paid from the wallet.",
   ...reportOperationDescriptions,
   ...managementOperationDescriptions,
   ...purchaseOperationDescriptions,

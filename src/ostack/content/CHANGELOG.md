@@ -2,6 +2,12 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.13.0
+- Scheduled runs keep going when your laptop is closed. You don't need to do anything.
+- When a run needs you signed in to a site (LinkedIn, X, Instagram, or your mailbox when no tool is connected), your agent sends you a link. Sign in there once and tell your agent you're done. Scheduled runs use that same browser, and you stay signed in after restarts.
+- Setup checks your email, CRM and calendar on the computer that runs ostack while you're away. If a run there can't reach one, your agent tells you what to reconnect. Email and calendar connected only in Claude don't work there yet, so ostack keeps running on your own computer for those.
+- You only ever talk to your own agent. Scheduled runs never wait on a question: when one needs you (a sign-in, an answer setup is missing, a choice only you can make), it notes it, skips that part and carries on, and your agent asks you the next time you talk.
+
 ## 0.12.0
 - Every skill works the first time, with nothing set up. Ask for outbound, an SEO audit, a reel or social growth and the agent learns what it needs about your company (what you said, your repo, your website, the web and your connected tools), does the work, and saves what it learned without asking. When you correct something, it updates just that part and says so.
 - Every playbook gives feedback without being asked: weak templates and replies for outbound, titles, topics and slipping pages for SEO, comments, bios and captions for social, hooks, length and endings for videos. It improves its own work and says so; your own text changes only after your yes.

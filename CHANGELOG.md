@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+**New**
+- `o11 sandbox create` and `get-or-create` prepare each new sandbox: the o11 server's current o11 CLI with ostack, the Claude Code, Codex, Cursor Agent, Gemini and OpenCode CLIs at their latest releases, Chrome and a running cron. A CLI older than its latest release is upgraded; the output lists each version against the latest. `--no-prepare` skips it. An E2B sandbox now starts from E2B's `desktop` template unless you name a template (`--template base` for the bare image).
+- `o11 ostack host setup` prepares the computer the same way, installs the ostack skills for both Claude Code and Codex, and reports what the computer has and how long setup took.
+
+**Fixed**
+- A sandbox's o11 now comes from the o11 server that made it, and an older o11 there is upgraded. Before, it came from go.o11.ai and was never upgraded.
+
+## 0.1.55
+
+**New**
+- `o11 sandbox` creates and runs E2B, Boat and Vercel sandboxes through o11, on your own connected account. E2B is the default when you leave out `--provider`. Where the o11 server turns on wallet funding (off by default), sandboxes can also run on o11's account, billed to your wallet with a hold sized to the run and settled to the provider's meter. Sandboxes are private to the user who created them.
+- `o11 sandbox providers` shows the three providers and when to use each. `o11 sandbox capabilities --matrix` compares every command across them; the web app has the same view under Providers, Compare.
+- `--keep-running` on create keeps an E2B or Boat sandbox on o11's account running, paid from your wallet, until you stop or delete it or the wallet can't pay. E2B ends a run after 24 hours, so o11 pauses and resumes it just before then; files, memory and running processes such as cron and the desktop carry over.
+- E2B options work as flags: `--template`, `--from`, `--metadata`, `--auto-pause`, `--no-internet`, `--allow-out`, `--deny-out`, plus `templates`, `pause`, `metrics`, `host` and `files watch`.
+- Every Boat and Vercel sandbox feature works through `o11 sandbox`, and the web app has the same controls. A feature a provider lacks says so and names the alternative.
+- `terminal`, `desktop`, `browser`, `preview`, `host`, `forward`, `run`, `push`, `copy -r`, `attach`, snapshots, drives, users and `account` commands. Run `o11 sandbox --help` for the full list.
+- `o11 sandbox login NAME --login o11` (or `create --login o11`) installs o11 in the sandbox and signs it in with a key o11 issues for that sandbox alone, on your card. Signing it in again or deleting the sandbox revokes the key.
+- `--keep-running` on a Boat sandbox paid from your wallet keeps renewing it until you stop or delete it, or your wallet can't pay.
+- `o11 ostack host` sets up and runs your always-on ostack computer: `setup`, `signin`, `schedule`, `open <url>` (a one-use link to its screen), `status` and `run`.
+- New sandboxes come with Claude Code and Codex installed. Sign them in from your own computer with `--login claude,codex`, or bring your own key file with `--claude-key-file` or `--codex-key-file`. o11 doesn't store model keys.
+
 ## 0.1.53
 
 **New**

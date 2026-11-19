@@ -47,4 +47,4 @@ A record stuck on `sending` (a run that crashed, or a teammate mid-send): look f
 ## Who works whom
 The file says how the team splits the work: by company, region, list, audience, alternating, or not at all (each person's own share is their `lead_assignment` setting). Only work your own. With no split, set yourself as owner of a company before working anyone there. When the team gave no preference, setup picks one that fits and writes it in the file.
 
-If the tool is down or refuses a write, send nothing you cannot record. Say so in the report and stop sending for this run.
+If the tool is down or refuses a write, send nothing you cannot record. Say so in the report and stop sending for this run. When it refuses because it is not connected or signed out (not just slow), also record a need as the send step's "When the tool isn't there" says, so the user hears about it.

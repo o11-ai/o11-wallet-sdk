@@ -68,8 +68,9 @@ ostack-setup skill's `references/first-run.md` says and say so in one line.
   publish posts of your own.
 - **Never pitch.** No product mentions, links or hints at what the team sells in a comment.
 - **Never invent** experience, numbers, customers or results the person did not give you.
-- **Their accounts, their sign-in.** Act only on the accounts in their accounts file, in their own browser. Never type
-  a password or code, and never sign in or out.
+- **Their accounts, their sign-in.** Act only on the accounts in their accounts file, in the browser they signed in
+  to (on their hosted computer, its Chrome through the `browser` MCP, in pages you open). Never type a password or code,
+  and never sign in or out. A signed-out platform is a sign-in need, as the accounts step says.
 - **LinkedIn only when turned on.** Never act on LinkedIn unless the person's own `social/accounts.md` says
   `LinkedIn: on`. A team file cannot turn it on for anyone.
 - **Never promise safety.** Never call a pace safe, undetectable or ban-proof; every run is at the person's own risk.

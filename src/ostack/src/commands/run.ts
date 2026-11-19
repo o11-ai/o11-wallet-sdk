@@ -8,7 +8,9 @@ import { print } from "../lib/output.js";
 import { remote, type TemplateCounts } from "../lib/remote.js";
 import { describeSchedule, isDue } from "../lib/schedule.js";
 import { listAudiences } from "../lib/layers.js";
-import { DEFAULT_AUDIENCE, enabledPlaybooks, loadWorkspace } from "../lib/workspace.js";
+import { addNeed, clearNeeds, NEED_KINDS, type NeedKind } from "../lib/needs.js";
+import { loadQuestions } from "../lib/steps.js";
+import { DEFAULT_AUDIENCE, enabledPlaybooks, loadWorkspace, type Workspace } from "../lib/workspace.js";
 import { audienceOf } from "./customize.js";
 import { effective, scheduleKey } from "./schedule.js";
 
@@ -61,6 +63,14 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Setup questions for this workflow's playbook (and the core ones) that nobody has answered yet. */
+function unanswered(workspace: Workspace, playbook: string): string[] {
+  const { team, mine } = workspace.setup.settings;
+  return loadQuestions([playbook])
+    .filter((question) => !(question.scope === "team" ? team.setupAnswers : mine.setupAnswers)[question.id])
+    .map((question) => question.id);
+}
+
 /**
  * One run per workflow and audience at a time on this computer: a lock folder in the workspace, taken atomically and
  * released at the end. Each run is also reported to the wallet so the team sees it on the wallet's Ostack page. Reporting never
@@ -78,6 +88,18 @@ export async function runCommand(args: Args): Promise<void> {
     throw new OstackError("unknown_audience", `No audience named "${audience}".`, { audiences: listAudiences(workspace, workflow.playbook) });
   }
   const flag = audience === DEFAULT_AUDIENCE ? "" : ` --audience ${audience}`;
+  const needAudience = workflow.perAudience ? audience : null;
+  if (sub === "need") {
+    const kind = optional(args, "kind") ?? "choice";
+    if (!(NEED_KINDS as readonly string[]).includes(kind)) throw new OstackError("invalid_flag", `--kind is one of ${NEED_KINDS.join(", ")}.`);
+    const url = optional(args, "url");
+    const question = optional(args, "question");
+    const need = addNeed(workspace.root, {
+      workflow: workflow.ref, audience: needAudience, kind: kind as NeedKind, ask: required(args, "ask"), ...(url ? { url } : {}), ...(question ? { question } : {}),
+    });
+    print({ recorded: need, next: "Carry on without it: skip or defer what needs it, with the reason in the report. Do not wait for an answer." });
+    return;
+  }
   const dir = join(workspace.root, ".ostack", "runs");
   const lock = join(dir, `${workflow.playbook}-${workflow.id}${audience === DEFAULT_AUDIENCE ? "" : `-${audience}`}.lock`);
   mkdirSync(dir, { recursive: true });
@@ -105,6 +127,9 @@ export async function runCommand(args: Args): Promise<void> {
     }
     const at = new Date().toISOString();
     writeFileSync(join(lock, "started"), `${at}\n`);
+    // What this workflow's last run recorded for the person is replaced by what this run finds.
+    clearNeeds(workspace.root, workflow.ref, needAudience);
+    const missing = args.flags.scheduled === true ? unanswered(workspace, workflow.playbook) : [];
     let recorded: string | null = null;
     let warning: string | undefined;
     try {
@@ -126,6 +151,10 @@ export async function runCommand(args: Args): Promise<void> {
       started_at: at,
       run_id: recorded,
       ...(warning ? { warning } : {}),
+      ...(missing.length > 0 ? {
+        unanswered_setup: missing,
+        unanswered_note: "Nobody is present, so do not ask. Use a question's default where it has one and skip the work that needs the rest. The person's agent sees these questions on its own; record only other needs with o11 ostack run need.",
+      } : {}),
       end_with: `o11 ostack run end ${workflow.ref}${flag} --summary "<one line>" --counts sent=0,drafted=0 --template-counts '{"<version id>":{"sent":0,"replied":0,"meetings":0}}'`,
     });
     return;
@@ -148,5 +177,5 @@ export async function runCommand(args: Args): Promise<void> {
     print({ workflow: workflow.ref, ...(workflow.perAudience ? { audience } : {}), started_at: started, ended_at: new Date().toISOString(), run_id: runId, ...(warning ? { warning } : {}) });
     return;
   }
-  throw new OstackError("unknown_command", "Use: o11 ostack run start <workflow> [--audience <name>] [--scheduled] | run end <workflow> [--audience <name>] [--summary <text>] [--counts <name=n,...>] [--template-counts <json>].");
+  throw new OstackError("unknown_command", "Use: o11 ostack run start <workflow> [--audience <name>] [--scheduled] | run need <workflow> [--audience <name>] --kind sign_in|connect|question|choice --ask <text> [--url <https>] [--question <id>] | run end <workflow> [--audience <name>] [--summary <text>] [--counts <name=n,...>] [--template-counts <json>].");
 }

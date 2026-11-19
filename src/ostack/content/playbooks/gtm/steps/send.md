@@ -4,7 +4,9 @@ used_by: [outbound, follow-ups]
 changed: 0.12.0
 change: The per-company limit counts people being contacted at once (2 by default), and no new person goes to a company that is paused, won, done or skipped.
 ---
-Use whatever tool the user's files name for this channel (a mail MCP, a browser session, an API script). Without a file, use a connected mail or LinkedIn tool if exactly one fits; otherwise stop and ask the user (or, in a scheduled run, report it).
+Use whatever tool the user's files name for this channel (a mail MCP, a browser session, an API script). Without a file, use a connected mail or LinkedIn tool if exactly one fits; otherwise stop and ask the user (or, in a scheduled run, record it as below).
+
+**When the tool isn't there.** A scheduled run often happens on another computer than the one setup ran on (the hosted computer). If the named tool is missing, signed out or refuses the account, never switch to another tool or account. With the user present, tell them what to connect. In a scheduled run, record it so their agent asks them: `o11 ostack run need <workflow> --kind connect --ask "<one line: what to connect or reconnect, for which account>" [--url <a page that fixes it for this computer, such as where they make a new API key>]`, or `--kind sign_in --url <the site>` when the tool is a site in the browser. Then skip everything that needs this channel, keep doing the rest (research, records, other channels), and say it in the report. Never end a run silently over it.
 
 Before sending, check the settings in `o11 ostack context` for the audience (`--audience <name>`; `local_time` is the workspace's time now). An audience's `audience.md` can change them:
 - **First messages go out now:** send each one the moment the run writes it, at any hour, never through the mail tool's schedule-send. A message sent now is in the Sent folder with real IDs, so the record step can confirm it at once and nothing waits in a queue a reply would have to cancel.

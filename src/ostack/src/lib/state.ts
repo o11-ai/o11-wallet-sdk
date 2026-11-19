@@ -15,6 +15,9 @@ export const PREVIOUS_STATE_FILE = "ostack.pre-0.7.json";
 
 /** A host (claude, codex, cron) where a schedule was created, so status can say what exists and where. */
 export type Installed = { name: string; at: string };
+/** How `o11 ostack host schedule` names its cron entry here: the schedule runs on the hosted computer's cron, not this one's. */
+export const HOSTED_CRON = "hosted computer";
+export const isHostedCron = (installed: Installed | undefined): boolean => installed?.name.startsWith(`${HOSTED_CRON} `) === true;
 
 /**
  * What this computer knows about a workflow's schedule: where its task was created. The schedule itself lives in the

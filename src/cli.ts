@@ -1,7 +1,13 @@
 #!/usr/bin/env bun
+import { sandboxArguments, sandboxUsage } from './cli-sandbox.js';
+import { runSandboxCommand } from './cli-sandbox-command.js';
+import { sandboxCopyArguments } from './cli-sandbox-copy.js';
+import { isSandboxComposite } from './cli-sandbox-run.js';
+import { sandboxForwardArguments } from './cli-sandbox-forward.js';
+import { sandboxSshActions, sandboxSshArguments } from './cli-sandbox-ssh.js';
 import { compiledCli, selfInvocation } from './cli-update.js';
 import { z } from "zod";
-import { ToolClient, ToolClientError, ToolCallError, TopUpRequestError } from './client.js';
+import { ToolClient, ToolClientError, ToolCallError, TopUpRequestError, SandboxRequestError } from './client.js';
 import { discoveryPageSize, publicOperationSchemas, routeRefusalReasons } from './contracts/public-api.js';
 import { reportOperationSchemas } from './contracts/reports.js';
 import { readConfig, saveConfig, clearConfig, profileTokenProvider } from './config.js';
@@ -82,6 +88,9 @@ async function jsonInput(values = args): Promise<unknown> {
   return JSON.parse(file === '-' ? await Bun.stdin.text() : await readFile(file, 'utf8'));
 }
 function validateArguments() {
+  // `o11 login claude|codex` and `o11 logout claude|codex` check their own arguments (cli-ai-login.ts).
+  if ((command === 'login' || command === 'logout') && ['claude', 'codex'].includes(args[0] ?? '')) return;
+  if (command === 'sandbox') { if (isSandboxComposite(args)) return; if (args[0] === 'forward') { sandboxForwardArguments(args); return; } if (sandboxSshActions.some(action => action === args[0])) { sandboxSshArguments(args); return; } if (['copy', 'cp', 'scp'].includes(args[0] ?? '')) sandboxCopyArguments(args); else sandboxArguments(args); return; }
   const counts: Record<string, number> = { doctor: 0, balance: 0, logout: 0, permissions: 0, 'revoke-api-key': 1,
     configuration: 1, cancel: 1, retry: 1,
     version: 0, '--version': 0, mcp: 0 };
@@ -226,11 +235,32 @@ function safeIssuePaths(response: unknown) {
   const unique = [...new Set(paths)].slice(0, 8);
   return unique.length ? ` Check fields: ${unique.join(', ')}.` : '';
 }
+/** Sandbox commands: the server's input issues as "field: message" (up to five), so a refusal says what to change.
+ * Sandbox params follow o11's own published schema, so their names are safe to show. Other commands may carry
+ * caller-defined keys (provider inputs), so they keep the recognized-path list in safeIssuePaths. */
+function issueDetails(response: unknown) {
+  if (command !== 'sandbox') return '';
+  if (typeof response !== 'object' || response === null || !('issues' in response) || !Array.isArray(response.issues)) return '';
+  const lines = response.issues.flatMap((issue: unknown) => {
+    if (typeof issue !== 'object' || issue === null || !('message' in issue) || typeof issue.message !== 'string') return [];
+    const path = 'path' in issue && Array.isArray(issue.path) ? issue.path.filter(part => typeof part === 'string' || typeof part === 'number').join('.') : '';
+    const text = serverMessage({ message: issue.message }).slice(0, 200);
+    const field = path.replace(/^params\./, '').slice(0, 80);
+    return text ? [`${field ? `${field}: ` : ''}${text.replace(/[.]$/, '')}`] : [];
+  });
+  const unique = [...new Set(lines)];
+  return unique.length ? `${unique.slice(0, 5).join('; ')}${unique.length > 5 ? `; and ${unique.length - 5} more` : ''}. ` : '';
+}
 function serverMessage(response: unknown) {
   if (typeof response !== 'object' || response === null || !('message' in response) || typeof response.message !== 'string') return '';
   return response.message.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
     .replace(/\b(?:bearer\s+\S+|sk-[\w-]+)|[A-Za-z0-9_-]{40,}/gi, (match, offset: number, whole: string) =>
       isToolIdSegment(match, offset, whole) ? match : '[redacted]').replace(/\s+/g, ' ').trim().slice(0, 500);
+}
+// A provider's refusal reads as the provider's answer ("Boat refused this request: ... (code)"), not as a wallet error.
+function sandboxHttpError(error: ToolClientError) {
+  const said = serverMessage(error.response);
+  return /^(?:Boat|Vercel|E2B) refused this request\b/.test(said) ? said : safeHttpError(error);
 }
 // Long runs are redacted as possible tokens, except lowercase word segments of a catalog id such as
 // dataforseo.x.ai-optimization-... or tikhub#api/v1/.../fetch_hot_account_fans_interest_account_list.
@@ -312,14 +342,15 @@ function safeHttpError(error: ToolClientError) {
   };
   // The wallet's own message names the field, the cause and its step; it beats generic advice.
   const terminal = typeof error.response === 'object' && error.response !== null && 'retryable' in error.response && error.response.retryable === false;
+  // A sandbox refusal already names the provider's alternative ("Vercel doesn't have templates. Use --runtime ...").
   if (code === 'NOT_CONFIGURED' && message)
     return `${head} ${message}${reason === 'TOOL_UNAVAILABLE' ? ` ${program} discover lists other tools.`
-      : /\bdiscover\b/.test(message) ? '' : ` If it stays unavailable, choose another tool with ${program} discover.`}`;
+      : /\bdiscover\b/.test(message) || command === 'sandbox' ? '' : ` If it stays unavailable, choose another tool with ${program} discover.`}`;
   // Every code shows the server's message; the advice follows it.
   // A route refusal (worded by o11) also names its reason, such as "domain must be a company domain".
   const said = message ? `${message}${typeof reason === 'string' && routeRefusals.has(reason) ? ` (${reason})` : ''} ` : '';
   return typeof code === 'string' && Object.hasOwn(advice, code)
-    ? `${head} ${said}${advice[code]}${code === 'INVALID_INPUT' ? safeIssuePaths(error.response) : ''}${
+    ? `${head} ${said}${code === 'INVALID_INPUT' ? issueDetails(error.response) : ''}${advice[code]}${code === 'INVALID_INPUT' && !issueDetails(error.response) ? safeIssuePaths(error.response) : ''}${
       terminal && code === 'INVALID_INPUT' && message ? ' Change the request before trying again.' : ''}`
     : `${head} ${said}Check access, request inputs, or the existing invocation.`;
 }
@@ -331,8 +362,9 @@ const installReport = import('./cli-install.js').then(({ reportInstall }) => rep
 try {
   const values = process.argv.slice(2);
   const selected: string[] = [];
-  let cardId: string | undefined;
+  let cardId: string | undefined, profileFlag = false;
   for (let index = 0; index < values.length; index++) {
+    if (values[index] === "--") { selected.push(...values.slice(index)); break; }
     if (values[index] === '--card' && selected.length === 0) {
       if (cardId) throw new Error('Supply --card once with a UUID');
       cardId = uuidFlag('--card', values[++index]);
@@ -343,19 +375,23 @@ try {
       runId = uuidFlag('--run-id', values[++index]);
       continue;
     }
-    if (values[index] !== '--profile') { selected.push(values[index]!); continue; }
+    // `sandbox browser NAME --profile /path` is Boat's Chrome profile (an absolute path); o11 profile names never start with /.
+    const browserProfile = selected[0] === 'sandbox' && selected[1] === 'browser' && values[index + 1]?.startsWith('/');
+    if (values[index] !== '--profile' || browserProfile) { selected.push(values[index]!); continue; }
     if (profile || !values[index + 1] || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(values[index + 1]!)) throw new Error('Supply --profile once with a valid profile name');
-    profile = values[++index];
+    profile = values[++index]; profileFlag = true;
   }
   [command, ...args] = selected;
-  const jsonOutput = args.includes('-j') || args.includes('--json');
-  args = args.filter(value => value !== '-j' && value !== '--json');
+  const delimiterAt = args.indexOf('--');
+  const beforeArgs = delimiterAt < 0 ? args : args.slice(0, delimiterAt);
+  const jsonOutput = beforeArgs.includes('-j') || beforeArgs.includes('--json');
+  args = [...beforeArgs.filter(value => value !== '-j' && value !== '--json'), ...(delimiterAt < 0 ? [] : args.slice(delimiterAt))];
   if (command === 'wallet') [command, ...args] = args;
   if (command !== "mcp") runId ??= process.env.O11_RUN_ID;
   if (command !== 'login') {
-    const position = args.indexOf('--card');
+    const position = (args.includes('--') ? args.slice(0, args.indexOf('--')) : args).indexOf('--card');
     if (position >= 0) {
-      if (cardId || args.lastIndexOf('--card') !== position) throw new Error('Supply --card once with a UUID');
+      if (cardId || (args.includes('--') ? args.slice(0, args.indexOf('--')) : args).lastIndexOf('--card') !== position) throw new Error('Supply --card once with a UUID');
       cardId = uuidFlag('--card', args[position + 1]);
       args.splice(position, 2);
     }
@@ -367,7 +403,8 @@ try {
   const helpTarget = command === 'help' ? args.find(value => !value.startsWith('-')) : rootHelp ? undefined : command;
   if (helpTarget && !isWalletCommand(helpTarget)) throw new Error(unknownCommand(program, helpTarget));
   // ostack prints its own help: `o11 ostack help`, `o11 ostack <command> --help`.
-  const help = command !== 'ostack' && (rootHelp || args.includes('--help') || args.includes('-h'));
+  const ownArgs = args.includes('--') ? args.slice(0, args.indexOf('--')) : args;
+  const help = command !== 'ostack' && (rootHelp || ownArgs.includes('--help') || ownArgs.includes('-h'));
   if (!help) validateArguments();
   let cliUpdate: import('./cli-update.js').CliUpdateCheck | undefined;
   if (!help && !['--version', 'version', 'keys', 'generate_session_id', 'session-id', 'update', 'login', 'logout'].includes(command!)) {
@@ -377,14 +414,15 @@ try {
     const update = config ? await prepareCliUpdate(config.baseUrl, command === 'setup' || command === 'doctor') : undefined;
     cliUpdate = update?.check;
     if (update?.invocation) {
-      const original = process.argv.slice(2), selectedProfile = profile && !original.includes('--profile') ? ['--profile', profile] : [];
+      const original = process.argv.slice(2), selectedProfile = profile && !profileFlag ? ['--profile', profile] : [];
       const child = Bun.spawn([...update.invocation, ...selectedProfile, ...original], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit',
         env: { ...process.env, O11_CLI_UPDATE_REEXEC: update.check.latestVersion ?? 'unknown', ...(!profile ? { O11_CLI_DEFAULT_PROFILE: '1' } : {}) } });
       process.exit(await child.exited);
     }
   }
   if (help) {
-    console.log(commandHelp(program, helpTarget, args));
+    console.log(helpTarget === 'sandbox' ? sandboxUsage : commandHelp(program, helpTarget, args));
+    if (helpTarget === 'sandbox' && ownArgs.includes('--provider')) { const config = await readConfig(profile); const client = new ToolClient({ ...config, cardId, runId, tokenProvider: profileTokenProvider(profile, config) }); print(await client.sandbox({ action: 'help', provider: (await import('./contracts/sandboxes.js')).sandboxProviderSchema.parse(ownArgs[ownArgs.indexOf('--provider') + 1]) })); }
   } else if (command === '--version' || command === 'version') {
     print({ product: 'wallet', package: '@o11/sdk', version });
   } else if (command === 'keys') {
@@ -397,6 +435,18 @@ try {
     const config = await readConfig(profile, { refresh: false });
     const { checkCliUpdate, updateCli } = await import('./cli-update.js');
     print(await (args.includes('--check') ? checkCliUpdate(config.baseUrl) : updateCli(config.baseUrl)));
+  } else if ((command === 'login' || command === 'logout') && (args[0] === 'claude' || args[0] === 'codex')) {
+    // A Claude or ChatGPT login kept by o11 for every sandbox and hosted computer (cli-ai-login.ts).
+    profile ??= process.env.O11_TOOLS_PROFILE ?? (process.env.O11_TOOLS_URL || process.env.O11_API_KEY || process.env.O11_CLI_DEFAULT_PROFILE ? undefined : await activeKeyProfile());
+    const config = await readConfig(profile);
+    const client = new ToolClient({ ...config, tokenProvider: profileTokenProvider(profile, config) });
+    const { aiLoginCommand, saveToO11 } = await import('./cli-ai-login.js');
+    const spawnHelper = (helperArgs: string[]) => Bun.spawn([...recoveryInvocation, ...(profile ? ['--profile', profile] : []), 'login', ...helperArgs],
+      { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore', detached: true, env: { ...process.env, O11_CLI_UPDATE_REEXEC: process.env.O11_CLI_UPDATE_REEXEC ?? 'helper' } }).unref();
+    const outcome = await aiLoginCommand(command, args[0], args.slice(1), { client, sources: { profile }, spawnHelper,
+      interactive: Boolean(process.stdin.isTTY && process.stderr.isTTY) && !jsonOutput }, saveToO11(client));
+    if (outcome !== undefined) print(outcome);
+    if (outcome && 'connected' in outcome && outcome.connected === false && 'state' in outcome && outcome.state !== 'waiting') process.exitCode = 1;
   } else if (command === 'logout') {
     const selected = profile ?? process.env.O11_TOOLS_PROFILE ?? await activeKeyProfile();
     await clearConfig(selected);
@@ -445,11 +495,17 @@ try {
   } else {
     profile ??= process.env.O11_TOOLS_PROFILE ?? (process.env.O11_TOOLS_URL || process.env.O11_API_KEY || process.env.O11_CLI_DEFAULT_PROFILE ? undefined : await activeKeyProfile());
     const config = await readConfig(profile);
-    const client = new ToolClient({ ...config, cardId, runId, tokenProvider: profileTokenProvider(profile, config) });
+    const tokenProvider = profileTokenProvider(profile, config);
+    const client = new ToolClient({ ...config, cardId, runId, tokenProvider });
     // Agents copy nextCommand verbatim; the plain command name works wherever o11 is this CLI.
     const executionContext = { profile, cardId, runId: client.runId, runIdSupplied: Boolean(runId), invocation: namedInvocation ?? recoveryInvocation };
     let result: unknown;
+    let sandboxPrinted = false;
     switch (command) {
+      case "sandbox": {
+        ({ result, printed: sandboxPrinted } = await runSandboxCommand({ client, config, cardId, tokenProvider, args, jsonOutput, profile }));
+        break;
+      }
       case 'setup': {
         const { setupStatus } = await import('./setup.js');
         const checks = await setupStatus(client, args.includes('--verify-mcp') ? async selectedCardId => {
@@ -585,11 +641,12 @@ try {
       }
       default: throw new Error(unknownCommand(program, command ?? ''));
     }
-    print(result, args.includes('--detailed'));
+    if (!sandboxPrinted) print(result, args.includes('--detailed'));
   }
 } catch (error) {
   // Provider and transport errors may contain credentials. Never echo raw bodies.
-  if (error instanceof ReportSubmissionError) {
+  if (error instanceof SandboxRequestError) { const cause = error.cause; printError(JSON.stringify({ error: "SANDBOX_REQUEST_FAILED", requestId: error.requestId, message: cause instanceof ToolClientError ? sandboxHttpError(cause) : error.message }));
+  } else if (error instanceof ReportSubmissionError) {
     // Preserve locally generated recovery paths; token-pattern redaction can corrupt valid directory names.
     const details = JSON.stringify({ ...error.details, message: redactError(error.message) });
     const key = process.env.O11_API_KEY;
@@ -654,3 +711,4 @@ function redactError(message: string) {
   const redacted = key ? message.replaceAll(key, '[redacted]') : message;
   return redacted.replace(/o11_[A-Za-z0-9_-]+/g, '[redacted]');
 }
+

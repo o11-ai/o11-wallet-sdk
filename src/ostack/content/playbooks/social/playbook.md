@@ -20,8 +20,9 @@ platform for the day at the first warning.
 
 Public engagement only: no direct messages, connection requests or posts of its own, and never a pitch. The team shares
 its niche, comment style and limits; each person keeps their own accounts and voice examples. Runs need a browser the
-agent can drive (Claude in Chrome, or the agent's own browser) with the person signed in; passwords are never typed by
-the agent. LinkedIn is off by default, since it restricts accounts for automated activity most strictly; each person can
+agent can drive with the person signed in: on their hosted computer, its Chrome through the `browser` MCP (they sign in
+once through a link their agent sends); on their own computer, Claude in Chrome or the agent's own browser. Passwords
+are never typed by the agent. LinkedIn is off by default, since it restricts accounts for automated activity most strictly; each person can
 turn it on for their own account with `LinkedIn: on` in their `social/accounts.md`.
 
 **Run at your own risk.** Social growth acts on your own accounts through your browser, and X, LinkedIn and Instagram can warn, limit, restrict, suspend or permanently ban accounts for automated activity, at any time and under rules they change. You choose to run it and are responsible for following each platform's terms. o11 is not liable for any warning, rate limit, restriction, temporary or permanent ban, lost access, followers or content, or any other action a platform takes against your accounts. We recommend running it only after subscribing to each platform's paid plan (X Premium, LinkedIn Premium and Meta Verified for Instagram), since paid accounts are less likely to be restricted. A paid plan does not make automated activity allowed and guarantees nothing.

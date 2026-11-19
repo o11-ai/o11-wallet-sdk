@@ -4,4 +4,5 @@ export { VERSION } from "./lib/version.js";
 export type {
   Answer, FileScope, PlaybookRemote, PlaybookValues, RemoteFile, RemoteFileVersion, RemoteSettings, RemoteSetup, SettingsPatch, TemplateCounts,
   RemoteVideo, RemoteVideoDetail, RemoteVideoFile, RemoteVideoVersion, VideoFileInput, VideoFileRole, VideoRemote,
+  HostCommandResult, HostedMachine, HostProvider, HostRemote,
 } from "./lib/remote.js";

@@ -191,3 +191,11 @@ export function isDue(spec: ScheduleSpec, timeZone: string, date: Date): boolean
   const local = localTime(date, timeZone);
   return spec.some((slot) => slotDue(slot, local.day, local.minutes));
 }
+
+/**
+ * Five-field cron lines in `machine`'s clock for a schedule kept in `timeZone`, for crons that ignore CRON_TZ
+ * (Debian's). The offset is today's, so a reinstall after a daylight-saving change moves the lines with it.
+ */
+export function machineCron(spec: ScheduleSpec, timeZone: string, machine: string, date: Date): string[] {
+  return toCron(timeZone === machine ? spec : shiftSchedule(spec, zoneOffset(timeZone, machine, date)));
+}

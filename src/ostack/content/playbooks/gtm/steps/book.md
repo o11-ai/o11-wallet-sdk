@@ -4,7 +4,7 @@ used_by: [follow-ups]
 changed: 0.9.2
 change: Meetings go on the calendar named in the user's files, reached however the files say (a connector, an MCP, the browser). Times are offered from it; a booking link only when the user asked for one. The lead gets the invite, then a one-line confirmation in the thread.
 ---
-Book only on the calendar the user's files name (the calendar setup question): its account, which calendar, and how to reach it, whether a connected tool, an MCP, the browser or anything else. Before the first booking in a run, confirm you can reach it as that account. If no calendar is named or you cannot reach it, ask the user when they are present; otherwise hand the reply off (the handoff step) and say why in the report. Never book on some other calendar you happen to have access to.
+Book only on the calendar the user's files name (the calendar setup question): its account, which calendar, and how to reach it, whether a connected tool, an MCP, the browser or anything else. Before the first booking in a run, confirm you can reach it as that account. If no calendar is named or you cannot reach it, ask the user when they are present; otherwise hand the reply off (the handoff step), record a need (`--kind connect`, as the send step's "When the tool isn't there" says) and say why in the report. Never book on some other calendar you happen to have access to.
 
 When someone agrees to talk:
 - Offer two or three concrete open slots from that calendar, written as local times with the timezone (the workspace timezone; the lead's local time too when you know it). Use the meeting length from the user's files, or 30 minutes.

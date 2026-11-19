@@ -72,6 +72,44 @@ export interface PlaybookRemote {
   reportInstall?(input: InstallReport): Promise<void>;
   /** The workspace's videos. Absent on wallet CLIs older than videos in o11. */
   videos?: VideoRemote;
+  /** This person's hosted ostack computer, through o11 sandboxes. Absent on wallet CLIs without sandboxes. */
+  host?: HostRemote;
+}
+
+/** The person's own always-on Linux computer with a desktop, where their ostack runs. */
+/** Where the computer runs. Both keep running until the person stops it or their credits run out. */
+export type HostProvider = "boat" | "e2b";
+export type HostedMachine = { id: string; name: string; provider: string; state: string };
+export type HostCommandResult = { exitCode: number | null; stdout: string; stderr: string };
+export interface HostRemote {
+  /** This person's computer by name: created when missing (paid from their o11 credits), resumed when it stopped, replaced when o11 can't resume it. */
+  ensure(input: { name: string; size: string; provider?: HostProvider }): Promise<{
+    machine: HostedMachine; created: boolean; resumed: boolean; replaced: boolean;
+    /** What the computer came with after o11 prepared it (o11 and ostack versions, coding agents, Chrome, cron); absent on older CLIs. */
+    prepared?: unknown;
+    /** Providers that refused before the one it runs on (e.g. Boat's trial), for the agent's own notes. */
+    fallback?: unknown[];
+  }>;
+  /** The live computer of that name (on any provider, E2B first, unless one is given), else a stopped one. */
+  find(name: string, provider?: HostProvider): Promise<HostedMachine | null>;
+  /** The coding agents running this command (claude, codex, ...), as sign-in detects them. Absent on older CLIs. */
+  orchestrator?(): Promise<string[]>;
+  /** Whether an agent on the computer has a sign-in that lasts (no `needs_person` left). Absent on older CLIs. */
+  longLived?(id: string, agent: string): Promise<boolean>;
+  /**
+   * Signs the computer in to o11 with its own key and its coding agents with this person's logins (the named agents,
+   * or the orchestrator's own when `agents` is undefined). With `approve`, an agent with no long-lived login starts its
+   * own sign-in there and returns `needs_person`: a link, plus a code to enter there or one to paste back as `code`.
+   */
+  signIn(id: string, input: { o11: boolean; agents?: string[]; claudeTokenFile?: string; approve?: boolean; renew?: boolean; code?: string }): Promise<unknown[]>;
+  run(id: string, command: string, timeoutMs?: number): Promise<HostCommandResult>;
+  /**
+   * Puts a fresh o11 proxy key on the computer for each agent signed in through o11's proxy, when o11 reissued it (a
+   * resume does). Returns the agents it changed. Absent on older CLIs.
+   */
+  refreshProxyLogins?(id: string): Promise<unknown[]>;
+  /** A one-use link to the computer's desktop (or its browser alone) for the signed-in owner. */
+  link(id: string, view: "desktop" | "browser"): Promise<{ url: string; expiresAt?: string }>;
 }
 
 export type VideoFormat = "product-demo" | "irl" | "reel";
