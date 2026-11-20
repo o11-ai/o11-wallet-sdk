@@ -1,13 +1,19 @@
 # Changelog
 
-## Unreleased
+## 0.1.56
 
 **New**
 - `o11 sandbox create` and `get-or-create` prepare each new sandbox: the o11 server's current o11 CLI with ostack, the Claude Code, Codex, Cursor Agent, Gemini and OpenCode CLIs at their latest releases, Chrome and a running cron. A CLI older than its latest release is upgraded; the output lists each version against the latest. `--no-prepare` skips it. An E2B sandbox now starts from E2B's `desktop` template unless you name a template (`--template base` for the bare image).
 - `o11 ostack host setup` prepares the computer the same way, installs the ostack skills for both Claude Code and Codex, and reports what the computer has and how long setup took.
 
+**Changed**
+- The CLI records which command ran, its flag names (never values), exit code, duration, error type and the request IDs it got, plus login attempts and their outcome. Events are queued locally and sent by a background process to the wallet the command used, so no command waits on them. `DO_NOT_TRACK=1` or `O11_TELEMETRY=0` turns this off, including the install ID header.
+- Sandboxes run on E2B only for now. Boat and Vercel are turned off: o11 refuses new work on them in plain words, `o11 sandbox providers` lists them as turned off, and `o11 ostack host setup` no longer falls back to Boat. Existing Boat and Vercel sandboxes can still be listed, stopped and deleted.
+
 **Fixed**
 - A sandbox's o11 now comes from the o11 server that made it, and an older o11 there is upgraded. Before, it came from go.o11.ai and was never upgraded.
+- `o11 login --key-stdin` names the flag it refuses and why: `--client`, `--name` and other browser sign-in flags are not used with a supplied key. `login --help` says `--key-stdin` takes only `--server` and `--card`. The flags are still checked before stdin is read.
+- `install.sh` no longer adds a PATH line to your shell profile when `o11` already reaches the installed program through a symlink.
 
 ## 0.1.55
 

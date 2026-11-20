@@ -24,8 +24,16 @@ export const executionFailureSchema = z.object({
   retryable: z.boolean().optional(),
 });
 export type ExecutionFailure = z.infer<typeof executionFailureSchema>;
-/** The longest get_invocation wait one request can hold (MCP and HTTP `waitSeconds`). */
+/**
+ * The get_invocation wait a pending receipt advertises (`wait.waitSeconds`). Installed CLIs parse receipts with this
+ * maximum, so it stays 25 even though a request may hold longer (maxInvocationHoldSeconds).
+ */
 export const maxInvocationWaitSeconds = 25;
+/**
+ * The longest get_invocation `waitSeconds` one request can hold (MCP and HTTP), also the MCP `call` wait. It stays
+ * under the 60 s default request timeout of MCP SDK clients, which receive one JSON response and no progress.
+ */
+export const maxInvocationHoldSeconds = 45;
 export const invocationLifecycleSchema = z.object({
   polling: z.object({ recommendedAfterMs: z.number().int().nonnegative() }).optional(),
   /** Pending calls: wait in get_invocation instead of polling on a timer; repeat only while still pending. */

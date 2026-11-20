@@ -1,9 +1,5 @@
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-
 /**
- * The hosted computer's Chrome: one profile where the person signs in to sites through `o11 ostack host open`, and
+ * Chrome on the person's Ostack sandbox: one profile where the person signs in to sites on the sandbox's desktop, and
  * that scheduled runs drive through a browser MCP. Chrome never opens a DevTools port: the MCP starts Chrome itself and
  * speaks to it over a pipe, so nothing on the network, E2B's public port forwarding included, can reach DevTools. The
  * profile lives on disk with a fixed cookie key (--password-store=basic), so sign-ins outlast a Chrome restart and an
@@ -14,10 +10,9 @@ import { join } from "node:path";
 export const BROWSER_MCP = "browser";
 const MCP_PACKAGE = "chrome-devtools-mcp";
 const MCP_VERSION = "1.13.0";
-export const BROWSER_LAUNCHER = "$HOME/.local/bin/ostack-browser";
-
-/** The launcher on the hosted computer, so scheduled runs know to use the browser MCP. */
-export const hasHostBrowser = () => existsSync(join(homedir(), ".local", "bin", "ostack-browser"));
+/** The launcher, relative to the home folder. */
+export const BROWSER_LAUNCHER_PATH = ".local/bin/ostack-browser";
+export const BROWSER_LAUNCHER = `$HOME/${BROWSER_LAUNCHER_PATH}`;
 
 /**
  * `ostack-browser start [url]`: shows the page in the profile's Chrome on the desktop. When Chrome is not running it
@@ -29,7 +24,7 @@ export const hasHostBrowser = () => existsSync(join(homedir(), ".local", "bin", 
  * tabs. `ostack-browser stop`: quits Chrome so it saves its cookies.
  */
 const LAUNCHER = String.raw`#!/bin/bash
-# Written by o11 ostack host. Chrome for the person's sign-ins and the scheduled runs' browser MCP.
+# Written by ostack sandbox setup. Chrome for the person's sign-ins and the scheduled runs' browser MCP.
 set -u
 SELF="$HOME/.local/bin/ostack-browser"
 PROFILE="$HOME/.local/share/o11/ostack-chrome"
@@ -164,7 +159,7 @@ open(p, "w").write((text + "\n\n" if text else "") + block)`;
 export const CODEX_STEP = `python3 -I - <<'PY' || echo "Codex browser MCP not registered" >&2\n${CODEX_CONFIG}\nPY`;
 
 /**
- * Shell for the hosted computer: writes the launcher, installs the MCP once per version, and registers it with
+ * Shell for the sandbox: writes the launcher, installs the MCP once per version, and registers it with
  * Claude Code (user scope) and Codex. Safe to repeat. Under `set -e` too, a failed step only prints why.
  */
 export function browserSetupScript(): string {
@@ -184,5 +179,5 @@ export function browserSetupScript(): string {
   ].join("\n");
 }
 
-/** Opens a page in the hosted computer's Chrome, on the desktop the person's link shows. */
+/** Opens a page in the sandbox's Chrome, on the desktop the person's link shows. */
 export const browserOpenScript = (quotedUrl: string) => `${BROWSER_LAUNCHER} start ${quotedUrl}`;

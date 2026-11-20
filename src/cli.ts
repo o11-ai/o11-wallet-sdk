@@ -15,7 +15,9 @@ import { readFile, open, readlink, realpath, unlink } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { version } from '../package.json';
-import { browserLogin, keyStdinOptions } from './browser-login.js';
+import { browserLogin, keyStdinOptions, manualBrowserLogin } from './browser-login.js';
+import { profileKind, startCliTelemetry } from './cli-telemetry.js';
+import { LoginFailedError } from './login-errors.js';
 import { managementOperationSchemas } from './contracts/agent-permissions.js';
 import { searchArguments } from './cli-search.js';
 import { invocationHistoryInputSchema, invocationShortIdSchema } from './contracts/invocation-lifecycle.js';
@@ -359,6 +361,8 @@ function print(value: unknown, detailed = false) { console.log(JSON.stringify(va
 
 // Anonymous install count, once per version; it runs beside the command and never prints or fails it (cli-install.ts).
 const installReport = import('./cli-install.js').then(({ reportInstall }) => reportInstall(version)).catch(() => undefined);
+// Usage events (cli-telemetry.ts): spooled at exit, posted beside the next command, off with DO_NOT_TRACK=1 or O11_TELEMETRY=0.
+const telemetry = startCliTelemetry(version, process.argv.slice(2), isWalletCommand);
 try {
   const values = process.argv.slice(2);
   const selected: string[] = [];
@@ -387,6 +391,7 @@ try {
   const jsonOutput = beforeArgs.includes('-j') || beforeArgs.includes('--json');
   args = [...beforeArgs.filter(value => value !== '-j' && value !== '--json'), ...(delimiterAt < 0 ? [] : args.slice(delimiterAt))];
   if (command === 'wallet') [command, ...args] = args;
+  telemetry.command(command, args);
   if (command !== "mcp") runId ??= process.env.O11_RUN_ID;
   if (command !== 'login') {
     const position = (args.includes('--') ? args.slice(0, args.indexOf('--')) : args).indexOf('--card');
@@ -406,6 +411,7 @@ try {
   const ownArgs = args.includes('--') ? args.slice(0, args.indexOf('--')) : args;
   const help = command !== 'ostack' && (rootHelp || ownArgs.includes('--help') || ownArgs.includes('-h'));
   if (!help) validateArguments();
+  telemetry.running();
   let cliUpdate: import('./cli-update.js').CliUpdateCheck | undefined;
   if (!help && !['--version', 'version', 'keys', 'generate_session_id', 'session-id', 'update', 'login', 'logout'].includes(command!)) {
     profile ??= process.env.O11_TOOLS_PROFILE ?? (process.env.O11_TOOLS_URL || process.env.O11_API_KEY || process.env.O11_CLI_DEFAULT_PROFILE ? undefined : await activeKeyProfile());
@@ -417,7 +423,9 @@ try {
       const original = process.argv.slice(2), selectedProfile = profile && !profileFlag ? ['--profile', profile] : [];
       const child = Bun.spawn([...update.invocation, ...selectedProfile, ...original], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit',
         env: { ...process.env, O11_CLI_UPDATE_REEXEC: update.check.latestVersion ?? 'unknown', ...(!profile ? { O11_CLI_DEFAULT_PROFILE: '1' } : {}) } });
-      process.exit(await child.exited);
+      const code = await child.exited;
+      telemetry.autoUpdate();
+      process.exit(code);
     }
   }
   if (help) {
@@ -436,7 +444,7 @@ try {
     const { checkCliUpdate, updateCli } = await import('./cli-update.js');
     print(await (args.includes('--check') ? checkCliUpdate(config.baseUrl) : updateCli(config.baseUrl)));
   } else if ((command === 'login' || command === 'logout') && (args[0] === 'claude' || args[0] === 'codex')) {
-    // A Claude or ChatGPT login kept by o11 for every sandbox and hosted computer (cli-ai-login.ts).
+    // A Claude or ChatGPT login kept by o11 for every sandbox (cli-ai-login.ts).
     profile ??= process.env.O11_TOOLS_PROFILE ?? (process.env.O11_TOOLS_URL || process.env.O11_API_KEY || process.env.O11_CLI_DEFAULT_PROFILE ? undefined : await activeKeyProfile());
     const config = await readConfig(profile);
     const client = new ToolClient({ ...config, tokenProvider: profileTokenProvider(profile, config) });
@@ -468,28 +476,32 @@ try {
     const { serveMcp } = await import('./mcp.js');
     await serveMcp(profile);
   } else if (command === 'login') {
+    telemetry.loginStarted(args.includes('--key-stdin') ? 'key_stdin' : manualBrowserLogin(args.includes('--no-browser')) ? 'no_browser' : 'browser');
     if (!args.includes('--key-stdin')) {
-      const connected = await browserLogin(args, profile);
+      const connected = await browserLogin(args, profile, { auth: auth => telemetry.loginAuth(auth) });
       if (!connected.profile && !profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
-      if (!('reused' in connected)) {
-        const saved = await readConfig(connected.profile ?? profile, { refresh: false }).catch(() => undefined);
-        if (saved) await (await import('./cli-install.js')).linkInstall(saved.baseUrl, saved.apiKey);
-      }
+      // A reused login links too, once per profile and install (cli-install.ts), so earlier installs join the account.
+      const saved = await readConfig(connected.profile ?? profile, { refresh: false }).catch(() => undefined);
+      if (saved) telemetry.wallet(saved.baseUrl);
+      if (saved) await (await import('./cli-install.js')).linkInstall(saved.baseUrl, saved.apiKey, { profile: connected.profile ?? profile, reused: 'reused' in connected });
+      telemetry.loginCompleted('reused' in connected);
       print(connected);
     } else {
       const { origin, cardId: selectedCard } = keyStdinOptions(args);
       const config = { baseUrl: origin, apiKey: (await Bun.stdin.text()).trim() };
+      telemetry.wallet(origin);
       const client = new ToolClient(config);
       let page = await client.cards();
       if (selectedCard) {
         while (!page.items.some(card => card.id === selectedCard)) {
-          if (!page.cursor) throw new Error(`This key cannot use card ${selectedCard}. Nothing was saved.`);
+          if (!page.cursor) throw new LoginFailedError('card_not_found', `This key cannot use card ${selectedCard}. Nothing was saved.`);
           page = await client.cards(page.cursor);
         }
       }
       await saveConfig(config, profile);
       if (!profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
-      await (await import('./cli-install.js')).linkInstall(config.baseUrl, config.apiKey);
+      await (await import('./cli-install.js')).linkInstall(config.baseUrl, config.apiKey, { profile });
+      telemetry.loginCompleted(false);
       print({ connected: true, server: new URL(config.baseUrl).origin });
     }
   } else {
@@ -497,6 +509,7 @@ try {
     const config = await readConfig(profile);
     const tokenProvider = profileTokenProvider(profile, config);
     const client = new ToolClient({ ...config, cardId, runId, tokenProvider });
+    telemetry.profile(profileKind(profile, config)); telemetry.wallet(config.baseUrl); telemetry.run(client.runId);
     // Agents copy nextCommand verbatim; the plain command name works wherever o11 is this CLI.
     const executionContext = { profile, cardId, runId: client.runId, runIdSupplied: Boolean(runId), invocation: namedInvocation ?? recoveryInvocation };
     let result: unknown;
@@ -644,6 +657,7 @@ try {
     if (!sandboxPrinted) print(result, args.includes('--detailed'));
   }
 } catch (error) {
+  telemetry.failed(error); telemetry.loginFailed(error);
   // Provider and transport errors may contain credentials. Never echo raw bodies.
   if (error instanceof SandboxRequestError) { const cause = error.cause; printError(JSON.stringify({ error: "SANDBOX_REQUEST_FAILED", requestId: error.requestId, message: cause instanceof ToolClientError ? sandboxHttpError(cause) : error.message }));
   } else if (error instanceof ReportSubmissionError) {

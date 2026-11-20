@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { tokenRequest, walletOrigin } from "./access-tokens.js";
 import { serializedTokenProvider, TokenNotRenewableError, type AccessTokenProvider } from "./token-provider.js";
+import { NotLoggedInError } from "./login-errors.js";
 
 const schema = z.object({ baseUrl: z.url(), apiKey: z.string().startsWith("o11_"), resource: z.url().optional(), refreshToken: z.string().min(40).optional(), expiresAt: z.number().int().positive().optional(), refreshState: z.enum(["uncertain", "ended"]).optional(),
   /** A partner key acts for this customer (X-Customer). Read from O11_CUSTOMER with an environment key; never saved. */
@@ -32,7 +33,7 @@ export async function readConfig(profile?: string, options: { refresh?: boolean 
     return schema.parse({ baseUrl: process.env.O11_TOOLS_URL, apiKey: process.env.O11_API_KEY, customer: process.env.O11_CUSTOMER || undefined });
   const file = path(profile);
   const stat = await regularFile(file);
-  if (!stat) throw new Error("Run o11 login --server URL, or set O11_TOOLS_URL and O11_API_KEY");
+  if (!stat) throw new NotLoggedInError("Run o11 login --server URL, or set O11_TOOLS_URL and O11_API_KEY");
   if (process.platform !== "win32" && (stat.mode & 0o077) !== 0)
     throw new Error("The saved wallet key must be owner-only. Set access.json permissions to 600 before continuing");
   const saved = schema.parse(JSON.parse(await readFile(file, "utf8")));

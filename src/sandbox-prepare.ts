@@ -1,6 +1,6 @@
 import type { SandboxInput, SandboxResult } from './contracts/sandboxes.js';
 import { executeSandboxCommand, sandboxCommandOutput } from './sandbox-execution.js';
-import { o11InstallScript } from './sandbox-wallet-login.js';
+import { o11InstallScript } from './ostack/src/index.js';
 
 /**
  * Makes a new sandbox ready for an agent to work in, through o11's own exec: the wallet's current o11 CLI (with

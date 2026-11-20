@@ -1,12 +1,13 @@
 import { resolve } from "node:path";
 import { optional, parseArgs, type Args } from "./lib/args.js";
 import { OstackError } from "./lib/errors.js";
-import { printError, printText } from "./lib/output.js";
-import { useRemote, type PlaybookRemote } from "./lib/remote.js";
+import { print, printError, printText } from "./lib/output.js";
+import { remote, useRemote, type PlaybookRemote } from "./lib/remote.js";
+import { sandboxSetupSteps } from "./lib/sandbox-setup.js";
+import { sandboxSetupForCli } from "./lib/sandbox-setup-cli.js";
 import { VERSION } from "./lib/version.js";
 import { contextCommand, settingsCommand, stepsCommand } from "./commands/customize.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { hostCommand } from "./commands/host.js";
 import { filesCommand } from "./commands/files.js";
 import { runCommand } from "./commands/run.js";
 import { scheduleCommand } from "./commands/schedule.js";
@@ -27,21 +28,13 @@ Install and workspace
                                                (default: this folder; ~/ostack when run from your home folder)
   playbooks list | add <id> | remove <id>      which playbooks (families of workflows) this folder runs
   doctor                                       check sign-in, skills, folder, setup and schedules
-
-Hosted computer (an always-on Linux desktop in o11, paid from your o11 credits, where ostack and its schedules run)
-  host setup [--name <name>] [--size small|default|large] [--login claude,codex|none] [--claude-token-file <path>]
-                                               create or resume it, sign it in to o11 and your coding agent (default: the one running it), install ostack
-                                               o11 picks where it runs; pass --provider e2b|boat only when the person asks
-  host signin [--name <name>] [--login claude,codex|none] [--code <code>] [--renew]   renew its sign-ins, or finish one with the code the person pasted
-  host schedule [--name <name>] [--agent claude|codex] [--force]   run the workflows' schedules on it (cron), and stop them on this computer
-  host open [<https url>] [--name <name>] [--browser]   open a page there; prints a one-use link to its screen
-  host status [--name <name>]                 whether it is up, and ask_person: what its setup and runs need from the person
-  host run --command <shell> [--name <name>]
-  host check --prompt <check> [--name <name>] [--agent claude|codex]   run a setup check there the way scheduled runs start the agent
+  sandbox-setup [--agent claude|codex]         the o11 sandbox commands that set ostack up on your o11 sandbox, in order,
+                                               so its schedules run while you are away (--agent: the agent that runs them)
 
 Customization
   context [<step>|<file>] [--playbook <id>] [--audience <name>] [--files]   what to know before a run (--files: file names only),
-                                               or one step's default plus every customization of it
+                                               or one step's default plus every customization of it.
+                                               With several playbooks and no --playbook: what each has customized
   steps [--playbook <id>]                      the named steps customizations attach to, such as gtm/write
   files list | show <path> [--me] | show --version <id> | export [--dir <folder>]
   files write <path> [--me] --text <text>|--text-file <path|-> [--base-version <n>]
@@ -50,7 +43,6 @@ Customization
                                                to an existing file names the version you read, so nobody's edit is overwritten.
                                                Every save keeps a version id; CRM records store it as o11_template
   settings show | settings set <key> <value> [--me] | settings unset <key> --me
-  settings set host local|hosted --me          where your ostack runs: your own computer, or the hosted one (the default)
                                                timezone, sender_email, lead_assignment, or a playbook's own, such as gtm.send_mode
                                                (see "o11 ostack gtm help")
   setup status [--playbook <id>] | answer <question> [--skip] | reviewed | reset [--question <id>] | import [--dry-run]
@@ -64,7 +56,7 @@ Schedules (in the team's timezone, or yours with settings set timezone --me)
   schedule spec <workflow> [--audience <name>] --host claude|codex|cron   exactly what to create in that scheduler
   schedule installed|uninstalled <workflow> [--audience <name>] --host claude|codex|cron [--name <task name>]
   schedule cron show|install|remove [--agent claude|codex] [--refresh]   for agents without a scheduler
-                                               (--refresh: reinstall every 15 minutes, as the hosted computer does)
+                                               (--refresh: reinstall every 15 minutes, as an Ostack sandbox does)
   prompt <workflow> [--audience <name>]        the instruction a scheduled run follows
   run start <workflow> [--audience <name>] [--scheduled]
   run end <workflow> [--audience <name>] [--summary <text>] [--counts <name=n,...>] [--template-counts <json>]
@@ -72,13 +64,13 @@ Schedules (in the team's timezone, or yours with settings set timezone --me)
                                                fired outside its schedule. Runs show up for the team on the wallet's Ostack page
   run need <workflow> [--audience <name>] --kind sign_in|connect|question|choice --ask <text> [--url <https>] [--question <id>]
                                                an unattended run records what needs the person instead of asking, and carries
-                                               on; host status relays it, and the workflow's next run replaces it
+                                               on; the person's agent relays it, and the workflow's next run replaces it
 
 Playbook commands: o11 ostack <playbook> <command>, such as "o11 ostack gtm help" or "o11 ostack launch-videos help".
 
 Global: --workspace <path> (or OSTACK_WORKSPACE). All commands print JSON.`;
 
-const COMMANDS: Record<string, (args: Args) => Promise<void>> = {
+export const COMMANDS: Record<string, (args: Args) => Promise<void>> = {
   init: initCommand,
   playbooks: playbooksCommand,
   context: contextCommand,
@@ -92,7 +84,13 @@ const COMMANDS: Record<string, (args: Args) => Promise<void>> = {
   schedule: scheduleCommand,
   prompt: promptCommand,
   run: runCommand,
-  host: hostCommand,
+  // Reading the setup loads the saved sign-in, so origin is the wallet's address (and an unsigned CLI says so).
+  "sandbox-setup": async (args) => {
+    const agent = optional(args, "agent");
+    if (agent !== undefined && agent !== "claude" && agent !== "codex") throw new OstackError("invalid_flag", "Use --agent claude or --agent codex.");
+    await remote().setup();
+    print(sandboxSetupForCli(sandboxSetupSteps(remote().origin, agent)));
+  },
 };
 
 /** Names from 0.7 and older, so scheduled tasks and agents with old instructions keep working. */

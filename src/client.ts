@@ -27,6 +27,7 @@ export { ToolCallError, ToolClientError, TopUpRequestError } from "./client-erro
 import { serializedTokenProvider, TokenNotRenewableError, type AccessTokenProvider } from "./token-provider.js";
 import { sandboxRelayDownload } from "./client-sandbox-download.js";
 import { lostSubmission, streamToolCall, type StreamToolOptions } from "./call-streamed.js";
+import { noteWalletResponse, telemetryHeaders } from "./cli-telemetry-context.js";
 export { streamCall, CallStreamError, type CallStreamEvent, type CallStreamOptions } from "./call-stream.js";
 export { serializedTokenProvider, type AccessTokenProvider } from "./token-provider.js";
 import {
@@ -113,6 +114,8 @@ export class ToolClient {
     const body = JSON.stringify(operation === "cards" ? input : { ...(input as Record<string, unknown>), ...(this.options.cardId ? { cardId: this.options.cardId } : {}) });
     let token = this.tokenProvider ? await this.tokenProvider.getAccessToken() : this.options.apiKey!;
     if (!token || /[\r\n]/.test(token)) throw new Error("The wallet token provider returned an invalid token");
+    // The CLI's install ID when its usage telemetry is on (cli-telemetry-context.ts); empty for library use.
+    const tracking = telemetryHeaders();
     const send = () => (this.options.fetch ?? fetch)(
       new URL(`/v1/${operation}`, this.baseUrl),
       {
@@ -126,6 +129,7 @@ export class ToolClient {
           "x-o11-call-id": clientCallId,
           // The wallet refuses a client older than it serves with update steps (tool-contracts cli-version.ts).
           [cliVersionHeader]: sdkVersion,
+          ...tracking,
           ...(this.options.customer ? { "X-Customer": this.options.customer } : {}),
           ...extraHeaders,
         },
@@ -145,6 +149,8 @@ export class ToolClient {
         response = await send();
       }
     }
+    const requestId = response.headers.get("x-request-id");
+    noteWalletResponse(response.status, requestId, clientCallId);
     let result: unknown;
     try {
       result = await response.json();
@@ -152,7 +158,8 @@ export class ToolClient {
       if (response.ok) throw new Error("The wallet returned invalid JSON");
       result = { error: "INVALID_RESPONSE" };
     }
-    if (!response.ok) throw new ToolClientError(response.status, result, retryAfterMilliseconds(response.headers.get("retry-after")));
+    if (!response.ok) throw new ToolClientError(response.status, result, retryAfterMilliseconds(response.headers.get("retry-after")),
+      { requestId: requestId ?? undefined, callId: clientCallId });
     return result;
   }
   withCard(cardId: string) { return new ToolClient({ ...this.options, runId: this.runId, ...(this.tokenProvider ? { tokenProvider: this.tokenProvider } : {}), cardId: z.uuid().parse(cardId) }); }

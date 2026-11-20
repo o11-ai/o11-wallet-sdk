@@ -50,6 +50,9 @@ export const sandboxUsage = `o11 sandbox <command> [NAME|ID] [options]
                                   VS Code and Cursor Remote-SSH. --install adds it, --uninstall removes it
   ssh-key NAME --rotate           Replace this computer's key for the sandbox. Private keys stay here
   login NAME [--login o11,claude,codex,cursor,gemini,opencode,copilot,amp,goose] [--approve] [--renew] [--code CODE]   Sign the sandbox in to o11 and your coding agents
+  o11-key NAME --path PATH        Write an o11 key for this sandbox alone to PATH (ending in /.o11-login/o11-key) for its own o11
+  ai-login-status|ai-login-save|ai-login-delete --provider claude|codex [--from-sandbox NAME]   The Claude or ChatGPT login o11 keeps for you (o11 login claude|codex).
+                                  --from-sandbox saves one made on your own sandbox (ostack sandbox-setup) and deletes it there
   files read|write|list|info|stat|mkdir|delete NAME --path PATH [--content TEXT]
   files move NAME --source PATH --destination PATH [--overwrite]   (--path and --to also work)
   files search NAME --path DIR --pattern GLOB               Boat: file names, like '*.py'
@@ -85,10 +88,12 @@ export const sandboxUsage = `o11 sandbox <command> [NAME|ID] [options]
   sizes [--provider P] [--size S | --cpus N --memory-gb M] [--ttl S]   Every shape, its price and limits,
                                   and which provider o11 picks for a size. No provider has GPUs
   capabilities [--provider P] [--matrix]   What o11 runs on each provider. --matrix compares all three
-  agents NAME | agent exec NAME --agent claude|codex -- ARGS...
-  logs|processes NAME             Inspect work
+  agents|agents-status NAME       Whether Claude Code and Codex are installed and signed in
+  agent exec NAME --agent claude|codex -- ARGS...
+  logs NAME --command-id ID       A command's output. processes NAME lists running commands
+  command-status NAME --command-id ID   A command's state and exit code (E2B, Boat, Vercel)
   history NAME [--q TEXT] [--mode commands]   Boat: past commands
-  command-status|command-logs|get-command NAME --command-id ID   Boat: one command's state and output
+  command-logs|get-command NAME --command-id ID   Boat: one command's state and output
   Boat agent runs (Boat's own harness; o11 signs Codex in with --login codex):
     prompt NAME "TEXT" --agent codex|claude|... [--model M] [--reasoning-effort L] [--fast] [--new]
     prompt-status NAME --prompt-id ID | events|conversations NAME | steer NAME "TEXT" | interrupt NAME

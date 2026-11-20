@@ -1,4 +1,4 @@
-import { defaultSandboxProvider, type SandboxProvider } from './contracts/sandboxes.js';
+import { defaultSandboxProvider, sandboxProviderEnabled, type SandboxProvider } from './contracts/sandboxes.js';
 
 type ProviderInfo = { id: SandboxProvider; name: string; default: boolean; summary: string; useWhen: string; docs: string };
 const providers: Omit<ProviderInfo, 'default'>[] = [
@@ -15,12 +15,15 @@ const providers: Omit<ProviderInfo, 'default'>[] = [
 
 /** o11 sandbox providers: answered locally, no request. */
 export function sandboxProviders() {
-  return { default: defaultSandboxProvider, providers: providers.map(row => ({ ...row, default: row.id === defaultSandboxProvider })),
-    next: ['o11 sandbox create --name NAME', 'o11 sandbox create --provider boat --name NAME', 'o11 sandbox capabilities --matrix'] };
+  const on = providers.filter(row => sandboxProviderEnabled(row.id)), off = providers.filter(row => !sandboxProviderEnabled(row.id));
+  return { default: defaultSandboxProvider, providers: on.map(row => ({ ...row, default: row.id === defaultSandboxProvider })),
+    ...(off.length ? { turnedOff: off.map(row => ({ id: row.id, name: row.name })) } : {}),
+    next: ['o11 sandbox create --name NAME', 'o11 sandbox capabilities --matrix'] };
 }
 export function sandboxProvidersText() {
   const value = sandboxProviders();
   return [...value.providers.flatMap(row => [`${row.name} (${row.id})${row.default ? ', the default' : ''}`, `  ${row.summary}`, `  Use it when: ${row.useWhen}`, '']),
+    ...(value.turnedOff?.length ? [`Turned off on o11 for now: ${value.turnedOff.map(row => row.name).join(', ')}.`] : []),
     `Pick one with --provider ${value.providers.map(row => row.id).join('|')}. Without it, o11 uses ${value.default}.`,
     'Compare every command: o11 sandbox capabilities --matrix'].join('\n');
 }

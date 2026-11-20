@@ -15,7 +15,7 @@ Since: 0.9.1
 Scope: personal
 Order: last
 Ask: Should your workflows run on their own? Show `o11 ostack schedule list`: each workflow with its suggested schedule (gtm's outbound at 8:00 on weekdays, sending first messages as it writes them, follow-ups from 6am to midnight, every 30 minutes on weekdays and hourly on weekends). Which should run, and when? Which app should run them: Claude Desktop, Codex, or neither (cron)?
-Infer: Turn on each workflow's suggested schedule in the app you are running in (Claude Desktop or Codex) when the user says go. Ask only where runs should happen when this app cannot create scheduled tasks.
+Infer: Turn on each workflow's suggested schedule in the app you are running in (Claude Desktop or Codex) when the user says go. Ask only where runs should happen when this app cannot create scheduled tasks. Don't ask which app when they run in the user's o11 sandbox: turn them on there as `ostack_read` `{ "read": "sandbox_setup" }` says (SKILL.md, "Scheduling").
 Default: The suggested schedules, turned on when the user says go to the setup preview.
 Writes: `o11 ostack schedule set <workflow> --at HH:MM` or `--every <minutes> --from HH:MM --to HH:MM`, or `o11 ostack schedule on <workflow>` to keep the suggestion. Add `--audience <name>` for each audience's outbound. Then create each task as described in SKILL.md ("Scheduling").
 Check: `o11 ostack schedule list` shows every chosen workflow as installed, each task's instructions start with `/goal`, and one test run (Run now) kept going to `o11 ostack run end` without stalling on a permission prompt. A task created before 0.9.1 has no `/goal`: recreate it from `o11 ostack schedule spec <workflow> --host <host>`.

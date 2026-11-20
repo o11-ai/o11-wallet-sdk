@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { OstackError } from "../lib/errors.js";
 import { WALLET_LAUNCHER_DIR, walletOnPath } from "../lib/o11-path.js";
 import { print } from "../lib/output.js";
+import { isRecord } from "../lib/paths.js";
 import { remote } from "../lib/remote.js";
+import { PROXY_KEY_PATH } from "../lib/sandbox-status.js";
 import { VERSION } from "../lib/version.js";
 import { enabledPlaybooks, loadWorkspace } from "../lib/workspace.js";
 import { effective, scheduleEntries, scheduleKey } from "./schedule.js";
@@ -35,6 +37,16 @@ async function loginCheck(): Promise<Check> {
     const offline = error instanceof OstackError && error.code === "offline";
     return { check: "login", status: offline ? "warn" : "fail", detail: message(error) };
   }
+}
+
+/** On an Ostack sandbox: whether the cron refresh's last stand-in key for o11's AI proxy was placed. A warning, since the agent login is checked from outside. */
+function agentLoginCheck(root: string): Check | null {
+  let saved: unknown;
+  try { saved = JSON.parse(readFileSync(join(root, PROXY_KEY_PATH), "utf8")); } catch { return null; }
+  if (!isRecord(saved) || typeof saved.result !== "string") return null;
+  const failed = saved.result === "failed";
+  return { check: "agent login", status: failed ? "warn" : "ok",
+    detail: `${failed ? "Signing the agent in through o11 failed; it needs signing in again" : `Signed in through o11 (${saved.result})`} at ${String(saved.at)}.` };
 }
 
 /** Checks the sign-in, the installed skills, this folder, the team's setup and schedules. */
@@ -78,6 +90,8 @@ export async function doctorCommand(): Promise<void> {
       detail: setup.cards.length > 0 ? setup.cards.map((card) => `${card.name} (${card.status})`).join(", ") : "No card for this login. Paid lookups need one; create it in the wallet.",
     });
     checks.push({ check: "workspace", status: "ok", detail: `${workspace.root} (playbooks: ${enabledPlaybooks(workspace).join(", ") || "none"})` });
+    const agentLogin = agentLoginCheck(workspace.root);
+    if (agentLogin) checks.push(agentLogin);
     const status = await setupStatus(workspace);
     const open = [
       status.pending_questions.length > 0 && `setup questions to ask: ${status.pending_questions.map((question) => question.id).join(", ")}`,

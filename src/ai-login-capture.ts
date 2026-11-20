@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs';
 import { chmod, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { credentialDirectory } from './config.js';
-import { jwtExpiry, record, text } from './sandbox-login-agent.js';
+import { aiLoginFromFile } from './contracts/sandboxes.js';
+import { record, text } from './sandbox-login-agent.js';
 
 /**
  * The sign-in behind `o11 login claude|codex`. A detached helper (this CLI with --serve) runs the agent's own login in
@@ -77,21 +78,11 @@ function keychainCredentials(home: string) {
 
 /** The login the agent saved in its own folder, once it has one. */
 export async function readCredentials(provider: AiProvider, home: string): Promise<Credentials | undefined> {
-  if (provider === 'codex') {
-    const tokens = record((await json(join(home, 'auth.json')))?.tokens);
-    const accessToken = text(tokens.access_token), refreshToken = text(tokens.refresh_token), accountId = text(tokens.account_id);
-    if (!accessToken || !refreshToken) return undefined;
-    const expiresAt = jwtExpiry(accessToken);
-    return expiresAt ? { accessToken, refreshToken, expiresAt, ...(accountId ? { accountId } : {}) } : undefined;
-  }
-  const saved = await json(join(home, '.credentials.json')) ?? keychainCredentials(home);
-  const oauth = record(saved?.claudeAiOauth);
-  const accessToken = text(oauth.accessToken), refreshToken = text(oauth.refreshToken);
-  if (!accessToken || !refreshToken || typeof oauth.expiresAt !== 'number') return undefined;
+  if (provider === 'codex') return aiLoginFromFile('codex', await json(join(home, 'auth.json')));
+  const login = aiLoginFromFile('claude', await json(join(home, '.credentials.json')) ?? keychainCredentials(home));
+  if (!login) return undefined;
   const accountId = text(record((await json(join(home, '.claude.json')))?.oauthAccount).accountUuid);
-  // The refresh asks for the granted scopes again, so they go to o11 with the login.
-  const scopes = Array.isArray(oauth.scopes) ? oauth.scopes.filter((scope): scope is string => typeof scope === 'string') : [];
-  return { accessToken, refreshToken, expiresAt: new Date(oauth.expiresAt).toISOString(), ...(accountId ? { accountId } : {}), ...(scopes.length ? { scopes } : {}) };
+  return { ...login, ...(accountId ? { accountId } : {}) };
 }
 
 async function alive(dir: string) {

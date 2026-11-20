@@ -1,6 +1,7 @@
 import { chmod, lstat, mkdir, open, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { credentialDirectory } from './config.js';
+import { LoginFailedError } from './login-errors.js';
 
 /** One device request and browser launch per profile, across processes. */
 export async function withLoginLock<T>(profile: string | undefined, action: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -18,7 +19,7 @@ export async function withLoginLock<T>(profile: string | undefined, action: (sig
     throw error;
   }
   const controller = new AbortController();
-  const cancel = () => controller.abort(new Error('Sign-in cancelled. Saved credentials were preserved.'));
+  const cancel = () => controller.abort(new LoginFailedError('cancelled', 'Sign-in cancelled. Saved credentials were preserved.'));
   process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
   try { return await action(controller.signal); }
   finally {

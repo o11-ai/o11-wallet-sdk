@@ -7,7 +7,7 @@ import { print } from "../lib/output.js";
 import { remote, requireOnline } from "../lib/remote.js";
 import { describeSchedule, parseSchedule, runsPerDay, scheduleRules, shiftSchedule, slotLabel, toCron, toRRule, withoutDays, withSlot, zoneOffset } from "../lib/schedule.js";
 import { parseDays } from "../lib/time.js";
-import { isHostedCron, writeState, type ScheduleState } from "../lib/state.js";
+import { writeState, type ScheduleState } from "../lib/state.js";
 import { effectiveSchedule, savedSchedule, scheduleAudience, type EffectiveSchedule } from "../lib/workflow-schedules.js";
 import { systemTimeZone } from "../lib/time.js";
 import { DEFAULT_AUDIENCE, enabledPlaybooks, loadWorkspace, type Workspace } from "../lib/workspace.js";
@@ -174,11 +174,9 @@ export async function scheduleCommand(args: Args): Promise<void> {
   }
   await writeState(workspace.root, workspace.state);
   const result = view(workspace, { workflow, audience });
-  const hosted = isHostedCron(workspace.state.schedules[scheduleKey(workflow, audience)]?.installed.cron);
-  const hosts = Object.keys(result.installed).filter((host) => !(hosted && host === "cron"));
+  const hosts = Object.keys(result.installed);
   const updates = [
     ...(hosts.length > 0 ? [`Also update the task in: ${hosts.join(", ")} (o11 ostack schedule spec ${workflow.ref}${audienceFlag(audience)} --host <host>).`] : []),
-    ...(hosted ? ["It runs on the hosted computer, which picks the change up within 15 minutes (o11 ostack host schedule applies it now)."] : []),
   ];
   print({ ...result, ...(updates.length > 0 && sub !== "installed" && sub !== "uninstalled" ? { update_hosts: updates.join(" ") } : {}) });
 }

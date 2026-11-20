@@ -61,7 +61,7 @@ const quickCommands = ['login', 'discover', 'inspect', 'quote', 'call', 'status'
 const hiddenCommands: readonly string[] = ['wallet', 'search', 'wait'];
 const inputFlags = '  --query KEY=VALUE, --path KEY=VALUE, --header "NAME: VALUE"\n  --credential-mode customer --connection ID, --max-cost-micros N';
 const details: Partial<Record<keyof typeof commands, string>> = {
-  login: `  ${optionalServer}\n  --auth email|browser, --no-browser, --key-stdin, --reauth\n  --client APP, --name NAME, --card ID, --email EMAIL, --task TEXT\n  login claude [--status|--no-browser|--wait|--code CODE] signs Claude in for every sandbox\n  login codex [--status|--wait] signs Codex in for every sandbox; logout claude|codex removes one`,
+  login: `  ${optionalServer}\n  --auth email|browser, --no-browser, --key-stdin, --reauth\n  --client APP, --name NAME, --card ID, --email EMAIL, --task TEXT\n  --key-stdin reads a setup key from stdin and takes only --server and --card\n  login claude [--status|--no-browser|--wait|--code CODE] signs Claude in for every sandbox\n  login codex [--status|--wait] signs Codex in for every sandbox; logout claude|codex removes one`,
   discover: `  --provider KEY, --cursor CURSOR, --limit N, --detailed\n  --providers lists provider keys for --provider.
   Compact results[] vs --detailed items[]: id and endpoint_id = id; usd_per_call = price.micros / 1000000
     (null for variable prices); price_text = price.priceText; name, provider and score match. works, samples, usable_rate, usable_samples

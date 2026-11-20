@@ -11,10 +11,16 @@ import { compareVersions, VERSION } from "./version.js";
  * whose default changed since `reviewed`, the release this person last reviewed, and files that need attention.
  * The CLI keeps `reviewed` in its folder; over MCP the wallet passes the current release, as content there is never old.
  */
+/** Questions answered by a setting alone: once the team's value is saved, the question has been covered. */
+const ANSWERED_BY_SETTING: Record<string, (settings: TeamView["setup"]["settings"]) => boolean> = {
+  timezone: ({ team }) => Boolean(team.timezone),
+};
+
 export async function setupProgress(view: TeamView, playbooks: string[], reviewed: string) {
   const { team, mine } = view.setup.settings;
   const unanswered = loadQuestions(playbooks)
     .filter((question) => !(question.scope === "team" ? team.setupAnswers : mine.setupAnswers)[question.id])
+    .filter((question) => !ANSWERED_BY_SETTING[question.id]?.(view.setup.settings))
     .map((question) => ({ ...question, new_since_setup: compareVersions(question.since, reviewed) > 0 }));
   const changed: { step: string; changed: string; change: string }[] = [];
   const unknown: { layer: string; path: string; step: string }[] = [];

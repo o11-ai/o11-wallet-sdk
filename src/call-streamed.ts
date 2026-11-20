@@ -4,6 +4,9 @@ import { ToolCallError, ToolClientError } from "./client-errors.js";
 import type { CallWaitOptions } from "./client.js";
 import { retryAfterMilliseconds } from "./invocation-wait.js";
 import { TokenNotRenewableError, type AccessTokenProvider } from "./token-provider.js";
+import { cliVersionHeader } from "./contracts/cli-version.js";
+import { version as sdkVersion } from "../package.json";
+import { telemetryHeaders } from "./cli-telemetry-context.js";
 
 /** The request may or may not have reached the wallet: the connection failed or this client's own deadline ended. */
 export function lostSubmission(error: unknown) {
@@ -80,6 +83,7 @@ export async function streamToolCall(client: ClientParts, body: unknown, idempot
     token = client.tokenProvider ? await client.tokenProvider.getAccessToken() : client.apiKey!;
     if (!token || /[\r\n]/.test(token)) throw new Error("The wallet token provider returned an invalid token");
     return { Authorization: `Bearer ${token}`, "x-o11-run-id": client.runId, "x-o11-call-id": crypto.randomUUID(),
+      [cliVersionHeader]: sdkVersion, ...telemetryHeaders(),
       "Idempotency-Key": idempotencyKey, ...(client.customer ? { "X-Customer": client.customer } : {}) };
   };
   const renew = async () => {

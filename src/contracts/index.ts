@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { supplierPriceReferenceSchema, type SupplierPriceReference } from "./supplier-price-reference.js";
+/** One change the input pre-flight made to a request before it was sent (see input-preflight.ts). */
+export type InputAdjustment = {
+  field: string;
+  action: "normalized" | "dropped" | "clamped" | "unwrapped" | "mapped" | "renamed";
+  reason: string;
+};
+
 export { supplierPriceReferenceSchema, type SupplierPriceReference } from "./supplier-price-reference.js";
 import { resourcePlanSchema, type ResourcePlan } from "./resource-plan.js";
 import { moneySchema } from "./money.js";
@@ -162,6 +169,8 @@ export interface ToolDefinition {
   decisionEvidence?: DecisionEvidence;
   platformAccountInstalled?: boolean;
   engineUnit?: Record<string, unknown>;
+  /** What the input pre-flight changed in this request before it was sent (./input-preflight). */
+  inputAdjustments?: InputAdjustment[];
   /**
    * Declared outcome rules (the engine's `output.outcomes` shape) for a tool that does not run through the engine,
    * such as a gateway route: copied from the supplier's own reviewed rules, read where the call settles.

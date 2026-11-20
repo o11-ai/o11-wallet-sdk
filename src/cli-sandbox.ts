@@ -7,12 +7,13 @@ export { sandboxUsage };
 
 export const modelKeyStorageMessage = "o11 doesn't store model keys for sandboxes. Use --login claude,codex or --claude-key-file/--codex-key-file.";
 const aliases: Record<string, string> = { new: 'create', get: 'info', rm: 'delete', run: 'exec', ps: 'processes', sh: 'shell' };
-const withoutId = new Set(['create', 'get-or-create', 'list', 'limits', 'help', 'operation', 'billing', 'pricing', 'capabilities', 'saved-snapshots', 'account', 'templates', 'template-get', 'providers', 'sizes']);
+const withoutId = new Set(['create', 'get-or-create', 'list', 'limits', 'help', 'operation', 'billing', 'pricing', 'capabilities', 'saved-snapshots', 'account', 'templates', 'template-get', 'providers', 'sizes',
+  'ai-login-status', 'ai-login-save', 'ai-login-delete']);
 const booleanFlags = new Set(['detach', 'detached', 'sudo', 'no-env', 'no-snapshots', 'no-monitoring', 'fail-fast',
   'no-auto-stop', 'persistent', 'ephemeral', 'public', 'force', 'yes', 'follow', 'delete-orphan-snapshots', 'delete-snapshots', 'no-wait', 'stdin', 'close', 'resume', 'rotate',
   'matrix', 'auto-pause', 'auto-resume', 'no-internet', 'recursive', 'keep-running', 'approve', 'renew', 'no-prepare', 'prepare', 'all', 'keep', 'localhost', 'overwrite', 'fast', 'new', 'in-place', 'strict', 'background', 'non-persistent']);
 /** IDs, names and paths stay text even when they look like numbers (--command-id 5815). */
-const textFlags = new Set(['connection', 'cursor', 'name', 'username', 'groupname', 'path', 'cwd', 'workdir', 'share-code', 'snapshot', 'template', 'mask-request-host',
+const textFlags = new Set(['connection', 'cursor', 'from-sandbox', 'name', 'username', 'groupname', 'path', 'cwd', 'workdir', 'share-code', 'snapshot', 'template', 'mask-request-host',
   // File text and command input stay as typed: --content 123 writes the three characters 123.
   'content', 'input', 'source', 'destination', 'command',
   // Octal modes (--mode 600) and file paths stay text too.
@@ -106,8 +107,9 @@ export function sandboxArguments(values: string[]) {
       const split = value.indexOf('=');
       if (split < 1) throw new Error('Use --param KEY=JSON');
       put(params, value.slice(0, split), jsonValue(value.slice(split + 1)), true);
-    } else if (action === 'prompt' && (flag === 'agent' || flag === 'provider' && !['e2b', 'boat', 'vercel'].includes(String(value)))) {
-      // Boat's prompt --provider names the agent (codex, claude, ...), never a sandbox provider.
+    } else if (action === 'prompt' && (flag === 'agent' || flag === 'provider' && !['e2b', 'boat', 'vercel'].includes(String(value)))
+      || /^ai-(login-|access$)/.test(action) && flag === 'provider') {
+      // Boat's prompt --provider names the agent (codex, claude, ...), never a sandbox provider; so does ai-login-* and ai-access's.
       put(params, 'provider', value);
     } else if (flag === 'hours') {
       // Boat's extend --hours N; every provider takes --ttl SECONDS, which o11 also bills and schedules by.

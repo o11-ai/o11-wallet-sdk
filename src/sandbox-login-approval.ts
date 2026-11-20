@@ -163,7 +163,7 @@ export async function refreshProxyLogins(client: SandboxClient, id: string): Pro
       const access = await proxyAccess(client, id, agent);
       if (saved.fingerprint === proxyFingerprint(access)) continue;
       results.push((await copySandboxLogins(client, id, [loginAgent(agent).proxy!(access)]))[0]!);
-    } catch (error) { results.push({ agent, error: `${message(error)}. Run o11 login ${agent}, then o11 ostack host signin --login ${agent}.` }); }
+    } catch (error) { results.push({ agent, error: `${message(error)}. Run o11 login ${agent}, then o11 sandbox login NAME --login ${agent}.` }); }
   }
   return results;
 }

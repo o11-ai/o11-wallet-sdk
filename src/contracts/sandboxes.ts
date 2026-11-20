@@ -3,6 +3,13 @@ import { z } from "zod";
 export const sandboxProviderSchema = z.enum(["boat", "vercel", "e2b"]);
 /** Used when a create, help or pricing request names no provider. */
 export const defaultSandboxProvider = "e2b" as const;
+/** Providers o11 starts and runs sandboxes on. Boat and Vercel are off for now; add one back here to turn it on. */
+export const enabledSandboxProviders: readonly z.infer<typeof sandboxProviderSchema>[] = ["e2b"];
+export const sandboxProviderEnabled = (provider: string) => enabledSandboxProviders.some(enabled => enabled === provider);
+const offNames: Record<string, string> = { boat: "Boat", vercel: "Vercel" };
+/** The refusal for a provider that is turned off. Its sandboxes can still be listed, stopped and deleted. */
+export const sandboxProviderOffMessage = (provider: string) =>
+  `${offNames[provider] ?? provider} sandboxes are turned off on o11 for now. Use E2B: leave out --provider. You can still list, stop and delete existing ${offNames[provider] ?? provider} sandboxes.`;
 export const sandboxCommandActions = ["exec", "files-list", "files-stat", "files-lstat", "files-unlink", "files-rm", "files-rmdir",
   "files-rename", "files-copy", "files-access", "files-exists", "files-chmod", "files-chown", "files-symlink", "files-readlink",
   "files-realpath", "files-truncate", "files-mkdtemp", "files-append", "user-default", "user-create", "user-exec", "group-create", "group-add-user", "group-remove-user",
@@ -31,7 +38,7 @@ export const sandboxResultSchema = z.object({
  */
 export const aiLoginProviderSchema = z.enum(["claude", "codex"]);
 export const aiLoginActions = ["ai-login-save", "ai-login-status", "ai-login-delete", "ai-access"] as const;
-export const aiLoginSaveParamsSchema = z.strictObject({
+export const aiLoginTokenParamsSchema = z.strictObject({
   provider: aiLoginProviderSchema,
   accessToken: z.string().min(1).max(8192), refreshToken: z.string().min(1).max(8192),
   /** ISO time or Unix milliseconds. */
@@ -40,7 +47,46 @@ export const aiLoginSaveParamsSchema = z.strictObject({
   /** Claude only: the scopes its sign-in was granted (claudeAiOauth.scopes), which the refresh asks for again. */
   scopes: z.array(z.string().regex(/^[a-z0-9:_-]{1,100}$/)).max(50).optional(),
 });
+/**
+ * The login the agent made on the person's own o11 sandbox (ostack sandbox_setup): o11 reads its file there, saves it
+ * and deletes it. Only the person's own key may send it, for a sandbox they own.
+ */
+export const aiLoginFromSandboxParamsSchema = z.strictObject({ provider: aiLoginProviderSchema, fromSandbox: z.string().trim().min(1).max(128) });
+export const aiLoginSaveParamsSchema = z.union([aiLoginTokenParamsSchema, aiLoginFromSandboxParamsSchema]);
 export const aiLoginProviderParamsSchema = z.strictObject({ provider: aiLoginProviderSchema });
+export type AiLoginTokens = { accessToken: string; refreshToken: string; expiresAt: string; accountId?: string; scopes?: string[] };
+const loginRecord = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const loginText = (value: unknown) => typeof value === "string" ? value : "";
+function jwtExpiresAt(token: string) {
+  try {
+    const exp = loginRecord(JSON.parse(atob((token.split(".")[1] ?? "").replaceAll("-", "+").replaceAll("_", "/")))).exp;
+    return typeof exp === "number" ? loginTime(exp * 1000) : undefined;
+  } catch { return undefined; }
+}
+/** An ISO time from Unix milliseconds, or undefined when they are not a valid time. */
+function loginTime(milliseconds: number) {
+  const time = new Date(milliseconds);
+  return Number.isNaN(time.getTime()) ? undefined : time.toISOString();
+}
+/**
+ * The refreshable login in an agent's own file: Claude Code's .credentials.json (claudeAiOauth) or Codex's auth.json
+ * (tokens). Undefined when it holds none. Shared by `o11 login claude|codex` and ai-login-save fromSandbox.
+ */
+export function aiLoginFromFile(provider: AiLoginProvider, saved: unknown): AiLoginTokens | undefined {
+  if (provider === "codex") {
+    const tokens = loginRecord(loginRecord(saved).tokens);
+    const accessToken = loginText(tokens.access_token), refreshToken = loginText(tokens.refresh_token), accountId = loginText(tokens.account_id);
+    const expiresAt = accessToken && refreshToken ? jwtExpiresAt(accessToken) : undefined;
+    return expiresAt ? { accessToken, refreshToken, expiresAt, ...(accountId ? { accountId } : {}) } : undefined;
+  }
+  const oauth = loginRecord(loginRecord(saved).claudeAiOauth);
+  const accessToken = loginText(oauth.accessToken), refreshToken = loginText(oauth.refreshToken);
+  const expiresAt = typeof oauth.expiresAt === "number" ? loginTime(oauth.expiresAt) : undefined;
+  if (!accessToken || !refreshToken || !expiresAt) return undefined;
+  // The refresh asks for the granted scopes again, so they go to o11 with the login.
+  const scopes = Array.isArray(oauth.scopes) ? oauth.scopes.filter((scope): scope is string => typeof scope === "string") : [];
+  return { accessToken, refreshToken, expiresAt, ...(scopes.length ? { scopes } : {}) };
+}
 export const aiLoginStatusSchema = z.object({ provider: aiLoginProviderSchema, connected: z.boolean(), expiresAt: z.string().nullable(), needsSignIn: z.boolean() });
 export const aiAccessResultSchema = z.object({ provider: aiLoginProviderSchema, baseUrl: z.url(), placeholder: z.string().regex(/^o11ai_/) });
 export type AiLoginProvider = z.infer<typeof aiLoginProviderSchema>;

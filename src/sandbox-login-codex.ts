@@ -25,7 +25,7 @@ async function read({ home, env }: Parameters<LoginAgentDefinition['read']>[0]):
 }
 
 // o11's proxy is the "o11" model provider in the user-level config.toml (a project config can't set providers). Its key
-// comes from O11_AI_KEY in the agent env file, which login shells, `o11 ostack host run` and cron runs load. Any other
+// comes from O11_AI_KEY in the agent env file, which login shells and cron runs load. Any other
 // login takes the provider and the key out again. The merge keeps the rest of config.toml.
 const proxyMerge = `python3 -I -c 'import json,re,sys
 p=json.load(open(sys.argv[1])).get("o11_proxy") if sys.argv[1] else None
@@ -45,7 +45,8 @@ const envLoad = `if [ -r ${env} ]; then set -a; . ${env}; set +a; fi # o11-agent
 const install = ['e=' + env, 'if grep -q \'"o11_proxy"\' "$1"; then',
   '  for d in "$HOME/.codex" "$HOME/.local/share/o11/agents/codex"; do mkdir -p -m 700 -- "$d"; ' + proxyMerge + '; place "$d/config.toml.o11-merge" "$d/config.toml"; rm -f -- "$d/config.toml.o11-merge"; done',
   '  mkdir -p -m 700 -- "$(dirname -- "$e")"',
-  '  { grep -v "^O11_AI_KEY=" "$e" 2>/dev/null; python3 -I -c \'import json,sys;print("O11_AI_KEY="+json.load(open(sys.argv[1]))["o11_proxy"]["token"])\' "$1"; } >"$e.o11-merge"',
+  // A new sandbox has no env file yet, and one holding only the key has nothing else to keep: grep exits 2 or 1 there.
+  '  { grep -v "^O11_AI_KEY=" "$e" 2>/dev/null || true; python3 -I -c \'import json,sys;print("O11_AI_KEY="+json.load(open(sys.argv[1]))["o11_proxy"]["token"])\' "$1"; } >"$e.o11-merge"',
   '  place "$e.o11-merge" "$e"; rm -f -- "$e.o11-merge"',
   `  for r in "$HOME/.profile" "$HOME/.bashrc"; do grep -qs "# o11-agent-env" "$r" || printf '%s\\n' '${envLoad}' >>"$r"; done`,
   'else',

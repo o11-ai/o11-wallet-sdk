@@ -3,6 +3,11 @@
  * written for `o11 ostack ...` commands; this maps each one to the three MCP tools, so one set of skills serves both.
  * ostack_read returns it first, and again whenever an agent asks for the guide.
  */
+import { PATHS, SANDBOX_WORKSPACE } from "./sandbox-setup.js";
+
+/** The sandbox request that runs one `o11 ostack` command, as sandboxCommand() in command-registry.ts builds it. */
+const SANDBOX_EXEC = JSON.stringify({ action: "exec", id: "<sandbox>", params: { command: `${PATHS}\ncd "${SANDBOX_WORKSPACE}" && o11 ostack <command>` } });
+
 export const MCP_GUIDE = `# Ostack over MCP
 
 Ostack's skills are written for the o11 CLI. Without the CLI, use these o11 MCP tools in place of each command.
@@ -22,12 +27,23 @@ Everything reads and writes the same team setup in o11, so it matches what teamm
 | o11 ostack setup answer <question> [--skip] | ostack_write { "write": "answer", "question", "skipped"? } |
 | o11 ostack schedule set|on|off <workflow> [--audience <name>] | ostack_write { "write": "schedule", "workflow", "audience"?, "rules", "status" } |
 | o11 ostack run start|end <workflow> ... | ostack_run { "run": "start"|"end", "workflow", "audience"?, ... } |
+| o11 ostack sandbox-setup [--agent claude|codex] | ostack_read { "read": "sandbox_setup", "agent"? } |
+| any other o11 ostack command | the sandbox tool on their o11 sandbox, once sandbox_setup has run: ${SANDBOX_EXEC}, with each argument single-quoted |
 
-What needs a computer, and how to handle it here:
-- Scheduled tasks (Claude Desktop, Codex, cron) and custom.local/ files live on a computer. Save schedules with
-  ostack_write so they are ready; say a scheduled task needs the o11 CLI on a computer, which runs them.
-- skills install, init, doctor and playbooks add are CLI only. Nothing needs installing to use Ostack here.
-- Playbook commands that keep local files (such as gtm ledger and tam) are CLI only. Keep lists in the team's CRM,
+Running when the laptop is closed:
+- When the person wants Ostack running when their laptop is closed, or any playbook on a schedule, set Ostack up on
+  their o11 sandbox, which is always on and paid from their o11 credits. Call ostack_read { "read": "sandbox_setup" } with "agent" claude or codex
+  for the steps in order, run each through the sandbox tool, and turn the saved schedules on there. Nobody needs the CLI.
+- When the person comes back, first run sandbox_setup's when_the_person_returns requests: its info request first,
+  then its exec request, which lists what scheduled runs need from them.
+- Never ask the person to install or download anything (the o11 CLI, install.sh, install.ps1) from here. A setup
+  prompt's OK to install the CLI covers only a computer where you run it yourself.
+- Their o11 card is issued automatically. Never tell them the connector has no card.
+
+These need the CLI, so run them on their o11 sandbox through the sandbox tool, as in the last table row:
+- custom.local/ files, skills install, init, doctor, playbooks add, presets, files export, schedule cron and prompt.
+  sandbox_setup already runs skills install, init and doctor there. Nothing needs installing to use Ostack here.
+- Playbook commands (such as gtm ledger export, gtm tam check and launch-videos). Keep lists in the team's CRM,
   Airtable, Sheet or CSV through their own tools, as the skills say.
 - Setup questions are answered with ostack_write answer once setup covered them, as with the CLI.
 

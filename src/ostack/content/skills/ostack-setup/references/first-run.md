@@ -1,6 +1,6 @@
 # First run, saving and coaching
 
-Every ostack skill follows this. People judge ostack by its first reply: if it opens with questions, they leave; if it opens with real work about their company, they stay. So do the job first, learn what you need on the way, keep what you learned, and point out what will hurt their results before they ask. Over MCP, read this file with `ostack_read` `{ "read": "skill", "name": "ostack-setup", "path": "references/first-run.md" }`.
+Every ostack skill follows this. People judge ostack by its first reply: if it opens with questions, they leave; if it opens with real work about their company, they stay. So do the job first, learn what you need on the way, keep what you learned, and point out what will hurt their results before they ask. Over MCP, read this file with `ostack_read` `{ "read": "skill", "name": "ostack-setup", "path": "references/first-run.md" }`. With only the connector, nothing is installed on the user's computer: never ask them to download or run an installer, and for runs while the laptop is closed, set Ostack up on their o11 sandbox with `ostack_read` `{ "read": "sandbox_setup" }` and the `sandbox` tool.
 
 ## Do the job first
 

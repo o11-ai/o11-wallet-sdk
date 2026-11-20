@@ -62,8 +62,8 @@ function templatesFor(view: TeamView, playbook: string, audience: string) {
 }
 
 /**
- * `ref` names a step ("gtm/write") or a general file ("about"); without it, the whole playbook. `playbooks` are the
- * ones in use, which a bare step name is looked up in.
+ * `ref` names a step ("gtm/write") or a general file ("about"); without it, the whole playbook (with several in use and
+ * none named, what each one has customized). `playbooks` are the ones in use, which a bare step name is looked up in.
  */
 export type ContextRequest = { playbooks: string[]; audience: string; playbook?: string; ref?: string; filesOnly?: boolean };
 
@@ -88,6 +88,7 @@ export async function teamContext(view: TeamView, request: ContextRequest): Prom
     if (named.length > 0) return { playbook, audience, file: name, files: named };
     throw new OstackError("unknown_step", `No step or general file named "${ref}".`, { steps: request.playbooks.flatMap(loadSteps).map((step) => step.ref) });
   }
+  if (!request.playbook && request.playbooks.length > 1) return customizedOverview(view, request.playbooks, audience);
   const playbook = resolvePlaybook(request.playbooks, request.playbook);
   const steps = loadSteps(playbook);
   const files = await playbookFiles(view, playbook, audience, steps);
@@ -106,5 +107,24 @@ export async function teamContext(view: TeamView, request: ContextRequest): Prom
       .map(({ file }) => (request.filesOnly ? { layer: file.layer, source: file.source, file: file.file, path: file.path } : file)),
     ...templatesFor(view, playbook, audience),
     steps: steps.map((step) => ({ id: step.ref, summary: step.summary, used_by: step.used_by, customized: customized.has(step.id) })),
+  };
+}
+
+/** With several playbooks and none named: what each one has customized (file names and steps), not a run's context. */
+async function customizedOverview(view: TeamView, playbooks: string[], audience: string) {
+  return {
+    audience,
+    team: teamSummary(view),
+    timezone: view.timezone,
+    local_time: localTime(new Date(), view.timezone).text,
+    playbooks: await Promise.all(playbooks.map(async (playbook) => {
+      const files = await playbookFiles(view, playbook, audience, loadSteps(playbook));
+      return {
+        playbook,
+        files: files.filter(({ target }) => target.kind === "general").map(({ file }) => ({ layer: file.layer, source: file.source, file: file.file, path: file.path })),
+        customized_steps: [...new Set(files.flatMap(({ target }) => ("step" in target ? [`${playbook}/${target.step}`] : [])))],
+      };
+    })),
+    next: "Name a playbook (--playbook <id>, or playbook over MCP) for its full context before a run.",
   };
 }

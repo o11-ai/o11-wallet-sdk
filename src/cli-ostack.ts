@@ -9,7 +9,7 @@ import {
 import { profileTokenProvider, readConfig } from './config.js';
 import { walletOrigin } from './access-tokens.js';
 import { version } from '../package.json';
-import { hostRemote } from './ostack-host.js';
+import { telemetryHeaders } from './cli-telemetry-context.js';
 
 type Method = 'GET' | 'PUT' | 'PATCH' | 'POST' | 'DELETE';
 
@@ -53,7 +53,7 @@ export function walletRemote(profile: string | undefined): PlaybookRemote {
     const send = () => fetch(new URL(path, walletOrigin(saved.baseUrl)), {
       method, redirect: 'error', signal: AbortSignal.timeout(bytes ? 300_000 : 20_000),
       headers: {
-        Authorization: `Bearer ${token}`, ...(saved.customer ? { 'X-Customer': saved.customer } : {}),
+        Authorization: `Bearer ${token}`, ...telemetryHeaders(), ...(saved.customer ? { 'X-Customer': saved.customer } : {}),
         ...(body === undefined ? {} : { 'Content-Type': bytes ? 'application/octet-stream' : 'application/json' }),
       },
       ...(body === undefined ? {} : { body: bytes ? (body as Uint8Array<ArrayBuffer>) : JSON.stringify(body) }),
@@ -110,7 +110,6 @@ export function walletRemote(profile: string | undefined): PlaybookRemote {
       await request('POST', '/v1/ostack/installs', skillsInstalledSchema.parse(input));
     },
     videos: videoRemote(request),
-    host: hostRemote(profile),
   };
 }
 

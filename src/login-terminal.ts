@@ -1,4 +1,5 @@
 import { createInterface } from 'node:readline/promises';
+import { LoginFailedError } from './login-errors.js';
 
 /** Use the human's controlling terminal, never agent stdin or chat. */
 export function openLoginTerminal() {
@@ -24,7 +25,7 @@ export function openLoginTerminal() {
               output.write('\n');
               if (error) reject(error); else resolve(value);
             };
-            const abort = () => finish(new Error('Email sign-in cancelled. Run login again when ready.'));
+            const abort = () => finish(new LoginFailedError('cancelled', 'Email sign-in cancelled. Run login again when ready.'));
             const data = (chunk: Buffer) => {
               for (const character of chunk.toString()) {
                 if (character === '\u0003') { abort(); return; }

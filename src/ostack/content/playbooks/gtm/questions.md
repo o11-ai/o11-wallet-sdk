@@ -132,7 +132,7 @@ Ask: When may cold messages go out? Days and hours, in the workspace timezone (a
 Infer: Use the default.
 Default: Any time: messages go out the moment a run writes them. Ask only whether they want sending hours; most teams don't. If `o11 ostack settings show` has hours the team never chose (a wallet save before 0.9.1 stored weekdays 08:00-18:00), ask whether to keep them or set `any`.
 Writes: `o11 ostack settings set gtm.send_window "<days> HH:MM-HH:MM"`, such as `"weekdays 08:00-18:00"`, or `any`.
-Check: Say whether the window is open right now (`o11 ostack context` shows `local_time` and `send_window`).
+Check: Say whether the window is open right now (`o11 ostack context --playbook gtm` shows `local_time` and `send_window`).
 
 ## send-at
 Since: 0.9.1
@@ -140,7 +140,7 @@ Ask: First messages go out the moment outbound writes them. Is that right, or sh
 Infer: Use the default.
 Default: Off: sent as the run writes them, with outbound on weekdays at 08:00.
 Writes: nothing for the default (if `o11 ostack settings show` has a `send_at` time the user did not choose, `o11 ostack settings set gtm.send_at off`), or `o11 ostack settings set gtm.send_at HH:MM` for a fixed time. An audience that differs gets `send_at:` in its `audience.md` front matter.
-Check: With a time, say when the next one would land (`o11 ostack context` shows `next_send_at`) and move outbound to the evening before (`o11 ostack schedule set gtm/outbound --days sun-thu --at 20:00`). Without one, outbound can run whenever suits them.
+Check: With a time, say when the next one would land (`o11 ostack context --playbook gtm` shows `next_send_at`) and move outbound to the evening before (`o11 ostack schedule set gtm/outbound --days sun-thu --at 20:00`). Without one, outbound can run whenever suits them.
 
 ## handoffs
 Since: 0.9.0

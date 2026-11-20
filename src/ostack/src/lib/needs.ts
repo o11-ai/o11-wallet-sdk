@@ -6,7 +6,7 @@ import { isRecord } from "./paths.js";
 /**
  * What an unattended run could not do without the person: a site sign-in, a tool to connect or reconnect (mail, CRM,
  * calendar), an answer the setup lacks, a choice only they can make. The run records it here and carries on; the
- * person's own agent reads this file (`o11 ostack host status` on a hosted computer), asks them and saves the answer
+ * person's own agent reads this file (reading it on their Ostack sandbox), asks them and saves the answer
  * in o11. Each workflow's next run replaces its entries,
  * so nothing stays blocked: a need that was dealt with disappears on the next run, and one that was not comes back.
  */
@@ -19,7 +19,7 @@ export type RunNeed = {
   kind: NeedKind;
   /** What to ask or tell the person, in plain words. */
   ask: string;
-  /** For a sign-in: the https page to open on the hosted computer. For a connect: the page the person opens in their own browser. */
+  /** For a sign-in: the https page to open on the Ostack sandbox. For a connect: the page the person opens in their own browser. */
   url?: string;
   /** For a missing setup answer: the question id, such as gtm/signature. */
   question?: string;
@@ -58,6 +58,9 @@ function writeNeeds(root: string, needs: RunNeed[]): void {
   writeFileSync(join(root, NEEDS_FILE), `${JSON.stringify({ needs }, null, 2)}\n`);
 }
 
+/** An https address in plain URL characters only: no spaces, quotes, backticks, $, ;, |, parentheses or angle brackets. */
+const SAFE_URL = /^https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:[/?#][A-Za-z0-9\-._~:/?#[\]@!&*+,=%]*)?$/;
+
 const sameRun = (need: RunNeed, workflow: string, audience: string | null) => need.workflow === workflow && need.audience === audience;
 
 /** A run starting: what this workflow's last run recorded is replaced by what this one finds. */
@@ -68,7 +71,7 @@ export function clearNeeds(root: string, workflow: string, audience: string | nu
 
 export function addNeed(root: string, need: Omit<RunNeed, "recorded_at">): RunNeed {
   if (!need.ask.trim()) throw new OstackError("missing_flag", "--ask is required: what to ask or tell the person.");
-  if (need.url && !/^https:\/\/[^\s'"]+$/.test(need.url)) throw new OstackError("invalid_flag", "--url must be an https:// address.");
+  if (need.url && !SAFE_URL.test(need.url)) throw new OstackError("invalid_flag", "--url must be an https:// address.");
   const saved: RunNeed = { ...need, ask: need.ask.trim().slice(0, 1000), recorded_at: new Date().toISOString() };
   // The same need twice in one run is kept once.
   const others = readNeeds(root).filter((item) => !(sameRun(item, need.workflow, need.audience) && item.kind === need.kind && item.ask === saved.ask));

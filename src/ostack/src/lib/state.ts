@@ -15,9 +15,6 @@ export const PREVIOUS_STATE_FILE = "ostack.pre-0.7.json";
 
 /** A host (claude, codex, cron) where a schedule was created, so status can say what exists and where. */
 export type Installed = { name: string; at: string };
-/** How `o11 ostack host schedule` names its cron entry here: the schedule runs on the hosted computer's cron, not this one's. */
-export const HOSTED_CRON = "hosted computer";
-export const isHostedCron = (installed: Installed | undefined): boolean => installed?.name.startsWith(`${HOSTED_CRON} `) === true;
 
 /**
  * What this computer knows about a workflow's schedule: where its task was created. The schedule itself lives in the
@@ -68,7 +65,8 @@ export async function readState(root: string): Promise<{ state: State; migrated:
       const installed: Record<string, Installed> = {};
       if (isRecord(value.installed)) {
         for (const [host, entry] of Object.entries(value.installed)) {
-          if (isRecord(entry) && typeof entry.name === "string") installed[host] = { name: entry.name, at: String(entry.at ?? "") };
+          // The retired hosted computer's cron records ("hosted computer ostack (...)") name no schedule here.
+          if (isRecord(entry) && typeof entry.name === "string" && !entry.name.startsWith("hosted computer ")) installed[host] = { name: entry.name, at: String(entry.at ?? "") };
         }
       }
       const local = isRecord(value.spec) || Array.isArray(value.spec) ? { spec: parseSchedule(value.spec), enabled: value.enabled !== false } : {};

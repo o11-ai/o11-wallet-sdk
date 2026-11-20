@@ -2,7 +2,6 @@ import { optional, required, type Args } from "../lib/args.js";
 import { OstackError } from "../lib/errors.js";
 import { print } from "../lib/output.js";
 import { remote, requireManager, requireOnline, type PlaybookValues, type SettingsPatch } from "../lib/remote.js";
-import { hostChoice, parseHostChoice, saveHostChoice } from "../lib/host-choice.js";
 import { loadSteps } from "../lib/steps.js";
 import { PERSONAL_KEYS, personalValues, playbookValues, resolvePlaybook, teamContext, teamSummary } from "../lib/team-context.js";
 import { checkTimeZone, localTime } from "../lib/time.js";
@@ -54,7 +53,6 @@ function showSettings(workspace: Workspace) {
   ];
   return {
     timezone: workspace.timezone,
-    host: hostChoice(workspace.setup),
     local_time: localTime(new Date(), workspace.timezone).text,
     playbooks: Object.fromEntries(enabledPlaybooks(workspace).map((playbook) => [playbook, {
       ...(PLAYBOOK_CODE[playbook]?.settings?.show(playbookValues(workspace.settings, playbook)) ?? {}),
@@ -72,18 +70,12 @@ function changed(base: PlaybookValues, next: PlaybookValues): PlaybookValues {
 
 /**
  * `settings set <key> <value>` changes the team's value (owners and admins); with --me it changes only yours.
- * `settings unset <key> --me` goes back to the team's value. `host local|hosted` is always yours. `timezone` is core; `sender_email` and
+ * `settings unset <key> --me` goes back to the team's value. `timezone` is core; `sender_email` and
  * `lead_assignment` are always yours; everything else belongs to a playbook, such as gtm.send_mode. An audience's
  * own values go in its audience.md and follow-up.md instead.
  */
 export async function settingsCommand(args: Args): Promise<void> {
   const sub = args.positionals[1] ?? "show";
-  // Where ostack runs is always this person's own choice, and is saved before any workspace folder exists.
-  if ((sub === "set" || sub === "unset") && args.positionals[2] === "host") {
-    const choice = sub === "unset" ? "hosted" : parseHostChoice(args.positionals[3] ?? required(args, "value"));
-    await saveHostChoice(await remote().setup(), choice);
-    return print({ set: "host", scope: "me", host: choice });
-  }
   const workspace = await loadWorkspace();
   if (sub === "show") return print({ team: teamSummary(workspace), ...showSettings(workspace) });
   if (sub !== "set" && sub !== "unset") throw new OstackError("unknown_command", "Use: o11 ostack settings show | set <key> <value> [--me] | unset <key> --me.");
@@ -133,6 +125,6 @@ function settingOwner(workspace: Workspace, key: string): string {
   });
   if (owners.length === 1) return owners[0]!;
   throw new OstackError("unknown_setting", owners.length === 0 ? `Unknown setting "${key}".` : `Several playbooks have "${key}"; use <playbook>.${key}.`, {
-    settings: ["timezone", "host", ...Object.keys(PERSONAL_KEYS), ...enabledPlaybooks(workspace).flatMap((playbook) => (PLAYBOOK_CODE[playbook]?.settings?.keys ?? []).map((item) => `${playbook}.${item}`))],
+    settings: ["timezone", ...Object.keys(PERSONAL_KEYS), ...enabledPlaybooks(workspace).flatMap((playbook) => (PLAYBOOK_CODE[playbook]?.settings?.keys ?? []).map((item) => `${playbook}.${item}`))],
   });
 }

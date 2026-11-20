@@ -33,11 +33,11 @@ Check: Read the table back and say roughly how long a full day takes at that pac
 ## accounts
 Since: 0.9.2
 Scope: personal
-Ask: Which of your accounts should this grow? Your X and Instagram profile links, and, on their own computer, which browser you are signed in to them in (a hosted computer has one). Before asking, show the "Your own risk" notice from the ostack-social-growth skill word for word, and ask whether each account has its paid plan (X Premium, Meta Verified for Instagram); recommend subscribing before the first run.
+Ask: Which of your accounts should this grow? Your X and Instagram profile links, and, on their own computer, which browser you are signed in to them in (an o11 sandbox has one). Before asking, show the "Your own risk" notice from the ostack-social-growth skill word for word, and ask whether each account has its paid plan (X Premium, Meta Verified for Instagram); recommend subscribing before the first run.
 Infer: The X and Instagram links in their site's footer or about page, and their own profiles found by name. The "Your own risk" notice and the paid-plan question still come first and need the person's own yes: never infer those.
 Default: None. Each person names their own. LinkedIn stays off (see the linkedin question).
 Writes: `social/accounts.md` (personal): one line per platform with the profile URL, plus the link to that platform's own list of your recent comments.
-Check: Open each profile in the browser and confirm the signed-in account matches. Never type a password; if one is signed out, ask the person to sign in. On a hosted computer, send them `o11 ostack host open <login url>`'s link and check through its `browser` MCP.
+Check: Open each profile in the browser and confirm the signed-in account matches. Never type a password; if one is signed out, ask the person to sign in. In their o11 sandbox, send them the one-use sign-in link the ostack-setup skill describes and check through its `browser` MCP.
 
 ## linkedin
 Since: 0.11.1
@@ -60,7 +60,7 @@ Check: Draft two comments in their voice and ask whether they would post them.
 ## schedule
 Since: 0.9.2
 Scope: personal
-Ask: Growth runs every day at 11:00 in your timezone and takes a few hours at a slow pace. Keep it, or change the time or days? On their own computer, it has to stay awake with the browser open; a hosted computer always is.
+Ask: Growth runs every day at 11:00 in your timezone and takes a few hours at a slow pace. Keep it, or change the time or days? On their own computer, it has to stay awake with the browser open; an o11 sandbox always is.
 Infer: Use the default.
 Default: Daily at 11:00. Avoid times another ostack workflow uses the same LinkedIn account.
 Writes: The schedule (`o11 ostack schedule`), created paused until the person confirms their accounts are signed in.

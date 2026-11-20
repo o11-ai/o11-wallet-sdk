@@ -14,7 +14,8 @@ const references = {
   contextInvocationIds: z.array(invocationReferenceSchema).max(20).default([]),
   requestIds: z.array(z.uuid()).max(20).default([]),
   searchIds: z.array(z.uuid()).max(20).default([]),
-  toolIds: z.array(text(250)).max(20).default([]),
+  toolIds: z.array(text(250)).max(20).default([])
+    .describe("Catalog tool IDs from discover or inspect, such as o11:exa:exa#contents. Not MCP tool names like create_report."),
   discoverQueries: z.array(text(500)).max(8).default([]),
 };
 export const createReportSchema = z.strictObject({ requestId: z.uuid(), kind: reportKindSchema,

@@ -9,6 +9,7 @@ import { readConfig, profileTokenProvider } from './config.js';
 import { compactToolCallResult } from './cli-result-file.js';
 import { z } from 'zod';
 import { version } from '../package.json';
+import { telemetryHeaders } from './cli-telemetry-context.js';
 
 const cardsCheckSchema = z.object({ items: z.array(z.object({ id: z.uuid() })) });
 
@@ -20,7 +21,7 @@ async function connectSavedMcp(profile?: string, signal?: AbortSignal) {
   const client = new Client({ name: 'o11-wallet-cli', version }, { versionNegotiation: { mode: 'legacy' } });
   // The transport invokes token() per request, including after CLI refreshes.
   const transport = new StreamableHTTPClientTransport(new URL(resource), {
-    requestInit: { redirect: 'error', headers: { [cliVersionHeader]: version } },
+    requestInit: { redirect: 'error', headers: { [cliVersionHeader]: version, ...telemetryHeaders() } },
     authProvider: { token: () => tokens.getAccessToken() },
   });
   try { await client.connect(transport, { signal }); }

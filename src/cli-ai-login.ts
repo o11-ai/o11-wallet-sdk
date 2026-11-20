@@ -1,11 +1,11 @@
 import { cancelLogin, finishLogin, serveLogin, startLogin, waitLogin, type AiProvider, type Save, type Sources, type State } from './ai-login-capture.js';
-import { aiLoginSaveParamsSchema } from './contracts/sandboxes.js';
+import { aiLoginTokenParamsSchema } from './contracts/sandboxes.js';
 import { storedLoginStatus, type StoredStatus } from './sandbox-login-proxy.js';
 import type { SandboxClient } from './sandbox-login-transfer.js';
 
 /**
  * `o11 login claude|codex` and `o11 logout claude|codex`: a Claude or ChatGPT login of its own, made on this computer in
- * a separate config folder and kept by o11, which alone refreshes it. Sandboxes and hosted computers use it through
+ * a separate config folder and kept by o11, which alone refreshes it. Sandboxes use it through
  * o11's proxy with a stand-in key (sandbox-login-proxy.ts). The person's own sign-in here is never read or changed.
  */
 export const aiLoginProviders = ['claude', 'codex'] as const;
@@ -35,7 +35,7 @@ const statusOf = async (client: SandboxClient, provider: AiProvider): Promise<{ 
 async function finished(state: State, deps: AiLoginDeps, provider: AiProvider) {
   if (state.state !== 'done') return { provider, connected: false, ...state };
   return { ...await statusOf(deps.client, provider), ...(state.detail ? { note: state.detail } : {}),
-    next: 'New sandboxes and hosted computers use it on their own. For a running one: o11 sandbox login NAME, or o11 ostack host signin.' };
+    next: 'New sandboxes use it on their own. For a running one: o11 sandbox login NAME.' };
 }
 
 /** Starts the login. In a terminal it waits here; for an agent it returns the one line to tell the person and what to run next. */
@@ -73,7 +73,7 @@ export async function aiLoginCommand(command: 'login' | 'logout', provider: AiPr
     if (args.length) throw new Error(`Use o11 logout ${provider}`);
     await cancelLogin(provider, deps.sources);
     await deps.client.sandbox({ action: 'ai-login-delete', params: { provider } });
-    return { provider, removed: true, note: 'Sandboxes and hosted computers stop using it. Run o11 login again to bring it back.' };
+    return { provider, removed: true, note: 'Sandboxes stop using it. Run o11 login again to bring it back.' };
   }
   const flags = aiLoginArguments(provider, args);
   if (flags['--serve']) { await serveLogin(provider, deps.sources, save); return undefined; }
@@ -88,5 +88,5 @@ export async function aiLoginCommand(command: 'login' | 'logout', provider: AiPr
 
 /** Sends a finished login to o11. Only the helper calls this; the tokens travel in the request body alone. */
 export const saveToO11 = (client: SandboxClient): Save => async (provider, credentials) => {
-  await client.sandbox({ action: 'ai-login-save', params: aiLoginSaveParamsSchema.parse({ provider, ...credentials }) });
+  await client.sandbox({ action: 'ai-login-save', params: aiLoginTokenParamsSchema.parse({ provider, ...credentials }) });
 };

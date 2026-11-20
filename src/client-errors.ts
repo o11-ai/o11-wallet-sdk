@@ -1,11 +1,14 @@
 import { authorizationRemediationSchema, type AuthorizationRemediation } from "./contracts/provider-authorization.js";
 
+/** IDs that name a wallet request: the server's X-Request-Id and the client's x-o11-call-id. */
+export type WalletRequestTrace = { requestId?: string; callId?: string };
 export class ToolClientError extends Error {
   readonly authorization?: AuthorizationRemediation;
   constructor(
     public readonly status: number,
     public readonly response: unknown,
     public readonly retryAfterMs?: number,
+    public readonly trace?: WalletRequestTrace,
   ) {
     super(`o11 returned HTTP ${status}`);
     this.name = "ToolClientError";

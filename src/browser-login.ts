@@ -10,6 +10,8 @@ import { tokenRequest, walletOrigin, walletServer } from "./access-tokens.js";
 import { withLoginLock } from './login-lock.js';
 import { openLoginTerminal } from './login-terminal.js';
 import { startEmailLogin, verifyEmailLogin, createEmailHandoff, EmailLoginError } from './email-login.js';
+import { LoginFailedError } from './login-errors.js';
+import { telemetryHeaders } from './cli-telemetry-context.js';
 
 const loginUsage = "Use login [--server URL] [--client NAME] [--card ID] [--name NAME] [--profile PROFILE] [--email EMAIL] [--auth email|browser] [--no-browser] [--reauth]";
 export function loginOptions(args: string[]) {
@@ -28,21 +30,30 @@ export function loginOptions(args: string[]) {
   if (flags["--auth"] === "browser" && flags["--email"]) throw new Error("Use --email with email sign-in, or --auth browser without --email");
   return { flags, noBrowser, reauth, origin: walletServer(flags["--server"]) };
 }
-/** Key import options. A global --card is accepted and checked against the key's cards after stdin is read. */
+/**
+ * Key import options. A global --card is accepted and checked against the key's cards after stdin is read.
+ * Every flag is checked here, before stdin is read, so a refused command never consumes a one-shot key.
+ */
 export function keyStdinOptions(args: string[]) {
   const usage = "Use login [--server URL] [--card ID] --key-stdin";
+  // Browser sign-in flags name or create a new connection; a supplied key already belongs to one.
+  const browserOnly = ["--client", "--name", "--task", "--email", "--auth", "--no-browser", "--reauth"];
   let server: string | undefined, cardId: string | undefined, stdin = false;
   for (let index = 0; index < args.length; index++) {
     const name = args[index]!;
     if (name === "--key-stdin") {
-      if (stdin) throw new Error(usage);
+      if (stdin) throw new Error(`--key-stdin is given twice. ${usage}`);
       stdin = true;
       continue;
     }
+    if (browserOnly.includes(name))
+      throw new Error(`${name} is for browser sign-in and is not used with --key-stdin: the key already belongs to its connection. Remove ${name}. ${usage}`);
+    if (name !== "--server" && name !== "--card") throw new Error(`${name} is not a login --key-stdin option. ${usage}`);
+    if (name === "--server" ? server : cardId) throw new Error(`${name} is given twice. ${usage}`);
     const value = args[index + 1];
-    if (name === "--card" && !cardId && value && !value.startsWith("--")) { cardId = z.uuid().parse(value); index++; continue; }
-    if (name !== "--server" || server || !value || value.startsWith("--")) throw new Error(usage);
-    server = value;
+    if (!value || value.startsWith("--")) throw new Error(`${name} needs a value. ${usage}`);
+    if (name === "--card") cardId = z.uuid().parse(value);
+    else server = value;
     index++;
   }
   if (!stdin) throw new Error(usage);
@@ -51,7 +62,14 @@ export function keyStdinOptions(args: string[]) {
 export function keyStdinServer(args: string[]) {
   return keyStdinOptions(args).origin;
 }
-export async function browserLogin(args: string[], profile?: string) {
+/** How sign-in reaches the person: an approval page opened here, or a link they open themselves (SSH, CI, no display). */
+export function manualBrowserLogin(noBrowser: boolean) {
+  return noBrowser || !!(process.env.SSH_CONNECTION || process.env.SSH_CLIENT || process.env.SSH_TTY || process.env.CI || process.env.CODESPACES || process.env.REMOTE_CONTAINERS)
+    || (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY);
+}
+/** Which sign-in the person used, for cli_login_* (never the email or code). */
+export type LoginAuth = 'email' | 'google' | 'browser';
+export async function browserLogin(args: string[], profile?: string, observe: { auth?: (auth: LoginAuth) => void } = {}) {
   const { flags, noBrowser, reauth, origin } = loginOptions(args);
   const selectedProfile = profile ?? process.env.O11_TOOLS_PROFILE ?? (flags["--client"] || flags["--card"] || flags["--name"] ? `agent-${crypto.randomUUID()}` : undefined);
   credentialDirectory(selectedProfile);
@@ -75,8 +93,7 @@ export async function browserLogin(args: string[], profile?: string) {
         }
       }
     }
-    const manualBrowser = noBrowser || !!(process.env.SSH_CONNECTION || process.env.SSH_CLIENT || process.env.SSH_TTY || process.env.CI || process.env.CODESPACES || process.env.REMOTE_CONTAINERS)
-      || (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY);
+    const manualBrowser = manualBrowserLogin(noBrowser);
     const terminal = !manualBrowser && flags["--auth"] !== "browser" ? openLoginTerminal() : undefined;
     if (flags["--auth"] === "email" && !terminal) {
       const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
@@ -88,10 +105,10 @@ export async function browserLogin(args: string[], profile?: string) {
         : `Terminal email login needs your own interactive local terminal and a browser on the same machine. No approval request was created. Run this command there, enter the code privately, then return to your agent:\n${retry}\nUse --auth browser instead if you want browser sign-in.`);
     }
     const response = await fetch(`${origin}/oauth/device/code`, { method: "POST", redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]),
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_id: "o11-wallet-cli", resource,
+      headers: { "Content-Type": "application/json", ...telemetryHeaders() }, body: JSON.stringify({ client_id: "o11-wallet-cli", resource,
         client_name: flags["--client"], card_id: flags["--card"], task: flags["--task"] }),
     });
-    if (!response.ok) throw new Error(response.status === 429
+    if (!response.ok) throw new LoginFailedError(response.status === 429 ? 'rate_limited' : 'network', response.status === 429
       ? "Browser sign-in is rate limited. Wait before starting another login."
       : `Could not start browser sign-in (HTTP ${response.status}). Check the wallet URL and agent routes.`);
     const request = z.object({ device_code: z.string().min(40), user_code: z.string(), verification_uri_complete: z.url(),
@@ -100,7 +117,7 @@ export async function browserLogin(args: string[], profile?: string) {
     const deadline = Date.now() + request.expires_in * 1000;
     const loginSignal = AbortSignal.any([signal, AbortSignal.timeout(request.expires_in * 1000)]);
     const url = new URL(request.verification_uri_complete);
-    if (url.origin !== origin || url.pathname !== "/connect") throw new Error("The wallet returned an unexpected approval address");
+    if (url.origin !== origin || url.pathname !== "/connect") throw new LoginFailedError('unexpected_address', "The wallet returned an unexpected approval address");
     let approvalUrl = url.href;
     let handoff: ReturnType<typeof createEmailHandoff> | undefined;
     try {
@@ -110,6 +127,7 @@ export async function browserLogin(args: string[], profile?: string) {
           const device = { origin, resource, deviceCode: request.device_code, requestId: url.searchParams.get('request') ?? '', signal: loginSignal };
           const started = await startEmailLogin(device, email);
           if (started.sent) {
+            observe.auth?.('email');
             process.stderr.write(`Code sent to ${started.email_hint}. Enter it here, never in agent chat.\n`);
             for (let attempt = 0; attempt < 5; attempt++) {
               try {
@@ -126,13 +144,16 @@ export async function browserLogin(args: string[], profile?: string) {
             const googleUrl = new URL(started.verification_uri_complete);
             const next = new URL(googleUrl.searchParams.get('next') ?? '', origin);
             if (googleUrl.origin !== origin || googleUrl.pathname !== '/' || googleUrl.searchParams.get('provider') !== 'google' || next.href !== url.href)
-              throw new Error('The wallet returned an unexpected Google sign-in address.');
+              throw new LoginFailedError('unexpected_address', 'The wallet returned an unexpected Google sign-in address.');
+            observe.auth?.('google');
             approvalUrl = googleUrl.href;
             process.stderr.write('This account uses Google. Continue with Google in your browser.\n');
           }
         } finally { terminal.close(); }
-      } else if (flags["--auth"] !== "browser") {
-        process.stderr.write('Email codes need an interactive terminal and a browser on this machine. Continuing in your browser. To enter email here, run login --server ' + origin + ' in your own terminal.\n');
+      } else {
+        observe.auth?.('browser');
+        if (flags["--auth"] !== "browser")
+          process.stderr.write('Email codes need an interactive terminal and a browser on this machine. Continuing in your browser. To enter email here, run login --server ' + origin + ' in your own terminal.\n');
       }
       process.stderr.write(`${manualBrowser ? "Open this approval page" : "Opening approval page; use this link only if no page appeared"}: ${approvalUrl}\nConfirm code ${request.user_code} and approve your agent.\n`);
       process.stderr.write(`Verify saved access after approval: ${usage} doctor\n`);
@@ -151,16 +172,17 @@ export async function browserLogin(args: string[], profile?: string) {
         if (result.error === "authorization_pending") continue;
         if (result.error === "slow_down") { interval += 5000; continue; }
         if (result.ambiguous) { interval = Math.min(60000, interval * 2); continue; }
-        if (!result.tokens) throw new Error(result.error === "access_denied" ? "Connection declined. Run login again when ready." : "Connection expired or unavailable. Run login again.");
+        if (!result.tokens) throw new LoginFailedError(result.error === "access_denied" ? 'denied' : 'expired',
+          result.error === "access_denied" ? "Connection declined. Run login again when ready." : "Connection expired or unavailable. Run login again.");
         const config: ToolConfig = { baseUrl: origin, resource, apiKey: result.tokens.access_token,
           refreshToken: result.tokens.refresh_token, expiresAt: Date.now() + result.tokens.expires_in * 1000 };
         const client = new ToolClient(config);
         await saveConfig(config, selectedProfile);
         try { await client.cards(); }
-        catch { throw new Error(`Access saved. The connection check failed; run ${usage} doctor to retry without signing in again.`); }
+        catch { throw new LoginFailedError('check_failed', `Access saved. The connection check failed; run ${usage} doctor to retry without signing in again.`); }
         return { connected: true, server: origin, ...(selectedProfile ? { profile: selectedProfile, usage: `${usage} <command>` } : {}), ...(result.tokens.task ? { task: result.tokens.task } : {}) };
       }
-      throw new Error("Connection timed out. Run login again to start a new request.");
+      throw new LoginFailedError('timeout', "Connection timed out. Run login again to start a new request.");
     } finally { handoff?.close(); }
   });
 }

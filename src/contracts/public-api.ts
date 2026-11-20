@@ -4,7 +4,7 @@ import { invocationSchema, inputSchema, moneySchema } from "./index.js";
 import { purchaseOperationSchemas, purchaseOperationDescriptions } from "./purchases.js";
 import { managementOperationSchemas, managementOperationDescriptions } from "./agent-permissions.js";
 import { reportOperationSchemas, reportOperationDescriptions } from "./reports.js";
-import { invocationHistoryInputSchema, invocationReferenceSchema, maxInvocationWaitSeconds } from "./invocation-lifecycle.js";
+import { invocationHistoryInputSchema, invocationReferenceSchema, maxInvocationHoldSeconds } from "./invocation-lifecycle.js";
 import { invocationRunInputSchema } from "./invocation-run.js";
 
 const id = z.strictObject({ id: z.string().uuid() });
@@ -107,7 +107,8 @@ export const publicOperationSchemas = {
     limit: z.number().int().min(1).max(discoveryPageSize).optional()
       .describe(`Request fewer results per page. The first page returns up to ${discoveryFirstPageSize}. With a cursor, it returns up to ${discoveryPageSize}.`),
   }),
-  inspect: z.strictObject({ id: z.string() }),
+  inspect: z.strictObject({ id: z.string(), format: z.enum(["compact", "detailed"]).optional()
+    .describe("o11.* routes only. Omitted or detailed returns the full inspection. Compact returns about a third of it: each route option's first sentence and each provider's price, calls, hit rate and median time, without its call history.") }),
   connections: z.strictObject({ provider: z.string().max(100).optional() }),
   get_configuration: z.strictObject({ id: z.string() }),
   balance: z.strictObject({}),
@@ -135,7 +136,7 @@ export const publicOperationSchemas = {
     .describe("Reuse one run UUID across this task's calls. This label groups receipts; it does not authorize spending. It caps spending only once a call sets runMaxMicros."),
     runMaxMicros: runMaxSchema }),
   get_invocation: z.strictObject({ id: invocationReferenceSchema,
-    waitSeconds: z.number().int().min(0).max(maxInvocationWaitSeconds).optional()
+    waitSeconds: z.number().int().min(0).max(maxInvocationHoldSeconds).optional()
       .describe("Wait up to this many seconds for a pending call to finish before answering, instead of polling repeatedly.") }),
   list_invocations: invocationHistoryInputSchema,
   get_run: invocationRunInputSchema,
@@ -160,7 +161,10 @@ export const canonicalOperation = (name: string): string => Object.hasOwn(public
 
 export function publicOperationJsonSchema(name: keyof typeof publicOperationSchemas) {
   const schema = z.toJSONSchema(publicOperationSchemas[name], { io: "input" });
-  return name === "cards" ? schema : {
+  return name === "cards" ? schema : withCardId(schema);
+}
+function withCardId<S extends { properties?: Record<string, unknown> }>(schema: S) {
+  return {
     ...schema,
     properties: { ...schema.properties, cardId: {
       type: "string" as const, format: "uuid",
@@ -169,29 +173,42 @@ export function publicOperationJsonSchema(name: keyof typeof publicOperationSche
   };
 }
 
+/**
+ * MCP only: several independent `call`s in one request, so they run at once even where a client runs non-read-only
+ * tools one at a time. Each element is exactly `call`'s input and is admitted, limited and billed as its own call.
+ */
+export const callManyToolName = "call_many";
+export const maxCallsPerBatch = 10;
+export const callManySchema = z.strictObject({
+  calls: z.array(publicOperationSchemas.call).min(1).max(maxCallsPerBatch)
+    .describe(`1 to ${maxCallsPerBatch} calls, each with exactly call's fields.`),
+});
+export const callManyJsonSchema = () => withCardId(z.toJSONSchema(callManySchema, { io: "input" }));
+export const callManyDescription = `Run up to ${maxCallsPerBatch} independent calls at once, such as 10 email finds, instead of separate calls: {"calls":[{"tool":"...","params":{...}},...]}. Each element takes call's fields and is limited and billed as its own call. Results come back in order in one response, each a call result or error, so batch small results (email finds, verifications, metrics) and call tools with large records (company or profile enrichment, search pages) separately. One still running after 45 seconds returns a pending receipt: send one get_invocation per pending id in the same turn, with the receipt's waitSeconds.`;
+
 export const publicOperationDescriptions: Record<keyof typeof publicOperationSchemas, string> = {
   sandbox: "Create and manage E2B, Boat or Vercel sandboxes through o11. Use help for command schemas and operation with requestId for recovery. A connected supplier account pays its provider directly; without one, where o11 turns it on, the sandbox runs on o11's account and is paid from the wallet.",
   ...reportOperationDescriptions,
   ...managementOperationDescriptions,
   ...purchaseOperationDescriptions,
   cards: "List the cards this connection can use. Specify a returned cardId when checking balance, finding tools, quoting, or invoking with access to multiple cards.",
-  find_tools: `Find allowed tools by provider, endpoint or capability. The first page returns up to ${discoveryFirstPageSize} matches. Follow cursor with the same query, provider and card for up to ${discoveryPageSize} more per page. MCP returns compact results. score measures keyword and capability relevance in raw points. works measures execution reliability (0–1) and needs at least five eligible outcomes. usable_rate measures how often calls returned usable output when o11 can classify it. Both use recent calls on shared o11 provider accounts. The top candidates are ordered by relevance, with usable output, reliability and fixed per-call price used to compare similar matches. Inspect endpoint_id for exact inputs, pricing terms and account requirements. Use format detailed for full discovery metadata. HTTP defaults to detailed.`,
-  inspect: "Read a tool ID from search_tools or find_tools to check exact input locations, returned fields, pricing, effects, and account requirements before quote or invoke.",
+  find_tools: `Step 1 of 3: find_tools, then inspect the chosen id, then call it. Finds the tools this card allows for any external capability: web search, scrape or fetch a web page, people and work email lookup, phone, company data, SEO and backlinks, social media, media generation and more. Check the user's own dedicated tools first. Search one capability at a time with short terms such as "company search", "people search" or "email verification"; for a named provider pass provider, for a given endpoint or tool id inspect it directly, and keep entity filters such as location for the tool's input. The first page returns up to ${discoveryFirstPageSize} matches; follow cursor with the same query, provider and card for up to ${discoveryPageSize} more. Work from a shortlist of three: inspect the closest match first rather than every result or every provider guide. On empty or unsuitable results, simplify the query, try singular or plural, or use the provider filter; check access diagnostics and card permissions before concluding a capability is absent, and never broaden permissions, enable the index or swap a named provider to recover. Results are ordered by relevance, with usable output, reliability and fixed per-call price comparing similar matches; order does not prove fit or the lowest price. score is raw keyword and capability relevance; works is execution reliability (0-1, from at least five recent outcomes); usable_rate is how often calls returned usable output. MCP returns compact results; format detailed returns full discovery metadata (HTTP default).`,
+  inspect: "Step 2 of 3: read a tool id from find_tools to get its exact inputs, route options, returned fields, price, billing units, effects, recurring status and account requirements; then call it. Choose on availability, account needs and effects, not search order. For bulk lead enrichment or work email with an open provider, compare two compatible tools on usable results, check whether misses cost money, and test a small sample before the full list; for work email, check the address belongs to the requested company domain and track verification separately.",
   connections: "List the connected provider accounts available to this card. Credentials are never returned.",
   get_configuration: "Read the saved account choice and spending limits for an allowed tool.",
   balance: "Read wallet funds, this card's remaining allowance and spendable balance separately, in micro-USD.",
   topup_status: "Read the committed funding status for requestId in the selected card's wallet, without creating a checkout or contacting Stripe. Paid means the wallet credit was committed; pending is not payment confirmation.",
   topup_limits: "Read current one-time funding limits, checkout availability and the wallet billing URL without creating a checkout.",
   topup: "Request a one-time Stripe-hosted checkout to add USD credits to this selected card's wallet (500–100000 cents). The user completes payment in Stripe; no saved payment method is charged or changed. Reuse requestId and the same amount for retries. Funding does not increase card allowances.",
-  call: "Call a tool using its discovered short ID and provider params. o11 quotes internally and applies existing card and allowance limits; no spending maximum or idempotency key is required. Use query/body/path for split inputs. Returns the result when the call finishes within 25 seconds. A call still running returns a pending receipt: call get_invocation with waitSeconds (up to 25) instead of polling. HTTP callers can send Prefer: wait=N (up to 120) to wait longer, or wait=0 to answer at once. Failures are returned without expanding permissions or retrying a purchase.",
-  invoke: "Submit a tool call with an explicit spending maximum and a stable idempotency key.",
+  call: "Step 3 of 3: run the inspected tool and get its result inline as JSON. Over MCP, run several independent calls at once (such as 10 email finds) with call_many. Example: {\"tool\":\"o11.people.email.find\",\"params\":{\"full_name\":\"Jane Doe\",\"domain\":\"example.com\",\"route\":{\"verify\":true}}}. Fields go at the top level of params; route options go under params.route. Use query/body/path only when the inspected input needs those locations. o11 places inputs, quotes internally and applies the card's spending and permission limits; no spending maximum or idempotency key is needed (optional maxCostMicros lowers the ceiling; USD 1 = 1000000 micros). Platform credentials are the default; use credentialMode customer only with a connectionId the user chose. Set allowWrite or acceptRecurring only when the user authorized that effect; card write and recurring permissions still apply. Never put supplier keys in params. Keep the returned invocation id and idempotencyKey; reuse the key with identical inputs only for an uncertain retry. Over MCP a call still running after 45 seconds (HTTP: 25) returns a pending receipt: then call get_invocation with its id and the receipt's waitSeconds, never a new call. HTTP callers can send Prefer: wait=N (up to 120) or wait=0. Errors: retryable false fails the same way again, so change the input or tool; UNAVAILABLE or BUSY with retryable true can be retried with the same idempotencyKey and inputs; FORBIDDEN and NOT_CONFIGURED clear after a reconnect, card or funding change, or review. Failures are returned without expanding permissions or retrying a purchase.",
+  invoke: "Advanced: submit a tool call with an explicit spending maximum and a stable idempotency key; preserve the key, maximum and any quoteContext. Prefer call.",
   get_invocation: "Retrieve this card's existing call by shortId (8 characters) or full UUID without executing it again, with its request (inputs, secrets redacted), state and output. Generated files are in result.media; fetch a ready file from its signed downloadUrl. Set waitSeconds (up to 25) to wait for a pending call to finish instead of polling.",
   list_invocations: "List this selected card's invocation summaries, newest first. Follow cursor with the same filters. Filter runId to recover one task, or parentId (a route or recipe call's full id) to list the calls it made; retrieve full results with get_invocation.",
   get_run: "Read wallet charges and outstanding reservations for this selected card's labeled run. When a call set runMaxMicros, ceiling shows the run's maximum, spent, held and remaining. External supplier charges may be unknown.",
-  search_tools: "Search the tool index for one task described in words. Returns at most limit compact summaries (default 3); inspect the closest toolId first. Check match, category and alternatives; confident describes the task category, not certainty that a tool fits. Quality combines classified output, explicit ratings and a prior. Retain searchId for invoke. Use find_tools for a named provider or endpoint.",
+  search_tools: "Search the tool index for one task, written as the user's goal in one plain sentence. Returns at most limit compact summaries (default 3); inspect the closest toolId first. Check match, category and alternatives; confident describes the task category, not certainty that a tool fits. Quality combines classified output, explicit ratings and a prior. Retain searchId for invoke. Use find_tools for a named provider or endpoint.",
   rate_result: "Rate one completed call's result: useful or not, an issue type when it was not, and an optional short reason about the output. Use rate_results for several calls.",
-  rate_results: `Rate up to ${maxRatingsPerBatch} completed calls in one request, for example after a long turn. Each rating names the call, whether it was useful and, when it was not, the issue (empty, wrong, inaccurate, stale, missing_fields, off_target). Each is accepted or rejected on its own. Ratings are checked against o11's own evidence before they rank providers, and never change billing.`,
-  quote: "Estimate the price of an allowed tool call without submitting it.",
+  rate_results: `Rate up to ${maxRatingsPerBatch} completed calls in one request, for example after a long turn. Rating is optional, but always flag a bad result you used as not useful with its issue: empty, wrong (another person or company), inaccurate, stale, missing_fields (name the fields) or off_target. You may rate good results useful. Rate only results you used, without asking the user; keep reasons about the output, with no private data (CLI 0.1.53+: o11 rate ID not-useful --issue empty ID2 useful). Each rating is accepted or rejected on its own, is checked against o11's own evidence before it ranks providers, and never changes billing.`,
+  quote: "Estimate the price of an allowed tool call without submitting it. call quotes internally, so use this only to price without running.",
   cancel: "Request cancellation of this card's call by shortId or full UUID. Cancellation is not guaranteed after supplier acceptance.",
   resources: "List services funded by this card. Requires service access.",
   list_resources: "List services funded by this card with provider, resourceType and state filters. Follow cursor with the same filters. Requires service access.",
