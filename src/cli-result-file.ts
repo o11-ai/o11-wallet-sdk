@@ -1,5 +1,6 @@
-import { lstat, open, rm } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { chmod, lstat, mkdir, open, rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 
 /** Results larger than this go to a file instead of stdout, so one paid record cannot flood an agent's context. */
 export const inlineResultBytes = 16_384;
@@ -66,7 +67,9 @@ export async function compactToolCallResult<T>(value: T, name: string): Promise<
   structuredContent: ReturnType<typeof spilledResult>;
   isError?: boolean;
 }> {
-  const file = await saveLargeResult(value, name);
+  // Never the working directory: without a cache directory the result stays inline.
+  const directory = await resultCacheDirectory();
+  const file = directory ? await saveLargeResult(value, name, directory) : undefined;
   if (!file) return value;
   const receipt = spilledResult({}, file, value);
   const isError = toolErrorFlag(value);
@@ -78,13 +81,32 @@ export async function compactToolCallResult<T>(value: T, name: string): Promise<
 }
 
 /**
- * Saves a large settled result to a new private file in the working directory and returns its path,
- * or undefined when it is small enough to print or cannot be saved (the caller then prints it in full).
+ * Where the MCP bridge saves large results: a private per-user cache, never the agent's working directory (often a
+ * git checkout). $XDG_CACHE_HOME/o11/results or ~/.cache/o11/results; %LOCALAPPDATA%\o11\results on Windows.
+ * $HOME wins over os.homedir(), which Bun caches. Undefined when it cannot be created; the result then stays inline.
  */
-export async function saveLargeResult(result: unknown, name: string) {
+export async function resultCacheDirectory() {
+  const home = process.env.HOME || homedir();
+  const root = process.platform === 'win32' && process.env.LOCALAPPDATA ? process.env.LOCALAPPDATA
+    : process.env.XDG_CACHE_HOME && isAbsolute(process.env.XDG_CACHE_HOME) ? process.env.XDG_CACHE_HOME : join(home, '.cache');
+  const directory = join(root, 'o11', 'results');
+  try {
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    await chmod(directory, 0o700);
+    return directory;
+  } catch { return undefined; }
+}
+
+/**
+ * Saves a large settled result to a new private file and returns its path, or undefined when it is small enough to
+ * print or cannot be saved (the caller then prints it in full). The CLI saves to the working directory, as
+ * ./o11-result-ID.json; with a directory, the name also carries a unique suffix and the path is absolute.
+ */
+export async function saveLargeResult(result: unknown, name: string, directory?: string) {
   if ((JSON.stringify(result) ?? '').length <= inlineResultBytes) return undefined;
   const text = JSON.stringify(result, null, 2) + '\n';
-  const base = `o11-result-${name.replace(/[^A-Za-z0-9-]/g, '').slice(0, 36) || 'call'}`;
+  const label = `o11-result-${name.replace(/[^A-Za-z0-9-]/g, '').slice(0, 36) || 'call'}`;
+  const base = directory ? join(directory, `${label}-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`) : label;
   for (let attempt = 1; attempt <= 20; attempt++) {
     const path = attempt === 1 ? `${base}.json` : `${base}-${attempt}.json`;
     let handle;

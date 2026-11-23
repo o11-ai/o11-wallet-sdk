@@ -55,3 +55,17 @@ export async function openCheckout(value: string, noBrowser: boolean) {
     } finally { clearTimeout(timer); }
   } catch { return false; }
 }
+
+const connectionsUsage = 'Use o11 connections [PROVIDER] or o11 connections --provider PROVIDER';
+/** `connections e2b`, `connections --provider e2b` and `connections -p e2b` name one provider; no argument lists every account. */
+export function connectionsArguments(args: string[]) {
+  let provider: string | undefined;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]!;
+    const value = arg === '--provider' || arg === '-p' ? args[++index]
+      : arg.startsWith('--provider=') ? arg.slice('--provider='.length) : arg.startsWith('-') ? undefined : arg;
+    if (!value || value.startsWith('-') || provider !== undefined && provider !== value) throw new Error(connectionsUsage);
+    provider = value;
+  }
+  return provider;
+}

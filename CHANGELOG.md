@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+**Changed**
+- The MCP bridge (`o11 mcp`) saves a tool result over 16 KB to a new private file in `~/.cache/o11/results` (`$XDG_CACHE_HOME/o11/results` when set) and returns its absolute path. Before, it wrote `./o11-result-<id>.json` into the agent's working directory, often a git checkout. `o11 call`, `status` and `invoke` still save to `./o11-result-<id>.json`; `-o FILE` is unchanged.
+- `o11 --help` lists `sandbox`, `avatar`, `resources` and `connections`.
+- Bare sandbox help (the `sandbox` tool with action `help` and no provider) returns a short list of each provider's actions. Name a provider for its full contract and capabilities.
+
+**Fixed**
+- `o11 connections --provider e2b` (or `-p e2b`) works, like `o11 connections e2b`.
+- A sandbox create that needs your own provider account prints the wallet link that connects it, and the error carries `nextAction: "connect_provider_account"` and `connectUrl`.
+
+## 0.1.57
+
+**Changed**
+- New sandboxes run on E2B. If you create one without a connected account, it runs on o11's account and is billed to your Wallet.
+- Sandbox help lists the providers available for new sandboxes. You can still list, stop, or delete existing Boat and Vercel sandboxes.
+
 ## 0.1.56
 
 **New**

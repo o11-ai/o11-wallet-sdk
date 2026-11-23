@@ -156,7 +156,16 @@ export interface ToolDefinition {
     | "media.upload.complete"
     | "media.resolve"
     | "media.delete"
-    | "media.plan";
+    | "media.plan"
+    | "sandbox.computer.create"
+    | "sandbox.create"
+    | "sandbox.desktop"
+    | "sandbox.get"
+    | "sandbox.list"
+    | "sandbox.extend"
+    | "sandbox.stop"
+    | "sandbox.resume"
+    | "sandbox.delete";
   resourcePlan?: ResourcePlan;
   availability: "configured" | "requires_adapter";
   notes: string[];
@@ -299,6 +308,15 @@ export const toolDefinitionSchema: z.ZodType<ToolDefinition> = z
         "media.resolve",
         "media.delete",
         "media.plan",
+        "sandbox.computer.create",
+        "sandbox.create",
+        "sandbox.desktop",
+        "sandbox.get",
+        "sandbox.list",
+        "sandbox.extend",
+        "sandbox.stop",
+        "sandbox.resume",
+        "sandbox.delete",
       ])
       .optional(),
     availability: z.enum(["configured", "requires_adapter"]),

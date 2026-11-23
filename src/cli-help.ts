@@ -41,7 +41,7 @@ const commands = {
   wallet: ['balance|topup', 'Read or fund the wallet'],
   balance: ['', 'Read wallet funds and card allowance'],
   topup: ['[AMOUNT] [--no-open] [--no-wait|--wait-ms MS]', 'Add USD credits and wait for payment'],
-  connections: ['[PROVIDER]', 'List connected accounts'],
+  connections: ['[PROVIDER | --provider PROVIDER]', 'List connected accounts'],
   avatar: ['clone|status|video [--name NAME] [--provider P] [--connection ID] [--capture-id ID]', 'Turn a short talking video into an avatar and voice'],
   configuration: ['TOOL_ID', 'Read saved tool choices'],
   resources: ['list|get|events|release', 'Manage provisioned services'],
@@ -57,7 +57,8 @@ const commands = {
   '--version': ['', 'Show the installed version'],
 } as const;
 
-const quickCommands = ['login', 'discover', 'inspect', 'quote', 'call', 'status', 'session-id', 'run-status', 'history'] as const;
+const quickCommands = ['login', 'discover', 'inspect', 'quote', 'call', 'status', 'session-id', 'run-status', 'history',
+  'sandbox', 'avatar', 'resources', 'connections'] as const;
 const hiddenCommands: readonly string[] = ['wallet', 'search', 'wait'];
 const inputFlags = '  --query KEY=VALUE, --path KEY=VALUE, --header "NAME: VALUE"\n  --credential-mode customer --connection ID, --max-cost-micros N';
 const details: Partial<Record<keyof typeof commands, string>> = {
@@ -67,6 +68,9 @@ const details: Partial<Record<keyof typeof commands, string>> = {
     (null for variable prices); price_text = price.priceText; name, provider and score match. works, samples, usable_rate, usable_samples
     and no_key_needed appear only in compact rows.\n  Up to ${discoveryFirstPageSize} results on the first page and ${discoveryPageSize} with a cursor.`,
   search: '  --preference 0-10, --max-effective-price-micros N, --limit N',
+  mcp: `  A tool result over 16 KB is saved to a new private file in ~/.cache/o11/results ($XDG_CACHE_HOME/o11/results
+  when set), never the working directory. The reply shows a preview and the file's absolute path.`,
+  connections: '  -p, --provider PROVIDER  Only that provider\'s accounts. Pass an id to a tool or sandbox as --connection ID.',
   inspect: '  --detailed  Show the full tool contract.',
   quote: `${inputFlags}\n  Accepts the same provider input as call. Positional JSON and --input FILE|- also accept the legacy input envelope.`,
   call: `  Group a task's calls: export O11_RUN_ID=$(o11 session-id), then o11 run-status totals them.

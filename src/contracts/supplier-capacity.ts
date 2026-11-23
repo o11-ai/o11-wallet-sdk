@@ -7,12 +7,24 @@ export const supplierMeterQuantitySchema = z.object({
 }).strict();
 export type SupplierMeterQuantity = z.infer<typeof supplierMeterQuantitySchema>;
 
-const credentialSourceSchema = z.object({
-  kind: z.literal("team_configuration"), accountId: id, configurationId: z.uuid(),
-  configurationRevision: z.number().int().positive(), environment: z.enum(["development", "production"]),
-  expiresAt: z.iso.datetime({ offset: true }).nullable().default(null),
-}).strict();
+const credentialSourceSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("team_configuration"), accountId: id, configurationId: z.uuid(),
+    configurationRevision: z.number().int().positive(), environment: z.enum(["development", "production"]),
+    expiresAt: z.iso.datetime({ offset: true }).nullable().default(null),
+  }).strict(),
+  /** A key saved on team.o11.ai/dashboard/providers: one encrypted routing_config revision (`credential:<provider>:<account>`). */
+  z.object({
+    kind: z.literal("routing_credential"), accountId: id, scope: id,
+    revision: z.number().int().positive(), environment: z.enum(["development", "production"]),
+    expiresAt: z.iso.datetime({ offset: true }).nullable().default(null),
+  }).strict(),
+]);
 
+/** The one immutable credential reference a source names: `team:<configuration>:<revision>` or `<scope>:<revision>`. */
+export function credentialSourceReference(source: z.infer<typeof credentialSourceSchema>) {
+  return source.kind === "team_configuration" ? `team:${source.configurationId}:${source.configurationRevision}` : `${source.scope}:${source.revision}`;
+}
 export const supplierAccountSchema = z.object({
   id, provider: id, credentialProvider: id, fundingProvider: id,
   credentialsRef: id, slot: id.default("primary"), revision: id.default("1"),
@@ -50,8 +62,9 @@ export const supplierAccountSchema = z.object({
   for (const [index, version] of account.credentialVersions.entries()) {
     if (references.has(version.credentialsRef)) ctx.addIssue({ code: "custom", path: ["credentialVersions", index], message: "Credential references must identify one immutable version." });
     references.add(version.credentialsRef);
-    if (version.source && (version.source.accountId !== account.id || version.credentialsRef !== `team:${version.source.configurationId}:${version.source.configurationRevision}`
-        || version.revision !== `team:${version.source.configurationId}:${version.source.configurationRevision}`)) ctx.addIssue({ code: "custom", path: ["credentialVersions", index], message: "Credential provenance must match its supplier account and immutable reference." });
+    const immutable = version.source && credentialSourceReference(version.source);
+    if (version.source && (version.source.accountId !== account.id || version.credentialsRef !== immutable
+        || version.revision !== immutable)) ctx.addIssue({ code: "custom", path: ["credentialVersions", index], message: "Credential provenance must match its supplier account and immutable reference." });
   }
   const selected = account.credentialVersions.find(version => version.credentialsRef === account.credentialsRef);
   if (!selected || selected.revision !== account.revision || JSON.stringify(selected.source) !== JSON.stringify(account.credentialSource)

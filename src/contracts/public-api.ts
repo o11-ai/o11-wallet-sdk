@@ -85,7 +85,30 @@ export const serviceOperationSchemas = {
     maxPeriodChargeMicros: moneySchema,
     inboundInvocationLimitMicros: moneySchema.optional(),
   }),
+  list_items: z.strictObject({
+    provider: z.string().min(1).max(100).optional(), itemType: z.string().min(1).max(200).optional(),
+    state: z.enum(["active", "ending", "ended", "attention"]).optional(),
+    limit: z.number().int().min(1).max(100).default(25), cursor: z.string().max(1000).optional(),
+  }).refine(input => !input.itemType || !!input.provider, { message: "itemType requires provider", path: ["provider"] }),
+  get_item: z.strictObject({ id: z.uuid() }),
+  list_item_events: z.strictObject({ id: z.uuid(), limit: z.number().int().min(1).max(100).default(25), cursor: z.string().max(1000).optional() }),
+  end_item: id,
+  retry_item: id,
+  configure_item: z.strictObject({
+    id: z.string().uuid(),
+    autoRenew: z.boolean(),
+    maxPeriodChargeMicros: moneySchema,
+    inboundInvocationLimitMicros: moneySchema.optional(),
+  }),
+  add_note: z.strictObject({
+    id: z.uuid().describe("The item the note is about."),
+    text: z.string().trim().min(1).max(4000).describe("What a later session should know: what it is for, what was done, what to avoid."),
+    pinned: z.boolean().default(false).describe("Pinned notes are shown first, for example \"keep: used by the nightly job\"."),
+  }),
 };
+/** The `*_resource` tools before items had their own names. Still callable with their old output; no longer listed. */
+export const legacyItemOperations = new Set(["resources", "list_resources", "get_resource", "list_resource_events", "resource_events",
+  "release_resource", "retry_resource", "configure_resource"]);
 
 export const discoveryFirstPageSize = 10;
 export const discoveryPageSize = 50;
@@ -187,7 +210,7 @@ export const callManyJsonSchema = () => withCardId(z.toJSONSchema(callManySchema
 export const callManyDescription = `Run up to ${maxCallsPerBatch} independent calls at once, such as 10 email finds, instead of separate calls: {"calls":[{"tool":"...","params":{...}},...]}. Each element takes call's fields and is limited and billed as its own call. Results come back in order in one response, each a call result or error, so batch small results (email finds, verifications, metrics) and call tools with large records (company or profile enrichment, search pages) separately. One still running after 45 seconds returns a pending receipt: send one get_invocation per pending id in the same turn, with the receipt's waitSeconds.`;
 
 export const publicOperationDescriptions: Record<keyof typeof publicOperationSchemas, string> = {
-  sandbox: "Create and manage E2B, Boat or Vercel sandboxes through o11. Use help for command schemas and operation with requestId for recovery. A connected supplier account pays its provider directly; without one, where o11 turns it on, the sandbox runs on o11's account and is paid from the wallet.",
+  sandbox: "Create and manage E2B sandboxes through o11. Leave out provider: o11 uses E2B. Use help for command schemas and operation with requestId for recovery. A sandbox runs until its ttl (default 1800 seconds), then pauses with its state kept: resume restarts it, extend adds time, and info shows when it ends. Without a connected E2B account, the sandbox runs on o11's account and is paid from the wallet; a connected account pays E2B directly.",
   ...reportOperationDescriptions,
   ...managementOperationDescriptions,
   ...purchaseOperationDescriptions,
@@ -218,4 +241,11 @@ export const publicOperationDescriptions: Record<keyof typeof publicOperationSch
   release_resource: "Request release of a service and stop future renewals. Requires write and service access.",
   retry_resource: "Request another review of an owned service. Requires write and service access.",
   configure_resource: "Update renewal consent and charge limits for an owned service. Requires write and service access.",
+  list_items: "List items this card owns (inboxes, phone numbers, sandboxes, subscriptions, orders) with provider, itemType and state filters. Follow cursor with the same filters. Requires service access.",
+  get_item: "Read one item: its name, provider id, state, renewal settings and its notes (pinned first). Use it to reuse an item a past session made. Requires service access.",
+  list_item_events: "Read an item's history oldest first (created, renewed, ended, updates), with cursor pagination. Requires service access.",
+  end_item: "End an item and stop future renewals. This can stop the provider's service; use only when asked. Requires write and service access.",
+  retry_item: "Ask o11 to check an item again now. Requires write and service access.",
+  configure_item: "Update an item's renewal consent and charge limits. Requires write and service access.",
+  add_note: "Add a note to an item for later sessions (what it is for, what was done). Notes are visible to everyone in the workspace; never put secrets in them. Requires write and service access.",
 };

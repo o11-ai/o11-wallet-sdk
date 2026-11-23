@@ -26,7 +26,7 @@ import { presentLargeResult } from './cli-result-file.js';
 import { commandHelp, commandSynopsis, compactInspection, inspectArguments, isWalletCommand, unknownCommand } from './cli-help.js';
 import { executeQuote, quoteArguments } from './cli-call.js';
 import { resourceArguments, resourceCommand } from './cli-resources.js';
-import { topUpArguments } from './cli-wallet.js';
+import { connectionsArguments, topUpArguments } from './cli-wallet.js';
 import { executeTopUp } from './cli-topup.js';
 import { activeKeyProfile, keyArguments, manageKeys, selectDefaultCredentials, forgetKeyLabel } from './cli-keys.js';
 import { fileReport, reportArguments, ReportSubmissionError } from './cli-report.js';
@@ -122,7 +122,7 @@ function validateArguments() {
   } else if (command === 'report') {
     reportArguments(args);
   } else if (command === 'connections') {
-    if (args.length > 1 || args.some(arg => arg.startsWith('--'))) throw new Error('Use o11 connections [provider]');
+    connectionsArguments(args);
   } else if (command === 'inspect') {
     inspectArguments(args);
   } else if (command === 'quote') {
@@ -280,6 +280,9 @@ function uuidFlag(flag: string, value: string | undefined) {
   if (!parsed.success) throw new Error(`${flag} takes a UUID${flag === '--card' ? `; list cards with ${program} cards` : ''}.`);
   return parsed.data;
 }
+// A sandbox that needs the caller's own provider account; connectUrl is the wallet page that connects it.
+const connectAccountSchema = z.object({ nextAction: z.literal('connect_provider_account'), provider: z.string().regex(/^[a-z0-9-]{1,40}$/),
+  connectUrl: z.url({ protocol: /^https?$/ }).max(2000).optional() });
 const retryAfterSeconds = (error: ToolClientError) => Math.max(1, Math.ceil((error.retryAfterMs ?? 1000) / 1000));
 const routeRefusals = new Set<string>(routeRefusalReasons);
 function safeHttpError(error: ToolClientError) {
@@ -344,6 +347,9 @@ function safeHttpError(error: ToolClientError) {
   };
   // The wallet's own message names the field, the cause and its step; it beats generic advice.
   const terminal = typeof error.response === 'object' && error.response !== null && 'retryable' in error.response && error.response.retryable === false;
+  const connect = connectAccountSchema.safeParse(error.response);
+  if (code === 'NOT_CONFIGURED' && connect.success)
+    return `${head} ${message ? message + ' ' : ''}Connect your account${connect.data.connectUrl ? ` at ${connect.data.connectUrl}` : ' in the o11 wallet'}, then rerun with --connection ID (${program} connections --provider ${connect.data.provider} lists IDs).`;
   // A sandbox refusal already names the provider's alternative ("Vercel doesn't have templates. Use --runtime ...").
   if (code === 'NOT_CONFIGURED' && message)
     return `${head} ${message}${reason === 'TOOL_UNAVAILABLE' ? ` ${program} discover lists other tools.`
@@ -582,7 +588,7 @@ try {
       case 'report-status': result = await client.report(required(0), { historyCursor: args[2] }); break;
       case 'reports': result = await client.reports(reportOperationSchemas.list_reports.parse(args.length ? await jsonInput() : {})); break;
       case 'report-info': result = await client.addReportInfo(reportOperationSchemas.add_report_info.parse(await jsonInput())); break;
-      case 'connections': result = await client.connections(args[0]); break;
+      case 'connections': result = await client.connections(connectionsArguments(args)); break;
       case 'configuration': result = await client.configuration(required(0)); break;
       case 'quote': result = await executeQuote(client, args); break;
       case 'invoke': {

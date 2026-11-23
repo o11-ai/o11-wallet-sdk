@@ -17,7 +17,7 @@ export const sandboxCommandActions = ["exec", "files-list", "files-stat", "files
 export const sandboxRequestSchema = z.strictObject({
   action: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/),
   id: z.string().trim().min(1).max(128).optional(),
-  provider: sandboxProviderSchema.optional(),
+  provider: sandboxProviderSchema.optional().describe("Leave out: o11 runs sandboxes on E2B. Boat and Vercel are off; name one only to list, stop or delete an existing sandbox there."),
   connectionId: z.uuid().optional(),
   requestId: z.uuid().optional().describe("Reuse this ID and the same input to recover a mutation; uncertain commands are never automatically repeated."),
   params: z.record(z.string().min(1).max(100), z.json()).default({}),

@@ -1,8 +1,9 @@
 export const sandboxUsage = `o11 sandbox <command> [NAME|ID] [options]
-  providers                      E2B, Boat and Vercel: which is the default and when to use each
-  create [--provider e2b|boat|vercel]   E2B unless you name another provider
+  providers                      Which providers o11 runs. New sandboxes run on E2B
+  create                         Start an E2B sandbox
     --name NAME --connection ID   Name and connected provider account
-    --ttl SECONDS                 Runtime limit on every provider
+    --ttl SECONDS                 Runtime limit on every provider. When it ends, E2B pauses the sandbox (memory kept)
+                                  and Boat and Vercel stop it; resume brings it back, extend adds time
     --size xs|small|medium|large|xl   1/2, 2/4, 4/8, 8/16 or 16/32 vCPU/GB on any provider
     --cpus N --memory-gb M [--disk-gb D]   At least this much. o11 picks the provider's smallest
                                   shape that fits, or the cheapest provider when --provider is left out
@@ -11,14 +12,14 @@ export const sandboxUsage = `o11 sandbox <command> [NAME|ID] [options]
                                   Chrome and cron after create (create and get-or-create do it by default)
     --keep-running                On o11's account, E2B and Boat: renew from your wallet until you stop or delete it,
                                   or the wallet can't pay. E2B pauses and resumes it before its 24-hour cap (a few seconds).
-                                  Not with --connection: use --ttl (and --auto-pause on E2B). info and usage show keepRunning
+                                  Set only at create. Not with --connection: use --ttl (and --auto-pause on E2B). info and usage show keepRunning
   E2B create options:
     --template NAME               Template to start from (default desktop, or base with --no-prepare). List them with templates
     --from SNAPSHOT_ID            Start from one of your E2B snapshots
     --timeout MS                  Runtime limit in milliseconds, as E2B's SDK takes it (or --ttl SECONDS)
     --cpu-count N                 Only for templates that can be resized
     --metadata KEY=VALUE          E2B metadata, filterable with list --tag
-    --auto-pause                  Pause instead of delete when time runs out. --auto-resume wakes it on traffic
+    --auto-pause                  Pause when time runs out (the default; --param onTimeout=kill deletes). --auto-resume wakes it on traffic
     --no-internet                 No outbound internet (same as --deny-out 0.0.0.0/0)
     --allow-out DOMAIN|CIDR --deny-out CIDR   Outbound rules; repeat each flag. Allow wins
     --allow-public-traffic=false  Sandbox URLs need E2B's traffic token
@@ -32,7 +33,7 @@ export const sandboxUsage = `o11 sandbox <command> [NAME|ID] [options]
   list [--provider P] [--name-prefix TEXT] [--state running|stopped|paused|failed] [--tag KEY=VALUE]   paused = stopped
     --sort-by created|name|statusUpdatedAt --order asc|desc --limit N --cursor ID
   templates [--public]            E2B: your account's templates, or E2B's public ones, with vCPUs and memory
-  info NAME                       State and saved configuration
+  info NAME                       State, saved configuration and when it stops (E2B: endAt, lifecycle.onTimeout)
   exec NAME "shell command"       Run a shell command
   exec NAME -- COMMAND [ARG...]   Run a program with separate arguments
     --attach                      Print output live. --detached (E2B: --background) returns a command ID
@@ -75,7 +76,7 @@ export const sandboxUsage = `o11 sandbox <command> [NAME|ID] [options]
     --memory false (--mode filesystem) --strict   E2B, your own account: filesystem-only pause; refuse rather than lose memory
   resume NAME [--ttl SECONDS]     Start a stopped sandbox. On o11's account the wallet holds the new run first
     --memory false (--on-resume reboot)   E2B: boot from disk, ignoring saved memory. Vercel: config NAME --timeout MS, then resume
-  extend NAME --ttl SECONDS       Give it more time. Vercel adds SECONDS; E2B stops it SECONDS from now.
+  extend NAME --ttl SECONDS       Give it more time. Vercel adds SECONDS; E2B pauses it SECONDS from now.
                                   Boat: --hours N. At most 24 hours each time; auto-stop stays on.
                                   On o11's account the wallet holds each extra window before the auto-stop moves
   rename NAME --name NEW_NAME     Boat and E2B: rename it
