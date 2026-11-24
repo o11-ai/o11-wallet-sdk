@@ -1,11 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.1.58
+
+**New**
+- `o11 run-status [RUN] --wait SECONDS` (up to 45) answers once the run's calls finish or one needs action, instead of polling. `runSummary(runId, { waitSeconds })` does the same in the SDK; `get_run` takes `waitSeconds` over HTTP and MCP.
+- Cards can block providers or tools. `createCard` and `updateCard` take `blockedToolIds`, such as `["apollo", "hunter.email.find"]`; `o11 create-card` and `o11 update-card` take `--block NAME` (repeatable). A block always wins over the card's allowed tools, including `"*"`. A card created through a connection keeps every block the connection sets.
 
 **Changed**
 - The MCP bridge (`o11 mcp`) saves a tool result over 16 KB to a new private file in `~/.cache/o11/results` (`$XDG_CACHE_HOME/o11/results` when set) and returns its absolute path. Before, it wrote `./o11-result-<id>.json` into the agent's working directory, often a git checkout. `o11 call`, `status` and `invoke` still save to `./o11-result-<id>.json`; `-o FILE` is unchanged.
 - `o11 --help` lists `sandbox`, `avatar`, `resources` and `connections`.
 - Bare sandbox help (the `sandbox` tool with action `help` and no provider) returns a short list of each provider's actions. Name a provider for its full contract and capabilities.
+- Ostack 0.13.1: SEO pages pass hard checks before they ship (an intent lock, the answer in the first 40 words, a banned-phrase check, sourced comparison pages), a new `proof` step keeps facts current on every page, audits sort fixes into tiers, and tracking asks AI assistants the same buyer questions every week.
 
 **Fixed**
 - `o11 connections --provider e2b` (or `-p e2b`) works, like `o11 connections e2b`.

@@ -10,10 +10,10 @@ Name at most three, worst first, each with the page, why it costs traffic and th
 2. **Titles that hide the search.** Over 60 characters, the brand first, or no words a buyer would type. The title is most of the click.
 3. **Writing for the wrong searches.** Only top-of-funnel posts while "<competitor> alternative", "<you> vs <competitor>" and "best <category> for <audience>" have no page.
 4. **Thin or generic pages.** Shorter and vaguer than the top results, no real numbers, steps or screenshots, or a rewrite of what already ranks.
-5. **No answer up top.** The first two sentences do not answer the search, so AI answers and featured snippets quote someone else.
+5. **No answer up top.** The first 40 words do not answer the search, so AI answers and featured snippets quote someone else.
 6. **Dead ends.** No links to related pages or the product page, or no call to action at the end.
 7. **Slipping pages left alone.** Pages that fell from the top 10, or rank 4 to 20, without a refresh planned.
-8. **Claims they cannot back.** Customers, numbers or "best" claims with no source; they hurt trust and AI answers skip them.
+8. **Claims they cannot back.** Customers, numbers or "best" claims with no source, or a price that changed on the pricing page but not on the posts; they hurt trust and AI answers skip them.
 
 A site with none of these: say it is in good shape in one line and keep publishing.
 

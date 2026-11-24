@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { sandboxArguments, sandboxUsage } from './cli-sandbox.js';
+import { cardBlockFlags, withCardBlocks } from './cli-card-blocks.js';
 import { runSandboxCommand } from './cli-sandbox-command.js';
 import { sandboxCopyArguments } from './cli-sandbox-copy.js';
 import { isSandboxComposite } from './cli-sandbox-run.js';
@@ -31,6 +32,7 @@ import { executeTopUp } from './cli-topup.js';
 import { activeKeyProfile, keyArguments, manageKeys, selectDefaultCredentials, forgetKeyLabel } from './cli-keys.js';
 import { fileReport, reportArguments, ReportSubmissionError } from './cli-report.js';
 import { batchArguments, runBatch } from './cli-batch.js';
+import { runStatusArguments } from './cli-run-status.js';
 import { avatarArguments, executeAvatar } from './cli-avatar.js';
 import { rateArguments, sendRatings } from './cli-rate.js';
 
@@ -100,7 +102,7 @@ function validateArguments() {
     if (args.length !== counts[command] || args.some(arg => arg.startsWith('--')))
       throw new Error(`Use o11 ${command}${counts[command] ? ' ID' : ''}. Run o11 --help for usage`);
   } else if (command === 'run-status') {
-    if (args.length > 1 || args.some(arg => arg.startsWith('-'))) throw new Error('Use o11 run-status [RUN_UUID]. It defaults to --run-id or O11_RUN_ID');
+    runStatusArguments(args);
   } else if (command === 'resources' || command === 'events' || command === 'release') {
     resourceArguments(command, args);
   } else if (command === 'keys') {
@@ -143,7 +145,7 @@ function validateArguments() {
   } else if (command === 'reports' && args.length === 0) {
     return;
   } else if (['invoke', 'configure-service', 'create-card', 'update-card', 'report', 'reports', 'report-info'].includes(command ?? '')) {
-    const values = args;
+    const values = command === 'create-card' || command === 'update-card' ? cardBlockFlags(args).rest : args;
     if (!(values.length === 1 && !values[0]!.startsWith('--') || values.length === 2 && values[0] === '--input' && Boolean(values[1]) && !values[1]!.startsWith('--')))
       throw new Error(`Use o11 ${command} JSON or --input FILE|-`);
   } else if (command === 'wait') {
@@ -541,8 +543,10 @@ try {
         break;
       case 'cards': result = await client.cards(args[1]); break;
       case 'permissions': result = await client.connectionPermissions(); break;
-      case 'create-card': result = await client.createCard(managementOperationSchemas.create_card.parse(await jsonInput())); break;
-      case 'update-card': result = await client.updateCard(managementOperationSchemas.update_card.parse(await jsonInput())); break;
+      case 'create-card': { const { rest, blocked } = cardBlockFlags(args);
+        result = await client.createCard(managementOperationSchemas.create_card.parse(withCardBlocks(await jsonInput(rest), blocked))); break; }
+      case 'update-card': { const { rest, blocked } = cardBlockFlags(args);
+        result = await client.updateCard(managementOperationSchemas.update_card.parse(withCardBlocks(await jsonInput(rest), blocked))); break; }
       case 'api-keys': result = await client.apiKeys(args[1]); break;
       case 'create-api-key': {
         const input = managementOperationSchemas.create_api_key.parse(await jsonInput(args.slice(0, -2)));
@@ -623,9 +627,10 @@ try {
         break;
       }
       case 'run-status': {
-        const selected = args[0] ?? runId;
-        if (!selected || args.length > 1) throw new Error('Use run-status RUN_UUID, or pass --run-id or O11_RUN_ID');
-        result = await client.runSummary(selected);
+        const parsed = runStatusArguments(args), selected = parsed.runId ?? runId;
+        if (!selected) throw new Error('Use run-status RUN_UUID, or pass --run-id or O11_RUN_ID');
+        // --wait holds the read on the server until the run's calls finish (get_run waitSeconds), instead of polling.
+        result = await client.runSummary(selected, parsed.waitSeconds === undefined ? {} : { waitSeconds: parsed.waitSeconds });
         break;
       }
       case 'cancel': result = await client.cancel(required(0)); break;

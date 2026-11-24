@@ -2,6 +2,15 @@
 
 `o11 ostack setup status` shows the sections newer than the version a person last reviewed, so the agent can say what changed. Keep each entry to what a user would notice.
 
+## 0.13.1
+- SEO pages pass hard checks before they ship. Every piece gets an intent lock first (the format the top results reward), opens with the answer in its first 40 words, and passes a banned-phrase check with 0 hits. Comparison pages carry a verdict up top, sourced facts about the competitor, where they win, pricing at 1, 5 and 25 seats with the date checked, switching steps and switching reasons from recent reviews.
+- A new `proof` step keeps your facts, prices and first-hand proof in one place. When a price or fact changes, every page that uses it is updated in one change, and each growth run checks new commits for stale facts. Missing proof is marked and asked about, never invented.
+- Searches share a page only when Google ranks the same pages for them. Free tools are built only where buyers pay for clicks and the results are tools.
+- Audits sort fixes into Fatal, Revenue, Compounding and Fluff, and check that AI crawlers can read your prices, that unknown pages return 404, and that numbers agree across the page, FAQ and `llms.txt`.
+- Growth adds internal links from posts that get traffic to the pages that earn money, and reports the counts before and after.
+- Tracking asks AI assistants the same 25 to 50 buyer questions every week, gives each page they cite an action, and lists your competitors' new pages. Run `o11 ostack setup` to answer the new buyer questions topic.
+- Search Console reads through your own Google connection in your o11 wallet, for performance and whether a page is indexed.
+
 ## 0.13.0
 - Scheduled runs keep going when your laptop is closed. You don't need to do anything.
 - When a run needs you signed in to a site (LinkedIn, X, Instagram, or your mailbox when no tool is connected), your agent sends you a link. Sign in there once and tell your agent you're done. Scheduled runs use that same browser, and you stay signed in after restarts.

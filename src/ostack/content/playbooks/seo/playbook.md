@@ -23,6 +23,6 @@ CMS, or a doc for review. **tracking** runs every Monday: Search Console, rankin
 whether AI assistants name them, against last week, so the next growth run knows what to do.
 
 Search data comes from the team's o11 wallet: search volume, keyword difficulty and intent, the keywords any domain ranks
-for, live search results and AI answers, backlinks, and the site's own Search Console. Runs always use the freshest and
-most complete data available and quote every paid call before it runs. The content plan, posts, reports and history stay
+for, live search results and AI answers, backlinks, and the site's own Search Console. Runs use fresh, complete data (a raw pull is
+reused for up to 7 days) and quote every paid call before it runs. The content plan, posts, reports and history stay
 in the team's own repo, CMS or docs. Links worth earning are handed to ostack-outbound when that playbook is set up.

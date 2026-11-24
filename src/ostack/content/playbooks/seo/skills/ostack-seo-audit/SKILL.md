@@ -37,8 +37,8 @@ files (where they conflict, the later file wins).
    three to five buyer questions from `seo/site.md`.
 4. `topics`: from that data, the ten pieces that would bring the most qualified visitors, bottom of the funnel first.
 5. `links`: the links worth earning first.
-6. `report`: open with the three fixes worth the most, one line each naming the page or URL and the fix itself; then every other fix in order of what it is worth, each with the pages it affects, the evidence and how to fix it,
-   then the ten pieces and the links. Offer to fix what can be fixed in the site's repo now (titles, canonicals,
+6. `report`: open with the three fixes worth the most (Fatal first), one line each naming the page or URL and the fix itself; then every other fix grouped by tier (Fatal, Revenue, Compounding), in order of what it is worth, each with the pages it affects, the evidence and how to fix it,
+   then Fluff in one line, then the ten pieces and the links. Offer to fix what can be fixed in the site's repo now (titles, canonicals,
    structured data, sitemap, robots.txt, llms.txt, internal links), one pull request per kind of fix, never merged by you.
 
 When the user is present, ask before anything that needs their judgment; in a scheduled run, decide from the files and

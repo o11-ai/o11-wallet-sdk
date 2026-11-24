@@ -218,7 +218,8 @@ export class ToolClient {
   }
   async updateCard(input: z.input<typeof managementOperationSchemas.update_card>) {
     // Servers before the card echo return only the id.
-    return z.object({ id: z.uuid(), name: z.string().optional(), status: z.string().optional(), limitMicros: z.string().optional() })
+    return z.object({ id: z.uuid(), name: z.string().optional(), status: z.string().optional(), limitMicros: z.string().optional(),
+      blockedToolIds: z.array(z.string()).optional() })
       .parse(await this.call("update_card", managementOperationSchemas.update_card.parse(input)));
   }
   async apiKeys(cursor?: string) { return this.call("api_keys", { cursor }); }
@@ -429,7 +430,12 @@ export class ToolClient {
   async invocationHistory(input: InvocationHistoryInput = {}) {
     return invocationHistoryPageSchema.parse(await this.call("list_invocations", invocationHistoryInputSchema.parse(input)));
   }
-  async runSummary(runId: string) { return invocationRunSchema.parse(await this.call("get_run", invocationRunInputSchema.parse({ runId }))); }
+  /** waitSeconds: the server holds the read until the run's calls finish or one needs action (no client polling). */
+  async runSummary(runId: string, options: { waitSeconds?: number } = {}) {
+    const input = invocationRunInputSchema.parse({ runId, ...(options.waitSeconds ? { waitSeconds: options.waitSeconds } : {}) });
+    return invocationRunSchema.parse(await this.call("get_run", input,
+      input.waitSeconds ? (this.options.timeoutMs ?? 30_000) + input.waitSeconds * 1000 : undefined));
+  }
   private invocationWait(id: string, options: InvocationWaitOptions) {
     let resolved = invocationReferenceSchema.parse(id);
     return waitForInvocationReceipt(resolved, async (timeout, signal, waitSeconds) => {

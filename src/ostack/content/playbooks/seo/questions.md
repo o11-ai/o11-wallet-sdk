@@ -46,6 +46,14 @@ Default: Search Console through the user's own connected account in the wallet. 
 Writes: `seo/tracking.md`: the Search Console property, the searches to watch, the AI assistants to check, and where the report goes.
 Check: Read last week's clicks and impressions from Search Console and the current position of three watched searches, and show them.
 
+## buyer-questions
+Since: 0.13.1
+Ask: These are the questions I will ask ChatGPT, Perplexity, Gemini and Google every week to see whether they name you, from someone who only feels the problem to someone checking your pricing. Keep them, or change or add any?
+Infer: Draft 25 to 50 from `seo/site.md`, the site's copy, its competitors and the searches it ranks for, 5 to 10 per stage (unaware, problem aware, solution aware, product aware, most aware), written the way a buyer would ask an assistant.
+Default: The drafted set, about 30 questions, asked to the assistants in `seo/tracking.md`.
+Writes: `seo/tracking.md` gains `## Buyer questions`: each with a fixed id (`q01`, `q02`, ...), its stage and the date added. Later changes add new ids or retire old ones with a date; a question is never reworded or renumbered.
+Check: Show the questions by stage and the weekly cost of asking each assistant all of them, quoted before anything runs.
+
 ## schedule
 Since: 0.9.2
 Ask: Growth runs Monday and Thursday at 9:00 and tracking Monday at 8:00, in your timezone. Keep that, or change it? How many new pieces a week at most, and should refreshes count toward it?

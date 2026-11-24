@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { moneySchema } from "./money.js";
+import { maxInvocationHoldSeconds } from "./invocation-lifecycle.js";
 
 /** The route attempt reason when the run's ceiling refused that provider's hold. */
 export const RUN_CEILING_REASON = "run ceiling reached";
-export const invocationRunInputSchema = z.strictObject({ runId: z.uuid() });
+export const invocationRunInputSchema = z.strictObject({ runId: z.uuid(),
+  waitSeconds: z.number().int().min(0).max(maxInvocationHoldSeconds).optional()
+    .describe("While calls in the run are still running, wait up to this many seconds for them to finish (or for one to need action) before answering, instead of polling repeatedly.") });
 export const invocationRunSchema = z.object({
   runId: z.uuid(), cardId: z.uuid(),
   counts: z.object({ total: z.number().int().nonnegative(), pending: z.number().int().nonnegative(),

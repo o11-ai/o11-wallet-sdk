@@ -36,10 +36,12 @@ files. Work in this order:
 
 1. **Finish what is open.** Pieces in the plan marked `draft` or `in review`: check whether they went live (the pull
    request merged, the CMS page published) and update the plan. Pull requests with review comments: address them.
-2. **`refresh`** pages that are due, starting with the ones the latest tracking report flagged.
-3. **`topics`**, then for each new piece: `research` its search, `write`, then `publish`.
-4. **`links`** for anything published this run, when it is worth earning links to.
-5. **`report`**.
+2. **`proof`**: check new commits and the live pricing page for stale facts, and update every page that uses one.
+3. **`refresh`** pages that are due, starting with the ones the latest tracking report flagged.
+4. **`topics`**, then for each new piece: `research` its search, save its intent lock, gather its `proof`, `write`,
+   then `publish`. No intent lock, no draft.
+5. **`links`** for anything published this run, when it is worth earning links to.
+6. **`report`**.
 
 Stop at the pace in `seo/topics.md`. One excellent piece beats two thin ones: when the data or the sources are not good
 enough to write something better than what ranks, skip it and say why.
@@ -48,8 +50,9 @@ enough to write something better than what ranks, skip it and say why.
 
 - **Better than what ranks, or nothing.** Never publish a page that adds nothing to the top results, a page made to
   match a search with nothing behind it, or many near-identical pages.
-- **Evidence over guesses.** Facts, prices and numbers come from sources you read in this run, linked inline. Never
-  invent customers, quotes, results, reviews or statistics.
+- **Evidence over guesses.** Facts, prices and numbers come from sources you read in this run or the team's proof
+  files, linked inline. Never invent customers, quotes, results, reviews or statistics; mark the gap
+  `[NEEDS PROOF]` and ask.
 - **People approve.** Publish only as `seo/publish.md` says. Never merge, deploy or publish live unless that file says
   the team allows it, and never touch pages outside the content folder without asking.
 - **One plan.** Every piece is in the team's content plan before it is written and after it ships; never write the same
