@@ -41,13 +41,15 @@ export type KitDetail = KitListing & {
 
 /**
  * A workspace's install of a kit. `release` is the release it is on: live when it follows updates, else the one it holds
- * ("draft" for a seller trying an unnamed draft). `updateAvailable`: it holds a release other than the live one.
+ * ("draft" for a seller trying an unnamed draft). `liveRelease`: the release o11 published, null before the first.
+ * `trying`: a seller holds its own unreviewed draft. `updateAvailable`: it holds an older published release than the live one.
  */
 export type KitInstallView = {
   kitSlug: string;
   policy: KitUpdatePolicy;
   release: string;
-  liveRelease: string;
+  liveRelease: string | null;
+  trying: boolean;
   updateAvailable: boolean;
   /** o11 retired the kit: it left the catalog, and this workspace keeps reading the release it is on. */
   retired: boolean;

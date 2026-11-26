@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.61
+
+**Fixed**
+- A refused `o11 kit` command now says `conflict`, with the reason in its message (such as a release already submitted), or `draft_changed` when the draft changed since it was read. It no longer says `file_changed`, which stays for `o11 ostack files` commands.
+
 ## 0.1.60
 
 **Changed**

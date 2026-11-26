@@ -61,11 +61,25 @@ const flag = (args: KitArgs, name: string) => {
 /** A draft path this CLI writes under a folder: the Kit Standard's rule, which allows no `..`, leading `/`, `\` or dot-names. */
 export const isSafeKitPath = (path: string) => KIT_PATH.test(path);
 
+/**
+ * A refused kit action names what it conflicts with: `draft_changed` when the draft changed since it was read (read it
+ * again), else `conflict` (the message says what, such as a release already submitted). Ostack file commands keep
+ * `file_changed`.
+ */
+function kitConflict(error: unknown) {
+  if (!(error instanceof OstackError) || error.code !== 'file_changed') return error;
+  return new OstackError(error.details?.reason === 'DRAFT_CHANGED' ? 'draft_changed' : 'conflict', error.message, error.details);
+}
+
 /** Runs one action the way kit_manage does: GET with the input in the query for reads, POST with a JSON body for the rest. */
-function act(wallet: Requester, name: KitActionName, input: Record<string, unknown> = {}) {
-  if (isWriteKitAction(name)) return wallet.request('POST', `/v1/kit-actions/${name}`, input);
-  const query = new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)])).toString();
-  return wallet.request('GET', `/v1/kit-actions/${name}${query ? `?${query}` : ''}`);
+async function act(wallet: Requester, name: KitActionName, input: Record<string, unknown> = {}) {
+  try {
+    if (isWriteKitAction(name)) return await wallet.request('POST', `/v1/kit-actions/${name}`, input);
+    const query = new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)])).toString();
+    return await wallet.request('GET', `/v1/kit-actions/${name}${query ? `?${query}` : ''}`);
+  } catch (error) {
+    throw kitConflict(error);
+  }
 }
 
 const objectRefSchema = z.object({ sha256: kitObjectHashSchema, sizeBytes: z.number().int().nonnegative(), contentType: z.string() });
