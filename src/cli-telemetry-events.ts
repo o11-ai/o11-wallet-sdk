@@ -28,7 +28,7 @@ const uuid = z.uuid();
 /** Commands outside the help table that the CLI still answers. */
 const extraCommands = new Set(["help", "version", "wallet", "generate_session_id", "session-id", "run-status", "rate", "invoke", "reports",
   "report", "report-status", "report-info", "configure-service", "retry", "events", "release", "resources", "history", "wait", "status"]);
-/** Subcommands that are fixed words. sandbox and ostack take an action word, checked by pattern only. */
+/** Subcommands that are fixed words. sandbox and kit (or ostack) take an action word, checked by pattern only. */
 const fixedSubcommands: Record<string, ReadonlySet<string>> = {
   keys: new Set(["add", "list", "remove", "activate"]), avatar: new Set(["clone", "status", "video"]),
   login: new Set(["claude", "codex"]), logout: new Set(["claude", "codex"]), resources: new Set(["list", "get", "events", "release"]),
@@ -43,7 +43,7 @@ export function commandName(command: string | undefined, known: (name: string) =
 }
 export function subcommandName(command: string, first: string | undefined) {
   if (!first) return undefined;
-  if (command === "sandbox" || command === "ostack") return actionWord.test(first) ? first : undefined;
+  if (command === "sandbox" || command === "kit" || command === "ostack") return actionWord.test(first) ? first : undefined;
   return fixedSubcommands[command]?.has(first) ? first : undefined;
 }
 /** Flag names before `--`, without `=value`; values and positional arguments are never kept. */
@@ -95,7 +95,7 @@ const errorCode = (body: unknown) => typeof body === "object" && body !== null &
 
 const loginErrorClass: Record<LoginFailureReason, CliErrorClass> = { timeout: "network", denied: "auth", expired: "auth", network: "network",
   invalid_key: "auth", card_not_found: "not_found", cancelled: "cancelled", rate_limited: "server_4xx", unexpected_address: "unknown",
-  check_failed: "network" };
+  check_failed: "network", browser_required: "auth" };
 /** Error class and the wallet's own status, code and request IDs. `phase` is where it was thrown: parsing input or running. */
 export function classifyError(error: unknown, phase: "parse" | "run") {
   const cause = walletError(error);

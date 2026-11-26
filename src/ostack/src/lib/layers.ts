@@ -38,9 +38,16 @@ export function playbookPresets(workspace: Pick<TeamView, "settings">, playbook:
   return (workspace.settings.presets ?? []).filter((ref) => ref.startsWith(`${playbook}/`)).map((ref) => ref.slice(playbook.length + 1));
 }
 
-/** Files directly inside `folder` (null is the top level), as one layer. */
+/**
+ * Whether a wallet file is instruction text: a markdown file, never a binary one. Other files (scripts, images, PDFs,
+ * deeper folders) are part of the kit's tree (kit-tree.ts), which agents read when a task needs them.
+ */
+export const isInstruction = (file: Pick<RemoteFile, "path" | "object">) => file.path.endsWith(".md") && !file.object;
+
+/** Markdown files directly inside `folder` (null is the top level), as one layer. */
 function remoteLayer(name: string, source: "team" | "me", files: RemoteFile[], folder: string | null, scope: Layer["scope"]): Layer {
   const picked = files.filter((file) => {
+    if (!isInstruction(file)) return false;
     const parts = file.path.split("/");
     return folder === null ? parts.length === 1 : file.path.startsWith(`${folder}/`) && parts.length === folder.split("/").length + 1;
   });
@@ -157,6 +164,7 @@ export type Template = { name: string; path: string; version_id: string; version
 function templatesIn(files: RemoteFile[], folders: string[]): Template[] {
   return files
     .filter((file) => {
+      if (!isInstruction(file)) return false;
       const parts = file.path.split("/");
       const folder = parts.slice(0, -1).join("/");
       return folders.includes(folder) && TEMPLATE.test(parts.at(-1)!.slice(0, -3));
@@ -194,7 +202,7 @@ export function audienceTemplates(workspace: TeamView, playbook: string, audienc
 /** Audiences that have files of their own, plus default. 0.7's campaigns/main/ is the default audience. */
 export function listAudiences(workspace: TeamView, playbook: string): string[] {
   const prefixes = [`${playbook}/audiences/`, ...(playbook === LEGACY_OWNER ? [`${LEGACY_CAMPAIGNS}/`] : [])];
-  const names = workspace.setup.files.team.flatMap((file) => {
+  const names = workspace.setup.files.team.filter(isInstruction).flatMap((file) => {
     const prefix = prefixes.find((item) => file.path.startsWith(item));
     const name = prefix ? file.path.slice(prefix.length).split("/")[0] : undefined;
     if (!name || !file.path.slice(prefix!.length).includes("/")) return [];
@@ -209,7 +217,7 @@ export function listAudiences(workspace: TeamView, playbook: string): string[] {
  */
 export function audienceFile(workspace: TeamView, playbook: string, audience: string, name: string): RemoteFile[] {
   const folders = [...(audience === DEFAULT_AUDIENCE ? [playbook] : []), ...audienceFolders(playbook, audience)];
-  return folders.flatMap((folder) => workspace.setup.files.team.filter((file) => file.path === `${folder}/${name}`));
+  return folders.flatMap((folder) => workspace.setup.files.team.filter((file) => file.path === `${folder}/${name}` && !file.object));
 }
 
 export type PresetInfo = { name: string; playbook: string; description: string; kind: string };

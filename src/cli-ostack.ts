@@ -13,6 +13,19 @@ import { telemetryHeaders } from './cli-telemetry-context.js';
 
 type Method = 'GET' | 'PUT' | 'PATCH' | 'POST' | 'DELETE';
 
+/** GET /v1/ostack/kits: every kit the workspace added, with the team's and the member's files; binary files as signed links. */
+const installedKitsSchema = z.object({
+  kits: z.array(z.object({
+    kit: z.string(), title: z.string(), release: z.string(), seller: z.string(), reviewed: z.boolean(), retired: z.boolean(),
+    files: z.array(z.object({
+      path: z.string().min(1).max(512), layer: z.enum(['kit', 'team', 'mine']), content: z.string(),
+      binary: z.object({
+        sha256: z.string().regex(/^[a-f0-9]{64}$/), sizeBytes: z.number().int().nonnegative(), contentType: z.string(), url: z.url(), expiresAt: z.string(),
+      }).optional(),
+    })),
+  })),
+});
+
 /** Wallet failures become ostack's stable codes, which its skills branch on. Bodies are never echoed. */
 export function failure(status: number, body: unknown): OstackError {
   const code = typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string' ? body.error : '';
@@ -30,10 +43,10 @@ export function failure(status: number, body: unknown): OstackError {
 }
 
 /**
- * The team's setup through the signed-in wallet key. Reads the saved login lazily, so commands that never touch the
- * team (help, init, skills) work before signing in. OAuth logins refresh once on a 401, like every wallet call.
+ * Requests to the wallet with the signed-in key. Reads the saved login lazily, so commands that never touch the team
+ * (help, init, skills) work before signing in. OAuth logins refresh once on a 401, like every wallet call.
  */
-export function walletRemote(profile: string | undefined): PlaybookRemote {
+export function walletRequester(profile: string | undefined) {
   let config: Awaited<ReturnType<typeof readConfig>> | undefined;
   const load = async () => {
     if (config) return config;
@@ -74,13 +87,19 @@ export function walletRemote(profile: string | undefined): PlaybookRemote {
     if (!response.ok) throw failure(response.status, parsed);
     return parsed;
   };
+  return { request, origin: () => (config ? walletOrigin(config.baseUrl) : 'unknown') };
+}
+
+/** The team's setup through the signed-in wallet key (walletRequester). */
+export function walletRemote(profile: string | undefined): PlaybookRemote {
+  const { request, origin } = walletRequester(profile);
   return {
     cliVersion: version,
     get origin() {
-      return config ? walletOrigin(config.baseUrl) : 'unknown';
+      return origin();
     },
     async setup() {
-      return playbookSetupSchema.parse(await request('GET', '/v1/ostack/setup'));
+      return playbookSetupSchema.parse(await request('GET', '/v1/ostack/setup?tree=1'));
     },
     async saveFile(input) {
       return playbookFileSchema.parse(await request('PUT', '/v1/ostack/files', input));
@@ -105,6 +124,9 @@ export function walletRemote(profile: string | undefined): PlaybookRemote {
     },
     async deleteSchedule(input) {
       await request('DELETE', '/v1/ostack/schedules', input);
+    },
+    async installedKits() {
+      return installedKitsSchema.parse(await request('GET', '/v1/ostack/kits')).kits;
     },
     async reportInstall(input) {
       await request('POST', '/v1/ostack/installs', skillsInstalledSchema.parse(input));
@@ -146,5 +168,11 @@ function videoRemote(request: (method: Method, path: string, body?: unknown) => 
 
 /** `o11 ostack ...`: ostack's own commands, with the team's playbook setup read through this login. */
 export async function ostackCommand(args: string[], profile: string | undefined): Promise<number> {
-  return runOstack(args, walletRemote(profile));
+  const { isKitCommand, kitCommand, KIT_COMMAND_HELP } = await import('./cli-kit-actions.js');
+  if (isKitCommand(args)) return kitCommand(args, walletRequester(profile));
+  const code = await runOstack(args, walletRemote(profile));
+  // `o11 kit help` lists the kit commands after ostack's own.
+  if (args.length === 0 || (args.length === 1 && args[0] === 'help'))
+    process.stdout.write(`\nKits: find, add and publish kits (the MCP tool kit_manage runs the same actions)\n${KIT_COMMAND_HELP}\n`);
+  return code;
 }

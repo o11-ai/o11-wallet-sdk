@@ -17,7 +17,7 @@ over the defaults, except for the rules at the end of this file.
    agent has `/goal`, give them this line once (on a first run, after the first result) so they can rerun under a goal: `/goal Run the ostack-seo-audit skill in
    <workspace> until o11 ostack run end seo/audit has recorded the run and the report is written.` Then carry on.
 1. `cd` to the workspace (the folder with `ostack.json`) and run `o11 ostack doctor`. Stop on any `fail`. If the login
-   check fails, ask the user to run `o11 login`. If the team has no `seo/site.md`, learn the site and its market as
+   check fails, sign the user in by email as the ostack-setup skill says (their email, then the code it sends). If the team has no `seo/site.md`, learn the site and its market as
    the ostack-setup skill's `references/first-run.md` says, save it and carry on; ask only when nothing names a site.
 2. `o11 ostack run start seo/audit`. If it reports `feature_not_available`, this workspace has no access to
    SEO: say so and stop. If it reports `run_in_progress`, stop and say so. Run `o11 ostack run end seo/audit --summary

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.60
+
+**Changed**
+- The `o11 login` approval link now lasts 30 minutes instead of 10, so it still works if you come back to it later. Older CLIs keep 10 minutes until they update.
+
+## 0.1.59
+
+**Changed**
+- The wallet now needs o11 CLI 0.1.37 or newer. An older CLI is told to run `o11 update`.
+
+**New**
+- The installers (`install.sh`, `install.ps1`) and the CLI carry an optional setup code from the o11.ai setup prompt (`O11_SETUP_CODE`). It is sent with the program download, the install report and the sign-in link, so a copied prompt can be joined to the account. It is skipped under `DO_NOT_TRACK` or `O11_TELEMETRY=0`, and a bad code is dropped.
+- Email sign-in in two commands, with no browser: `o11 login --server URL --email EMAIL [--task TEXT]` sends a code and exits, and `o11 login --server URL --code-stdin` reads the six-digit code from stdin, has the wallet approve the connection and saves access. Both steps use the profile you name, or the default one, even with `--client`, `--card` or `--name`. The email, card, client, name, task and request carry over from the first step in a private file. The code lasts 5 minutes. A wrong code can be sent again with the same command; an expired one names the command that starts over, with the same card and task. If the second step stops after the wallet approved, running it again finishes the sign-in. In a terminal, `--code-stdin` asks for the code. An account that signs in with Google gets the `o11 login --auth browser --no-browser` command to run instead. The code is never a command-line argument.
+- Interactive email sign-in in a terminal no longer opens the browser after the code is accepted, when the wallet approves the connection itself.
+
+**Fixed**
+- A login that was killed no longer blocks the next one. The login lock records its process and start time; a later login takes over a lock whose process has ended or that is older than the 10-minute approval link. A login that is still running keeps the lock.
+- A call refused for funds (HTTP 402) prints the wallet's add-funds link and `o11 topup AMOUNT`. A card-limit refusal prints the wallet link where a person can raise the limit. `o11 call` errors and a stopped `o11 batch` also carry them as `addFundsUrl` and `dashboardUrl`.
+- `o11 login` prints the approval link and code before it starts waiting, straight to stderr, and says when the link expires. An expired link is reported as expired after 10 minutes, with `o11 login` to get a new one.
+
 ## 0.1.58
 
 **New**

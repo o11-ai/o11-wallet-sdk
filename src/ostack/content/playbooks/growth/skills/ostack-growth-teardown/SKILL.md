@@ -7,7 +7,7 @@ description: Work out how a company or a creator grew, from public evidence, and
 
 A target and a time window in. A dated account of how it grew out, with every claim marked seen or inferred, ending in plays the user can run. This skill is the `growth/full`, `growth/content`, `growth/videos` and `growth/creator` workflows of ostack's growth playbook.
 
-It runs on the o11 CLI. If `o11 --help` fails or `o11 discover "web search" --limit 1` reports no login, ask the user to run `o11 login`.
+It runs on the o11 CLI. If `o11 --help` fails or `o11 discover "web search" --limit 1` reports no login, sign the user in by email as the ostack-setup skill says: ask for their email, run `o11 login --email <email>`, then pass the code they give you on stdin to `o11 login --code-stdin`.
 
 ## Modes
 

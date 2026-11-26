@@ -15,13 +15,16 @@ export function audienceFolder(playbook: string, audience: string): string {
 export type LocalFile = { file: string; path: string; text: string };
 /** Reads custom.local/ (folder null) or custom.local/<playbook>/. */
 export type LocalFileReader = (folder: string | null) => Promise<LocalFile[]>;
+/** A file anywhere under custom.local/<playbook>/: its path from custom.local/, where it is on disk, its size and whether it is binary. */
+export type LocalTreeFile = { path: string; diskPath: string; sizeBytes: number; binary: boolean };
+export type LocalTreeReader = (playbook: string) => Promise<LocalTreeFile[]>;
 
 /**
  * The team's setup as one person sees it: the wallet's files and settings, their timezone, and their files on this
  * computer when there is one. The CLI builds it from a workspace folder; the wallet builds it for MCP, which has no
  * computer, so `localFiles` is absent there. Everything that reads it works the same in both.
  */
-export type TeamView = { setup: SetupSnapshot; settings: RemoteSettings; timezone: string; localFiles?: LocalFileReader };
+export type TeamView = { setup: SetupSnapshot; settings: RemoteSettings; timezone: string; localFiles?: LocalFileReader; localTree?: LocalTreeReader };
 
 /** Settings as they apply to this person: their own values over the team's. Presets are the team's only. */
 export function effectiveSettings(setup: Pick<RemoteSetup, "settings">): RemoteSettings {
@@ -39,7 +42,7 @@ export function effectiveSettings(setup: Pick<RemoteSetup, "settings">): RemoteS
  * The team's setup as this person sees it. `fallbackZone` is used when no timezone is set, or the saved one is
  * unknown here: this computer's clock in the CLI, UTC in the wallet.
  */
-export function teamView(setup: SetupSnapshot, fallbackZone: string, localFiles?: LocalFileReader): TeamView {
+export function teamView(setup: SetupSnapshot, fallbackZone: string, localFiles?: LocalFileReader, localTree?: LocalTreeReader): TeamView {
   const settings = effectiveSettings(setup);
   let timezone = fallbackZone;
   try {
@@ -47,5 +50,5 @@ export function teamView(setup: SetupSnapshot, fallbackZone: string, localFiles?
   } catch {
     // An unknown zone saved elsewhere falls back rather than blocking every run.
   }
-  return { setup, settings, timezone, ...(localFiles ? { localFiles } : {}) };
+  return { setup, settings, timezone, ...(localFiles ? { localFiles } : {}), ...(localTree ? { localTree } : {}) };
 }

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Args } from "../lib/args.js";
 import { OstackError } from "../lib/errors.js";
+import { kitSkillFolders, removeKitSkills, syncKits, type KitResult, type KitTarget } from "../lib/kit-sync.js";
 import { print } from "../lib/output.js";
 import { remote } from "../lib/remote.js";
 import { shippedSkills, skillAllowed as allowed } from "../lib/skill-catalog.js";
@@ -157,22 +158,48 @@ function hostsFrom(args: Args): Host[] {
   throw new OstackError("invalid_flag", `--host must be one of: ${HOSTS.join(", ")}, auto.`);
 }
 
-/** `o11 ostack skills install [--host claude|codex|cursor|gemini|auto]`, `skills status`, `skills uninstall`. */
+const kitTargets = (hosts: Host[]): KitTarget[] => hosts.map((host) => ({ host, root: hostDir(host), adjust: (files) => forHost(host, files) }));
+const shippedNames = () => new Set(shippedSkills().map((skill) => skill.name));
+
+/** The added kits as skill folders, for install: never fails it. Signed out, offline or an older wallet leave kit folders as they are. */
+async function kitsForInstall(hosts: Host[]): Promise<{ kits: KitResult[] } | { kits_skipped: string }> {
+  try {
+    return { kits: await syncKits(kitTargets(hosts), shippedNames()) };
+  } catch (error) {
+    return { kits_skipped: `${error instanceof Error ? error.message : "Kits could not be read."} Kit skill folders were left as they are; run "o11 ostack skills kits" to retry.` };
+  }
+}
+
+function needHosts(hosts: Host[]) {
+  if (hosts.length === 0) throw new OstackError("no_agent", "No coding agent folder (~/.claude, ~/.codex, ~/.cursor, ~/.gemini) was found. Pass --host.");
+}
+
+/**
+ * `o11 ostack skills install [--host claude|codex|cursor|gemini|auto]` copies the ostack skills and every kit the
+ * workspace added; `skills kits` copies the kits only; `skills status`; `skills uninstall`.
+ */
 export async function skillsCommand(args: Args): Promise<void> {
   const sub = args.positionals[1] ?? "status";
   if (sub === "install") {
     const hosts = hostsFrom(args);
-    if (hosts.length === 0) throw new OstackError("no_agent", "No coding agent folder (~/.claude, ~/.codex, ~/.cursor, ~/.gemini) was found. Pass --host.");
+    needHosts(hosts);
     const granted = await grantedFeatures();
     const results = hosts.flatMap((host) => installHost(host, false, granted));
     await reportInstall(hosts, results);
-    return print({ version: VERSION, results, next: 'Agents: read the installed ostack-setup/SKILL.md (path above) and follow it now; this session may not load new skills until it restarts. People: ask your agent to "set up ostack".' });
+    return print({ version: VERSION, results, ...await kitsForInstall(hosts), next: 'Agents: read the installed ostack-setup/SKILL.md (path above) and follow it now; this session may not load new skills until it restarts. People: ask your agent to "set up ostack".' });
+  }
+  if (sub === "kits") {
+    const hosts = hostsFrom(args);
+    needHosts(hosts);
+    const results = await syncKits(kitTargets(hosts), shippedNames());
+    return print({ results, next: "Each kit skill is a folder in your agent's skills folder, with the team's and your own files merged in. Run this again after the kit or its files change." });
   }
   if (sub === "status") {
     const names = shippedSkills().map((skill) => skill.name);
     const installed = HOSTS.flatMap((host) => names.map((name) => ({ host, skill: name, path: join(hostDir(host), name), version: installedVersion(join(hostDir(host), name)) })))
       .filter((item) => item.version !== null);
-    return print({ version: VERSION, skills: names, installed });
+    const kits = HOSTS.flatMap((host) => kitSkillFolders(hostDir(host)).map(({ skill, kit, stamp, path }) => ({ host, skill, kit, release: stamp.split(" ")[1] ?? "", path })));
+    return print({ version: VERSION, skills: names, installed, kits });
   }
   if (sub === "uninstall") {
     const removed: string[] = [];
@@ -185,7 +212,8 @@ export async function skillsCommand(args: Args): Promise<void> {
         }
       }
     }
-    return print({ removed, kept: "Workspaces and the team's setup in the wallet were left alone." });
+    removed.push(...removeKitSkills(HOSTS.map(hostDir)));
+    return print({ removed, kept: "Workspaces, added kits and the team's setup in the wallet were left alone." });
   }
-  throw new OstackError("unknown_command", "Use: o11 ostack skills install [--host claude|codex|cursor|gemini|auto] | status | uninstall.");
+  throw new OstackError("unknown_command", "Use: o11 ostack skills install|kits [--host claude|codex|cursor|gemini|auto] | status | uninstall.");
 }

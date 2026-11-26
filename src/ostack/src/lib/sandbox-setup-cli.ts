@@ -30,6 +30,6 @@ export function sandboxSetupForCli(setup: Setup) {
     steps: setup.steps.map(withCli),
     when_a_site_needs_the_person: setup.when_a_site_needs_the_person.map(withCli),
     when_the_person_returns: setup.when_the_person_returns.map(withCli),
-    next: "Run each step's cli line in order, filling in the {placeholders}. A value the person or a page gives goes inside the single quotes with each ' written as '\\''. A failed step can run again, but use_login only as its then says. If exec answers status running, run o11 sandbox command-status {sandbox} --command-id <commandId> until it has an exitCode, then o11 sandbox logs {sandbox} --command-id <commandId> for the output. Where a then names ostack_read or ostack_write, use the matching o11 ostack command (o11 ostack setup status, settings, schedule). Tell the person only what a step's then says to ask them.",
+    next: "Run each step's cli line in order, filling in the {placeholders}. A value the person or a page gives goes inside the single quotes with each ' written as '\\''. A failed step can run again, but use_login only as its then says. If exec answers status running, run o11 sandbox command-status {sandbox} --command-id <commandId> until it has an exitCode, then o11 sandbox logs {sandbox} --command-id <commandId> for the output. Where a then names kit_read or kit_write, use the matching o11 ostack command (o11 ostack setup status, settings, schedule). Tell the person only what a step's then says to ask them.",
   };
 }

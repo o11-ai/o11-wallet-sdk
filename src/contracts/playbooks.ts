@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { kitObjectHashSchema } from "./kit-objects.js";
 
 /**
  * A team's Ostack playbook setup, which `o11 ostack` reads before every run and the wallet's Ostack page edits:
@@ -8,10 +9,20 @@ import { z } from "zod";
 export const fileScopeSchema = z.enum(["team", "me"]);
 export type FileScope = z.infer<typeof fileScopeSchema>;
 
-/** company.md, gtm/write.md, gtm/audiences/customers/template-a.md. Up to three folders, lowercase. */
-export const PLAYBOOK_FILE_PATH = /^(?:[a-z0-9][a-z0-9-]*\/){0,3}[a-z0-9][a-z0-9_-]*\.md$/;
-export const playbookFilePathSchema = z.string().max(240).regex(PLAYBOOK_FILE_PATH);
+/**
+ * company.md, gtm/write.md, gtm/assets/logo.png, acme-seo/skills/audit/scripts/check.py: up to eight folders, then a
+ * file of any type, like a kit's own files (no dot-files, no `..`). The first folder names the kit the file is for.
+ */
+export const PLAYBOOK_FILE_PATH = /^(?:[A-Za-z0-9_][A-Za-z0-9._-]*\/){0,8}[A-Za-z0-9_][A-Za-z0-9._-]*$/;
+/**
+ * Exactly the path rule released CLIs (before folder trees) validate every setup file against. Keep it byte-for-byte:
+ * a wider rule sends those CLIs a path they refuse, and their whole setup fails to load.
+ */
+export const LEGACY_PLAYBOOK_FILE_PATH = /^(?:[a-z0-9][a-z0-9-]*\/){0,3}[a-z0-9][a-z0-9_-]*\.md$/;
+export const playbookFilePathSchema = z.string().max(240).regex(PLAYBOOK_FILE_PATH).refine((path) => !path.split("/").some((part) => part === "." || part === ".."));
 export const playbookFileContentSchema = z.string().max(64 * 1024);
+/** A stored binary file a workspace file points at (see kit-objects.ts). A binary file's content is empty. */
+export const playbookFileObjectSchema = z.object({ sha256: kitObjectHashSchema, sizeBytes: z.number().int().min(0), contentType: z.string() });
 /** An audience folder's name, such as customers. The default audience's files sit in the playbook's own folder. */
 export const audienceNameSchema = z.string().max(60).regex(/^[a-z0-9][a-z0-9-]*$/);
 export const setupQuestionIdSchema = z.string().max(80).regex(/^(?:[a-z0-9-]+\/)?[a-z0-9-]+$/);
@@ -22,6 +33,7 @@ export const playbookIdSchema = z.string().max(40).regex(/^[a-z0-9][a-z0-9-]*$/)
 export const playbookFileSchema = z.object({
   path: playbookFilePathSchema,
   content: z.string(),
+  object: playbookFileObjectSchema.nullish(),
   version: z.number().int().positive(),
   versionId: z.uuid(),
   updatedAt: z.string(),
@@ -36,6 +48,7 @@ export const playbookFileVersionSchema = z.object({
   path: playbookFilePathSchema,
   version: z.number().int().positive(),
   content: z.string(),
+  object: playbookFileObjectSchema.nullish(),
   current: z.boolean(),
   createdAt: z.string(),
   createdBy: z.string().nullable(),
@@ -161,10 +174,16 @@ export type PlaybookSetup = z.infer<typeof playbookSetupSchema>;
 export const saveFileSchema = z.object({
   scope: fileScopeSchema,
   path: playbookFilePathSchema,
-  content: playbookFileContentSchema,
+  /** A text file's content. Empty for a binary file, which names bytes already uploaded by `sha256`. */
+  content: playbookFileContentSchema.optional(),
+  sha256: kitObjectHashSchema.optional(),
   /** The version the caller read, or null for a file the caller believes does not exist yet. */
   baseVersion: z.number().int().positive().nullable(),
-});
+})
+  // A text file names its content (empty is fine); a binary file names its bytes. Leaving out both is a mistake, not an empty file.
+  .refine((input) => (input.sha256 === undefined ? input.content !== undefined : !input.content),
+    { message: "Send a text file's content, or a binary file's sha256 without content.", path: ["content"] })
+  .transform((input) => ({ ...input, content: input.content ?? "" }));
 export const deleteFileSchema = z.object({
   scope: fileScopeSchema,
   path: playbookFilePathSchema,

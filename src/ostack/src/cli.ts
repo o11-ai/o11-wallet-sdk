@@ -23,7 +23,11 @@ Owners and admins change the team's; --me changes only yours.
 
 Install and workspace
   skills install [--host claude|codex|cursor|gemini|auto] | skills status | skills uninstall
-                                               copy the ostack skills into your coding agents (kept current by o11 update)
+                                               copy the ostack skills and your workspace's kits into your coding agents
+                                               (ostack skills kept current by o11 update)
+  skills kits [--host claude|codex|cursor|gemini|auto]
+                                               copy every kit your workspace added into your coding agents' skills
+                                               folders, one folder per skill, with the team's and your files merged in
   init [--dir <path>] [--playbooks gtm,launch-videos,growth]   create a folder on this computer for schedules and personal files
                                                (default: this folder; ~/ostack when run from your home folder)
   playbooks list | add <id> | remove <id>      which playbooks (families of workflows) this folder runs

@@ -1,7 +1,12 @@
 ---
-id: seo
-name: SEO
+kit: 1
+name: seo
+title: SEO
 summary: Audit the site, keep publishing and refreshing posts that win search and AI answers, and track what moves.
+release: 0.13.1
+license: MIT
+uses:
+  effects: [read, write, spend, publish]
 workflows:
   - id: audit
     skill: ostack-seo-audit

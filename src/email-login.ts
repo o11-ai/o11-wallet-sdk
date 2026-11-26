@@ -10,14 +10,14 @@ export type EmailHandoff = z.infer<typeof handoffSchema>;
 export type EmailDevice = { origin: string; deviceCode: string; resource: string; requestId: string; signal: AbortSignal };
 
 export class EmailLoginError extends Error {
-  constructor(readonly status: number, readonly code: string) {
-    super(code === 'invalid_otp' ? 'That code did not match. Try the code in your email again.'
+  constructor(readonly status: number, readonly code: string, message?: string) {
+    super(message ?? (code === 'invalid_otp' ? 'That code did not match. Try the code in your email again.'
       : status === 429 ? 'Email sign-in is rate limited. Wait before trying again, or use login --auth browser.'
-      : `Email sign-in failed (HTTP ${status}). Run login --auth browser to continue in your browser.`);
+      : `Email sign-in failed (HTTP ${status}). Run login --auth browser to continue in your browser.`));
   }
 }
 
-async function post(device: EmailDevice, path: string, input: Record<string, string>) {
+async function post(device: EmailDevice, path: string, input: Record<string, string | boolean>) {
   const response = await fetch(`${device.origin}${path}`, { method: 'POST', redirect: 'error',
     signal: AbortSignal.any([device.signal, AbortSignal.timeout(20000)]), headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client_id: 'o11-wallet-cli', device_code: device.deviceCode, resource: device.resource, ...input }) });
@@ -37,6 +37,21 @@ export async function verifyEmailLogin(device: EmailDevice, email: string, otp: 
   if (url.origin !== device.origin || url.pathname !== '/oauth/device/browser' || url.search || url.hash || handoff.request_id !== device.requestId)
     throw new Error('The wallet returned an unexpected browser handoff. Run login --auth browser.');
   return handoff;
+}
+const approvedSchema = z.object({ verified: z.literal(true), approved: z.literal(true) });
+/**
+ * Verifies the code and asks the wallet to approve the device request itself (`approve: true`), so no browser opens.
+ * A wallet without that support answers with a browser handoff, returned for the caller to decide.
+ */
+export async function verifyEmailApproval(device: EmailDevice, email: string, otp: string) {
+  if (!/^[0-9]{6}$/.test(otp)) throw new Error('Enter the six-digit code from your email.');
+  const body: unknown = await post(device, '/oauth/device/email/verify', { email, otp, approve: true });
+  if (approvedSchema.safeParse(body).success) return { approved: true as const };
+  const handoff = handoffSchema.parse(body);
+  const url = new URL(handoff.handoff_url);
+  if (url.origin !== device.origin || url.pathname !== '/oauth/device/browser' || url.search || url.hash || handoff.request_id !== device.requestId)
+    throw new Error('The wallet returned an unexpected browser handoff. Run login --auth browser.');
+  return { approved: false as const, handoff };
 }
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);

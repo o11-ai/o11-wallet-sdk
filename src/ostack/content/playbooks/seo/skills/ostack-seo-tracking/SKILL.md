@@ -14,8 +14,8 @@ win over the defaults, except for the rules at the end of this file.
 
 0. **Set the goal.** The run is finished only when `o11 ostack run end seo/tracking` has recorded it and the report is
    written and sent, or when it stopped early and you said so. Scheduled runs start with `/goal` set to exactly that.
-1. `cd` to the workspace and run `o11 ostack doctor`. Stop on any `fail`. If the login check fails, ask the user to run
-   `o11 login` (in a scheduled run, stop and report it). Tracking needs `seo/site.md` (learn and save it as
+1. `cd` to the workspace and run `o11 ostack doctor`. Stop on any `fail`. If the login check fails, sign the user in by
+   email as the ostack-setup skill says (in a scheduled run, stop and report it). Tracking needs `seo/site.md` (learn and save it as
    the ostack-setup skill's `references/first-run.md` says when missing); without `seo/tracking.md` it uses the defaults and
    says so in the report.
 2. `o11 ostack run start seo/tracking` (keep `--scheduled` when the prompt has it). `not_due`, `run_in_progress` or

@@ -17,8 +17,8 @@ over the defaults, except for the rules at the end of this file.
    exactly that. When someone starts a run by hand and their agent has `/goal`, give them this line once (on a first run, after the first result): `/goal Run the
    ostack-seo-growth skill in <workspace> until o11 ostack run end seo/growth has recorded the run and the report is
    written.` Then carry on. These pages go live under the team's name: think carefully at every step.
-1. `cd` to the workspace and run `o11 ostack doctor`. Stop on any `fail`. If the login check fails, ask the user to run
-   `o11 login` (in a scheduled run, stop and report it). Growth needs `seo/site.md` and `seo/publish.md`: when either is
+1. `cd` to the workspace and run `o11 ostack doctor`. Stop on any `fail`. If the login check fails, sign the user in by
+   email as the ostack-setup skill says (in a scheduled run, stop and report it). Growth needs `seo/site.md` and `seo/publish.md`: when either is
    missing, learn it as the ostack-setup skill's `references/first-run.md` says (the site from their sign-in domain or repo;
    publishing from the repo you are in or the CMS the site names), save it and carry on. In a scheduled run, stop and
    report it.

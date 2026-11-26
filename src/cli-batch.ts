@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { RUN_CEILING_REASON } from './contracts/invocation-run.js';
 import { ToolCallError, ToolClientError, type InvocationReceipt, type ToolClient } from './client.js';
 import { loadRows, parseMap, rowParams, rowSource, type FieldMap, type Row } from './cli-batch-rows.js';
+import { fundingLinks } from './cli-funding-links.js';
 
 const usage = 'Use o11 batch TOOL_ID --rows FILE|INVOCATION_ID [--map FIELD=COLUMN ...] [--input JSON|@FILE] [--run-max USD] [--journal FILE] [--concurrency 1-8] [--max-cost-micros N] [--retry-failed]';
 export type BatchArguments = { tool: string; rows: string; map: FieldMap; input?: string; runMaxMicros?: string; journal?: string;
@@ -68,7 +69,8 @@ const unserved = new Set<string>(['miss', 'not_found', 'rejected', 'pending', 'u
 const ROWS_WITHOUT_RUN_MAX = 1_000;
 
 export type BatchClient = Pick<ToolClient, 'callTool' | 'getInvocation' | 'waitForInvocation' | 'runSummary' | 'runId'> & { origin?: string };
-export type Stop = { reason: 'run_ceiling' | 'funds' | 'refused' | 'unauthorized'; row?: number; remainingMicros?: string; message?: string };
+export type Stop = { reason: 'run_ceiling' | 'funds' | 'refused' | 'unauthorized'; row?: number; remainingMicros?: string; message?: string;
+  addFundsUrl?: string; dashboardUrl?: string };
 
 /** The journal: a header line, then one line per row state change. The last line for a row wins; a line cut off by a kill is ignored. */
 export async function readJournal(path: string) {
@@ -136,7 +138,7 @@ const stopText: Record<Stop['reason'], string> = {
  * from its journal: rows already sent replay their stored receipt for free, finished rows are not sent again. The
  * batch stops when the run's ceiling, the balance or the card refuses a call; those rows stay pending.
  */
-export async function runBatch(client: BatchClient, options: BatchArguments & { runId?: string; cwd?: string },
+export async function runBatch(client: BatchClient, options: BatchArguments & { runId?: string; cwd?: string; walletOrigin?: string },
   read: (path: string) => Promise<string> = path => readFile(path, 'utf8')) {
   const input = options.input === undefined ? {} : JSON.parse(options.input.startsWith('@') ? await read(options.input.slice(1)) : options.input) as unknown;
   if (typeof input !== 'object' || input === null || Array.isArray(input)) throw new Error('--input takes a JSON object of fields every row shares');
@@ -210,9 +212,9 @@ export async function runBatch(client: BatchClient, options: BatchArguments & { 
         if (text(response, 'reason') === 'run_ceiling')
           return halt('run_ceiling', { ...waiting, reason: 'run ceiling reached' }, text(response, 'remainingMicros') ? { remainingMicros: text(response, 'remainingMicros') } : {});
         // Money, the card or the key refused the call: nothing was stored, and every later row would be refused the same way.
-        if (status === 402) return halt('funds', waiting, { message });
+        if (status === 402) return halt('funds', waiting, { message, ...fundingLinks(response, options.walletOrigin) });
         if (status === 401) return halt('unauthorized', waiting, { message });
-        if (status === 403) return halt('refused', waiting, { message });
+        if (status === 403) return halt('refused', waiting, { message, ...fundingLinks(response, options.walletOrigin) });
         // A conflict, a timeout or a server error may clear: the row stays sent and replays its key on the next run.
         // Any other refusal is about this row's own fields; it is sent again only if the command is run again.
         const definite = status >= 400 && status < 500 && ![408, 409, 429].includes(status);

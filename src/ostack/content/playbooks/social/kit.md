@@ -1,7 +1,12 @@
 ---
-id: social
-name: Social
+kit: 1
+name: social
+title: Social
 summary: Grow your own X and Instagram (and LinkedIn if you turn it on), and get every planned post drafted, with its videos made, days before it goes out.
+release: 0.13.1
+license: MIT
+uses:
+  effects: [read, write, send, spend, publish]
 workflows:
   - id: growth
     skill: ostack-social-growth

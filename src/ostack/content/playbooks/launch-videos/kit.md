@@ -1,7 +1,12 @@
 ---
-id: launch-videos
-name: Launch videos
+kit: 1
+name: launch-videos
+title: Launch videos
 summary: Launch films, product demos and generated UGC videos, with media tools from your o11 wallet.
+release: 0.13.1
+license: MIT
+uses:
+  effects: [read, write, spend, publish]
 workflows:
   - id: ugc
     skill: ostack-ugc

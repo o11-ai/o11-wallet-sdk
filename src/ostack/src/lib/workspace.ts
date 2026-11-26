@@ -1,11 +1,11 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { OstackError } from "./errors.js";
 import { loadSetup, type RemoteSettings, type SetupSnapshot } from "./remote.js";
 import { backupPreviousState, readState, STATE_FILE, writeState, type State } from "./state.js";
-import { LOCAL_DIR, teamView, type LocalFileReader, type TeamView } from "./team-view.js";
+import { LOCAL_DIR, teamView, type LocalFileReader, type LocalTreeReader, type TeamView } from "./team-view.js";
 import { systemTimeZone } from "./time.js";
 
 export { audienceFolder, DEFAULT_AUDIENCE, LOCAL_DIR } from "./team-view.js";
@@ -26,6 +26,27 @@ export function localFileReader(root: string): LocalFileReader {
     return Promise.all(names.map(async (file) => {
       const path = join(dir, file);
       return { file, path, text: await Bun.file(path).text() };
+    }));
+  };
+}
+
+/** At most this many local files are listed per playbook, so a stray folder cannot flood an agent's context. */
+const LOCAL_TREE_LIMIT = 500;
+
+/** Every file under custom.local/<playbook>/ at any depth, hidden ones aside. A NUL byte early on marks a file binary. */
+export function localTreeReader(root: string): LocalTreeReader {
+  return async (playbook) => {
+    const dir = join(root, LOCAL_DIR, playbook);
+    if (!existsSync(dir)) return [];
+    const entries = await readdir(dir, { recursive: true, withFileTypes: true });
+    const paths = entries.filter((entry) => entry.isFile())
+      .map((entry) => relative(dir, join(entry.parentPath, entry.name)).split(sep).join("/"))
+      .filter((path) => !path.split("/").some((part) => part.startsWith(".")))
+      .sort().slice(0, LOCAL_TREE_LIMIT);
+    return Promise.all(paths.map(async (path) => {
+      const diskPath = join(dir, ...path.split("/"));
+      const file = Bun.file(diskPath);
+      return { path: `${playbook}/${path}`, diskPath, sizeBytes: file.size, binary: (await file.slice(0, 8000).bytes()).includes(0) };
     }));
   };
 }
@@ -63,7 +84,7 @@ export async function loadWorkspace(): Promise<Workspace> {
   const local = await loadLocalWorkspace();
   const setup = await loadSetup(local.root);
   const localFiles = localFileReader(local.root);
-  return { ...local, ...teamView(setup, systemTimeZone(), localFiles), setup, localFiles };
+  return { ...local, ...teamView(setup, systemTimeZone(), localFiles, localTreeReader(local.root)), setup, localFiles };
 }
 
 export function enabledPlaybooks(workspace: LocalWorkspace): string[] {

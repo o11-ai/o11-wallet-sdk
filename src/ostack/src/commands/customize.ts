@@ -20,7 +20,7 @@ export function playbookOf(workspace: Workspace, args: Args, ref?: string): stri
 /**
  * `o11 ostack context` returns everything the agent should know before a run of a playbook's audience: files,
  * settings, templates, steps. `o11 ostack context <step>` returns that step's default plus every customization of it.
- * The wallet's ostack_read tool returns the same thing over MCP.
+ * The wallet's kit_read tool returns the same thing over MCP.
  */
 export async function contextCommand(args: Args): Promise<void> {
   const workspace = await loadWorkspace();

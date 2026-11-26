@@ -1,18 +1,19 @@
 /**
  * The core `o11 ostack` commands (cli.ts COMMANDS) at subcommand level, and how an agent without the CLI reaches each.
- * An MCP route means the ostack MCP action changes or returns the same stored data; anything that reads or writes
+ * An MCP route means the kit MCP action changes or returns the same stored data; anything that reads or writes
  * the local workspace folder, skills or cron runs on the person's o11 sandbox.
  */
 import type { CommandEntry } from "./command-registry.js";
 
 const sandbox = { via: "sandbox" } as const;
-const read = (action: string) => ({ via: "mcp", tool: "ostack_read", call: { read: action } }) as const;
-const write = (action: string) => ({ via: "mcp", tool: "ostack_write", call: { write: action } }) as const;
-const run = (action: string) => ({ via: "mcp", tool: "ostack_run", call: { run: action } }) as const;
+const read = (action: string) => ({ via: "mcp", tool: "kit_read", call: { read: action } }) as const;
+const write = (action: string) => ({ via: "mcp", tool: "kit_write", call: { write: action } }) as const;
+const run = (action: string) => ({ via: "mcp", tool: "kit_run", call: { run: action } }) as const;
 
 export const CORE_COMMAND_ROUTES: readonly CommandEntry[] = [
   // Install and workspace
-  { cli: "skills install", summary: "Copy the ostack skills into your coding agents", route: sandbox },
+  { cli: "skills install", summary: "Copy the ostack skills and the workspace's kits into your coding agents", route: sandbox },
+  { cli: "skills kits", summary: "Copy every kit the workspace added into your coding agents, merged with the team's and your files", route: sandbox },
   { cli: "skills status", summary: "Which coding agents have the ostack skills, and their version", route: sandbox },
   { cli: "skills uninstall", summary: "Remove the ostack skills from your coding agents", route: sandbox },
   { cli: "init", summary: "Create a folder for schedules and personal files", route: sandbox },

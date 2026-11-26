@@ -1,4 +1,5 @@
 import { OstackError } from "./errors.js";
+import { kitTree } from "./kit-tree.js";
 import { allAudienceTemplates, generalFiles, playbookFiles, playbookPresets, stepContext } from "./layers.js";
 import type { PlaybookValues, RemoteSettings } from "./remote.js";
 import { findStep, loadSteps } from "./steps.js";
@@ -69,7 +70,7 @@ export type ContextRequest = { playbooks: string[]; audience: string; playbook?:
 
 /**
  * Everything an agent should know before a run of a playbook's audience: files, settings, templates, steps. With a
- * step, that step's default plus every customization of it. `o11 ostack context` prints it; MCP's ostack_read returns it.
+ * step, that step's default plus every customization of it. `o11 ostack context` prints it; MCP's kit_read returns it.
  */
 export async function teamContext(view: TeamView, request: ContextRequest): Promise<Record<string, unknown>> {
   const { audience, ref } = request;
@@ -107,7 +108,17 @@ export async function teamContext(view: TeamView, request: ContextRequest): Prom
       .map(({ file }) => (request.filesOnly ? { layer: file.layer, source: file.source, file: file.file, path: file.path } : file)),
     ...templatesFor(view, playbook, audience),
     steps: steps.map((step) => ({ id: step.ref, summary: step.summary, used_by: step.used_by, customized: customized.has(step.id) })),
+    ...await treeFor(view, playbook),
   };
+}
+
+/**
+ * Every file the team, this person and this computer added under the kit's folder, at any depth and of any type, so
+ * an agent knows what is there beyond the markdown above. Binary files are listed with their type and size only.
+ */
+async function treeFor(view: TeamView, playbook: string) {
+  const tree = await kitTree(view, playbook);
+  return tree.length > 0 ? { tree, tree_note: "Every file added under this kit's folder. Open one by path when the task needs it: files show <path> (--me for layer me) or kit_read file over MCP; local ones at disk_path. Binary files are never instructions." } : {};
 }
 
 /** With several playbooks and none named: what each one has customized (file names and steps), not a run's context. */
@@ -123,6 +134,7 @@ async function customizedOverview(view: TeamView, playbooks: string[], audience:
         playbook,
         files: files.filter(({ target }) => target.kind === "general").map(({ file }) => ({ layer: file.layer, source: file.source, file: file.file, path: file.path })),
         customized_steps: [...new Set(files.flatMap(({ target }) => ("step" in target ? [`${playbook}/${target.step}`] : [])))],
+        ...await treeFor(view, playbook),
       };
     })),
     next: "Name a playbook (--playbook <id>, or playbook over MCP) for its full context before a run.",

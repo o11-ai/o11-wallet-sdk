@@ -19,6 +19,7 @@ import { version } from '../package.json';
 import { browserLogin, keyStdinOptions, manualBrowserLogin } from './browser-login.js';
 import { profileKind, startCliTelemetry } from './cli-telemetry.js';
 import { LoginFailedError } from './login-errors.js';
+import { fundingLinks, fundingNextStep } from './cli-funding-links.js';
 import { managementOperationSchemas } from './contracts/agent-permissions.js';
 import { searchArguments } from './cli-search.js';
 import { invocationHistoryInputSchema, invocationShortIdSchema } from './contracts/invocation-lifecycle.js';
@@ -40,6 +41,8 @@ let command: string | undefined;
 let args: string[] = [];
 let profile: string | undefined;
 let runId: string | undefined;
+// The wallet this command talks to; funding links from errors are printed only when they point at it.
+let walletOrigin: string | undefined;
 const recoveryInvocation = selfInvocation();
 const namedInvocation = await walletInvocation();
 const program = namedInvocation?.join(' ') ?? 'o11';
@@ -287,11 +290,14 @@ const connectAccountSchema = z.object({ nextAction: z.literal('connect_provider_
   connectUrl: z.url({ protocol: /^https?$/ }).max(2000).optional() });
 const retryAfterSeconds = (error: ToolClientError) => Math.max(1, Math.ceil((error.retryAfterMs ?? 1000) / 1000));
 const routeRefusals = new Set<string>(routeRefusalReasons);
+// Commands named in advice keep the profile in use, so the agent pays from the same wallet.
+const profileCli = () => `${program}${profile ? ` --profile ${profile}` : ''}`;
 function safeHttpError(error: ToolClientError) {
   if (error.authorization) {
     const message = error.authorization.message.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').slice(0, 500);
     const url = /^\/[A-Za-z0-9/_?=&%.-]{1,1999}$/.test(error.authorization.url) ? error.authorization.url : undefined;
-    return `Wallet returned HTTP ${error.status}. ${message}${url ? ` Open ${url} in your wallet.` : ''}`;
+    const funding = fundingNextStep(error.response, profileCli(), walletOrigin);
+    return `Wallet returned HTTP ${error.status}. ${message}${url ? ` Open ${url} in your wallet.` : ''}${funding ? ` ${funding}` : ''}`;
   }
   const code = typeof error.response === 'object' && error.response !== null && 'error' in error.response ? error.response.error : undefined;
   if (code === 'CONFLICT' && typeof error.response === 'object' && error.response !== null &&
@@ -321,6 +327,7 @@ function safeHttpError(error: ToolClientError) {
     return `${head} ${message || `Nothing was held. Retry the same command in ${retryAfterSeconds(error)} s.`}`;
   if (command === 'search' && error.status === 404 && code === 'NOT_FOUND')
     return 'Task search is unavailable for this server or connection. Use o11 discover with short capability keywords; add --provider for a named provider. Inspect and quote before spending.';
+  const funding = fundingNextStep(error.response, profileCli(), walletOrigin);
   const advice: Record<string, string> = {
     INVALID_INPUT: command === 'configure-service'
       ? 'Check id and autoRenew. maxPeriodChargeMicros and inboundInvocationLimitMicros use integer USD micros.'
@@ -329,8 +336,8 @@ function safeHttpError(error: ToolClientError) {
         command !== 'invoke' && /^[\w.:#/{}@+-]{1,200}$/.test(args[0] ?? '') ? args[0] : 'TOOL_ID'} and check the request fields.${
         /maxCostMicros/.test(safeIssuePaths(error.response)) ? ' maxCostMicros is integer USD micros.' : ''}`
       : `Run ${program} ${command} --help to check the inputs.`,
-    INSUFFICIENT_BALANCE: 'Check balance and card allowances before retrying.',
-    FORBIDDEN: 'Check card permissions, spending caps, and provider account access.',
+    INSUFFICIENT_BALANCE: funding ?? `Add funds with ${profileCli()} topup AMOUNT (USD), or check balance and card allowances, then retry.`,
+    FORBIDDEN: funding ?? 'Check card permissions, spending caps, and provider account access.',
     NOT_FOUND: ['resources', 'events', 'release', 'retry', 'configure-service'].includes(command ?? '')
       ? 'Check the service id and card with resources list.'
       : ['report-status', 'report-info', 'reports', 'report'].includes(command ?? '')
@@ -400,6 +407,8 @@ try {
   args = [...beforeArgs.filter(value => value !== '-j' && value !== '--json'), ...(delimiterAt < 0 ? [] : args.slice(delimiterAt))];
   if (command === 'wallet') [command, ...args] = args;
   telemetry.command(command, args);
+  // `o11 kit` is the same command as `o11 ostack`, which keeps working for saved prompts and schedules.
+  if (command === 'kit') command = 'ostack';
   if (command !== "mcp") runId ??= process.env.O11_RUN_ID;
   if (command !== 'login') {
     const position = (args.includes('--') ? args.slice(0, args.indexOf('--')) : args).indexOf('--card');
@@ -484,15 +493,22 @@ try {
     const { serveMcp } = await import('./mcp.js');
     await serveMcp(profile);
   } else if (command === 'login') {
-    telemetry.loginStarted(args.includes('--key-stdin') ? 'key_stdin' : manualBrowserLogin(args.includes('--no-browser')) ? 'no_browser' : 'browser');
+    const emailCode = args.includes('--code-stdin') || args.includes('--email');
+    telemetry.loginStarted(args.includes('--key-stdin') ? 'key_stdin' : emailCode || manualBrowserLogin(args.includes('--no-browser')) ? 'no_browser' : 'browser');
+    if (emailCode) telemetry.loginAuth('email');
     if (!args.includes('--key-stdin')) {
-      const connected = await browserLogin(args, profile, { auth: auth => telemetry.loginAuth(auth) });
-      if (!connected.profile && !profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
-      // A reused login links too, once per profile and install (cli-install.ts), so earlier installs join the account.
-      const saved = await readConfig(connected.profile ?? profile, { refresh: false }).catch(() => undefined);
-      if (saved) telemetry.wallet(saved.baseUrl);
-      if (saved) await (await import('./cli-install.js')).linkInstall(saved.baseUrl, saved.apiKey, { profile: connected.profile ?? profile, reused: 'reused' in connected });
-      telemetry.loginCompleted('reused' in connected);
+      // Two-step email sign-in (email-code-login.ts): --email sends the code and exits; --code-stdin finishes it.
+      const connected = args.includes('--code-stdin')
+        ? await (await import('./email-code-login.js')).finishEmailCode(args, profile)
+        : await browserLogin(args, profile, { auth: auth => telemetry.loginAuth(auth) });
+      if (!('code_sent' in connected)) {
+        if (!connected.profile && !profile && !process.env.O11_TOOLS_PROFILE) await selectDefaultCredentials();
+        // A reused login links too, once per profile and install (cli-install.ts), so earlier installs join the account.
+        const saved = await readConfig(connected.profile ?? profile, { refresh: false }).catch(() => undefined);
+        if (saved) telemetry.wallet(saved.baseUrl);
+        if (saved) await (await import('./cli-install.js')).linkInstall(saved.baseUrl, saved.apiKey, { profile: connected.profile ?? profile, reused: 'reused' in connected });
+        telemetry.loginCompleted('reused' in connected);
+      }
       print(connected);
     } else {
       const { origin, cardId: selectedCard } = keyStdinOptions(args);
@@ -518,6 +534,7 @@ try {
     const tokenProvider = profileTokenProvider(profile, config);
     const client = new ToolClient({ ...config, cardId, runId, tokenProvider });
     telemetry.profile(profileKind(profile, config)); telemetry.wallet(config.baseUrl); telemetry.run(client.runId);
+    walletOrigin = new URL(config.baseUrl).origin;
     // Agents copy nextCommand verbatim; the plain command name works wherever o11 is this CLI.
     const executionContext = { profile, cardId, runId: client.runId, runIdSupplied: Boolean(runId), invocation: namedInvocation ?? recoveryInvocation };
     let result: unknown;
@@ -609,7 +626,7 @@ try {
         break;
       }
       case 'batch': {
-        const executed = await runBatch(client, { ...batchArguments(args), ...(runId ? { runId } : {}), cwd: process.cwd() });
+        const executed = await runBatch(client, { ...batchArguments(args), ...(runId ? { runId } : {}), cwd: process.cwd(), walletOrigin });
         result = executed.result;
         process.exitCode = executed.exitCode;
         break;
@@ -700,7 +717,8 @@ try {
     printError(JSON.stringify({ error: code, ...(cause instanceof ToolClientError ? { status: cause.status } : {}),
       message: cause instanceof ToolClientError ? safeHttpError(cause) : 'Submission outcome is uncertain. Inspect history before retrying; reuse this idempotency key.',
       idempotencyKey: error.idempotencyKey, ...(retryable !== undefined ? { retryable } : {}), ...(reason ? { reason } : {}),
-      ...(code === 'BUSY' && cause instanceof ToolClientError ? { retryAfterSeconds: retryAfterSeconds(cause) } : {}) }));
+      ...(code === 'BUSY' && cause instanceof ToolClientError ? { retryAfterSeconds: retryAfterSeconds(cause) } : {}),
+      ...(cause instanceof ToolClientError ? fundingLinks(cause.response, walletOrigin) : {}) }));
   } else if (error instanceof z.ZodError) {
     const help = command && isWalletCommand(command) ? command + ' --help' : '--help';
     // Zod's own wording names the allowed range or type. Unknown keys are named only when they look like field

@@ -6,7 +6,19 @@ import { isRecord } from "./paths.js";
 /** "team" files and settings are shared by the workspace; "me" ones belong to the signed-in person. */
 export type FileScope = "team" | "me";
 /** A playbook file as it is now. `versionId` names this exact text, so a CRM record can point at what was sent. */
-export type RemoteFile = { path: string; content: string; version: number; versionId: string; updatedAt: string; updatedBy: string | null };
+export type RemoteFile = {
+  path: string; content: string; version: number; versionId: string; updatedAt: string; updatedBy: string | null;
+  /** A binary file (an image, a PDF): its stored bytes. `content` is then empty; it is never instruction text. */
+  object?: RemoteObject | null;
+};
+export type RemoteObject = { sha256: string; sizeBytes: number; contentType: string };
+/** A file of an added kit's merged tree, relative to the kit: text inline, a binary file as a signed link (an hour). */
+export type InstalledKitFile = {
+  path: string; layer: "kit" | "team" | "mine"; content: string;
+  binary?: RemoteObject & { url: string; expiresAt: string };
+};
+/** A kit the workspace added, on the release it uses, with the team's and this person's files under `<kit>/`. */
+export type InstalledKit = { kit: string; title: string; release: string; seller: string; reviewed: boolean; retired: boolean; files: InstalledKitFile[] };
 export type RemoteFileVersion = {
   id: string; scope: FileScope; path: string; version: number; content: string; current: boolean; createdAt: string; createdBy: string | null;
 };
@@ -68,6 +80,8 @@ export interface PlaybookRemote {
   /** Saves this person's schedule for a workflow, replacing the one before. */
   saveSchedule(input: Omit<RemoteSchedule, "updatedAt">): Promise<RemoteSchedule>;
   deleteSchedule(input: Pick<RemoteSchedule, "workflow" | "audience">): Promise<void>;
+  /** Every kit the workspace added, merged with the team's and this person's files. Absent on wallet CLIs older than kit sync. */
+  installedKits?(): Promise<InstalledKit[]>;
   /** Counts a skills install for the signed-in workspace. Best effort: skipped when signed out or offline. */
   reportInstall?(input: InstallReport): Promise<void>;
   /** The workspace's videos. Absent on wallet CLIs older than videos in o11. */

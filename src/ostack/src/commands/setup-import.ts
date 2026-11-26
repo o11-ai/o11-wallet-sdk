@@ -43,7 +43,7 @@ export async function legacyFiles(root: string): Promise<LegacyFile[]> {
   for (const audience of await folders(audiences)) {
     for (const name of await markdown(join(audiences, audience))) files.push({ file: join(audiences, audience, name), path: `gtm/audiences/${audience === "main" ? "default" : audience}/${name}` });
   }
-  return files.filter((item) => /^(?:[a-z0-9][a-z0-9-]*\/){0,3}[a-z0-9][a-z0-9_-]*\.md$/.test(item.path));
+  return files.filter((item) => /^(?:[a-z0-9][a-z0-9_-]*\/){0,5}[A-Za-z0-9][A-Za-z0-9_.-]*\.md$/.test(item.path));
 }
 
 /** Settings and answers a 0.6 or older ostack.json held, read from the backup kept at upgrade. */
@@ -72,7 +72,7 @@ async function legacySettings(root: string): Promise<{ values: SettingsPatch; an
   return { values, answered };
 }
 
-const FILE_PATH = /^(?:[a-z0-9][a-z0-9-]*\/){0,3}[a-z0-9][a-z0-9_-]*\.md$/;
+const FILE_PATH = /^(?:[a-z0-9][a-z0-9_-]*\/){0,5}[A-Za-z0-9][A-Za-z0-9_.-]*\.md$/;
 
 /**
  * This person's own setup that only this computer has: files in custom.local/, which become their own files in the

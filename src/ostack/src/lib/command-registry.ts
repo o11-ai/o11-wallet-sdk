@@ -1,7 +1,7 @@
 /**
  * Every `o11 ostack` command and how an agent without the CLI reaches it, so the CLI and the o11 MCP connector never
  * drift apart. Each command has exactly one route:
- * - mcp: an action of one of the ostack MCP tools (ostack_read, ostack_write, ostack_run), served by the wallet.
+ * - mcp: an action of one of the kit MCP tools (kit_read, kit_write, kit_run; first named ostack_read, ostack_write, ostack_run), served by the wallet.
  * - sandbox: it needs a computer (local files, skills, cron, a browser), so it runs on the person's o11 sandbox, where
  *   o11 installed and signed in the CLI: the connector's `sandbox` tool sends `exec` with sandboxCommand(...).
  * The parity test (apps/o11-wallet-backend/test/ostack-command-parity.test.ts) checks this list against the CLI's
@@ -11,11 +11,11 @@ import { CORE_COMMAND_ROUTES } from "./command-registry-core.js";
 import { PLAYBOOK_COMMAND_ROUTES } from "./command-registry-playbooks.js";
 import { PATHS, SANDBOX_WORKSPACE, shellQuote } from "./sandbox-setup.js";
 
-export type OstackMcpTool = "ostack_read" | "ostack_write" | "ostack_run";
+export type KitMcpTool = "kit_read" | "kit_write" | "kit_run";
 
 export type CommandRoute =
   /** `call` is the action field and value, such as { read: "context" }. */
-  | { via: "mcp"; tool: OstackMcpTool; call: { read: string } | { write: string } | { run: string } }
+  | { via: "mcp"; tool: KitMcpTool; call: { read: string } | { write: string } | { run: string } }
   | { via: "sandbox" };
 
 export type CommandEntry = {

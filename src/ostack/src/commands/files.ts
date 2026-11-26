@@ -6,14 +6,15 @@ import { print } from "../lib/output.js";
 import { remote, requireManager, requireOnline, type FileScope } from "../lib/remote.js";
 import { loadWorkspace, type Workspace } from "../lib/workspace.js";
 
-/** about.md, gtm/write.md, gtm/audiences/customers/template-a.md. Up to three folders, lowercase. */
-const FILE_PATH = /^(?:[a-z0-9][a-z0-9-]*\/){0,3}[a-z0-9][a-z0-9_-]*\.md$/;
+/** about.md, gtm/write.md, acme-seo/skills/audit/SKILL.md, acme-seo/assets/logo.png: any file type, up to eight folders. */
+const FILE_PATH = /^(?:[A-Za-z0-9_][A-Za-z0-9._-]*\/){0,8}[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 const VERSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** A path as typed: a name without an extension is a markdown file (about is about.md). */
 export function filePath(value: string): string {
-  const path = value.endsWith(".md") ? value : `${value}.md`;
-  if (!FILE_PATH.test(path)) {
-    throw new OstackError("invalid_path", "A file path is a name such as about.md, gtm/write.md or gtm/audiences/<name>/template-a.md, in lowercase.");
+  const path = /\.[A-Za-z0-9]+$/.test(value.split("/").at(-1) ?? "") ? value : `${value}.md`;
+  if (path.length > 240 || !FILE_PATH.test(path) || path.split("/").some((part) => part === "." || part === "..")) {
+    throw new OstackError("invalid_path", "A file path is such as about.md, gtm/write.md, <kit>/skills/<skill>/SKILL.md or <kit>/assets/logo.png, in up to eight folders.");
   }
   return path;
 }
@@ -49,7 +50,9 @@ export async function filesCommand(args: Args): Promise<void> {
   const workspace = await loadWorkspace();
   const scope = scopeOf(args);
   if (sub === "list") {
-    const list = (files: ReturnType<typeof filesIn>) => files.map(({ path, version, versionId: id, updatedAt, updatedBy }) => ({ path, version, version_id: id, updated_at: updatedAt, updated_by: updatedBy }));
+    const list = (files: ReturnType<typeof filesIn>) => files.map(({ path, version, versionId: id, updatedAt, updatedBy, object }) => ({
+      path, version, version_id: id, updated_at: updatedAt, updated_by: updatedBy, ...(object ? { content_type: object.contentType, size_bytes: object.sizeBytes } : {}),
+    }));
     return print({ team: list(workspace.setup.files.team), me: list(workspace.setup.files.mine), ...(workspace.setup.offline ? { offline: true } : {}) });
   }
   if (sub === "export") return exportFiles(workspace, args);
@@ -57,6 +60,10 @@ export async function filesCommand(args: Args): Promise<void> {
   const current = filesIn(workspace, scope).find((file) => file.path === path);
   if (sub === "show") {
     if (!current) throw new OstackError("file_not_found", `No ${scope === "me" ? "personal" : "team"} file at ${path}.`);
+    if (current.object) {
+      const { content: _content, object, ...rest } = current;
+      return print({ scope, ...rest, binary: object, note: "A binary file, never instruction text. Its bytes are in the agent skill folders after o11 ostack skills install, or as a link through kit_read over MCP." });
+    }
     return print({ scope, ...current });
   }
   requireOnline(workspace.setup, "changing files");
@@ -79,12 +86,17 @@ export async function filesCommand(args: Args): Promise<void> {
   throw new OstackError("unknown_command", "Use: o11 ostack files list | show|write|delete <path> [--me] | show --version <id> | export [--dir <folder>].");
 }
 
-/** Writes the team's files and your own as plain markdown: <dir>/team/... and <dir>/me/... */
+/** Writes the team's text files and your own: <dir>/team/... and <dir>/me/... Binary files are listed, not written. */
 async function exportFiles(workspace: Workspace, args: Args): Promise<void> {
   const dir = resolve(optional(args, "dir") ?? join(workspace.root, "setup-export"));
   const written: string[] = [];
+  const binary: string[] = [];
   for (const [folder, files] of [["team", workspace.setup.files.team], ["me", workspace.setup.files.mine]] as const) {
     for (const file of files) {
+      if (file.object) {
+        binary.push(`${folder}/${file.path}`);
+        continue;
+      }
       const target = join(dir, folder, ...file.path.split("/"));
       mkdirSync(dirname(target), { recursive: true });
       await Bun.write(target, file.content);
@@ -94,5 +106,5 @@ async function exportFiles(workspace: Workspace, args: Args): Promise<void> {
   const settings = join(dir, "settings.json");
   mkdirSync(dir, { recursive: true });
   await Bun.write(settings, `${JSON.stringify(workspace.setup.settings, null, 2)}\n`);
-  print({ dir, files: written.length + 1, settings, ...(workspace.setup.offline ? { offline: `Exported the copy saved at ${workspace.setup.fetched_at}.` } : {}) });
+  print({ dir, files: written.length + 1, settings, ...(binary.length > 0 ? { binary_not_exported: binary } : {}), ...(workspace.setup.offline ? { offline: `Exported the copy saved at ${workspace.setup.fetched_at}.` } : {}) });
 }

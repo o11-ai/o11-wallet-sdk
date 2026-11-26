@@ -1,6 +1,6 @@
 import type { PlaybookCode } from "../types.js";
 import { downloadCommand } from "./download.js";
-import { checkCommand, newCommand } from "./kit.js";
+import { checkCommand, newCommand } from "./starters.js";
 import { TRENDING_HELP, trendingCommand } from "./trending.js";
 import { createCommand, templateCommand, templatesCommand, updateCommand, uploadCommand, videoCommand, videosCommand } from "./videos.js";
 

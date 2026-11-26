@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { productionWalletOrigin, walletOrigin } from "./access-tokens.js";
@@ -42,6 +42,22 @@ export function installIdSync() {
   return cachedId = created;
 }
 export async function installId() { return installIdSync(); }
+
+/**
+ * The setup code from a copied o11.ai prompt: O11_SETUP_CODE, or the one the installer saved. Attribution only, sent with
+ * the install report and the sign-in link so the wallet can follow that copy to this account. Same rule as
+ * @o11/tool-contracts/setup-code (not imported: the published CLI bundles a fixed list of contracts).
+ */
+async function setupCode() {
+  const read = (value: string | undefined) => {
+    const code = value?.trim().toLowerCase() ?? "";
+    return /^[a-z2-7]{6}$/.test(code) ? code : undefined;
+  };
+  const fromEnv = read(process.env.O11_SETUP_CODE);
+  if (fromEnv) return { code: fromEnv, saved: false };
+  const fromFile = read(await readText(join(telemetryRoot(), "setup-code")));
+  return fromFile ? { code: fromFile, saved: true } : undefined;
+}
 export function reportOrigin() {
   try { return walletOrigin(process.env.O11_TOOLS_URL || productionWalletOrigin); } catch { return undefined; }
 }
@@ -55,11 +71,11 @@ export async function reportInstall(version: string) {
     if (!installTrackingEnabled() || !target || !origin) return;
     const versionFile = join(telemetryRoot(), "install-version"), previous = await readText(versionFile);
     if (previous === version) return;
-    const id = await installId();
+    const [id, setup] = await Promise.all([installId(), setupCode()]);
     const response = await fetch(`${origin}/v1/cli/installs`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(3000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ installId: id, version, ...(/^\d+\.\d+\.\d+$/.test(previous) ? { previousVersion: previous } : {}),
-        ...target, standalone: compiledCli }) });
+        ...target, standalone: compiledCli, ...(setup ? { setupCode: setup.code } : {}) }) });
     await response.body?.cancel();
     if (response.ok) await writeFile(versionFile, version + "\n", { mode: 0o600 });
   } catch { /* Install counts never affect a command. */ }
@@ -72,9 +88,10 @@ export async function reportInstall(version: string) {
 export async function linkInstall(baseUrl: string, apiKey: string, options: { profile?: string; reused?: boolean } = {}) {
   try {
     if (!installTrackingEnabled()) return;
-    const id = await installId();
+    const [id, setup] = await Promise.all([installId(), setupCode()]);
     const marker = join(credentialDirectory(options.profile), "install-link");
-    if (options.reused) {
+    // A setup code still to send links again, even for an install linked before.
+    if (options.reused && !setup) {
       // The marker holds the install ID once linked, or `ID attempt EPOCH_MS` while a link is unanswered. A reused login
       // retries an unanswered link at most once a day, so a failing endpoint slows at most one `o11 login` per day.
       const [linked, attempt, at] = (await readText(marker)).split(" ");
@@ -83,9 +100,13 @@ export async function linkInstall(baseUrl: string, apiKey: string, options: { pr
     }
     const response = await fetch(`${walletOrigin(baseUrl)}/v1/cli/installs/link`, { method: "POST", redirect: "error",
       signal: AbortSignal.timeout(options.reused ? 1500 : 3000),
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ installId: id }) });
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ installId: id, ...(setup ? { setupCode: setup.code } : {}) }) });
     await response.body?.cancel();
     // A 4xx will not succeed on retry either; only a server failure leaves the link for a later sign-in.
-    if (response.status < 500) await writeFile(marker, id + "\n", { mode: 0o600 });
+    if (response.status < 500) {
+      await writeFile(marker, id + "\n", { mode: 0o600 });
+      // The installer's saved code has done its job once it reaches an account.
+      if (setup?.saved) await rm(join(telemetryRoot(), "setup-code"), { force: true });
+    }
   } catch { /* Install counts never affect sign-in. */ }
 }

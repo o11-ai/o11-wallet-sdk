@@ -1,28 +1,28 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { KITS } from "../../../content/kits.js";
+import { STARTERS } from "../../../content/starters.js";
 import { oneOf, optional, required, type Args } from "../../lib/args.js";
 import { OstackError } from "../../lib/errors.js";
 import { print } from "../../lib/output.js";
 import { checkName, loadLocalWorkspace, requirePlaybook } from "../../lib/workspace.js";
 
 const PLAYBOOK = "launch-videos";
-const KIT = `playbooks/${PLAYBOOK}/kit/`;
+const STARTER_DIR = `playbooks/${PLAYBOOK}/starters/`;
 export const FORMATS = ["irl", "reel", "product-demo", "ugc"] as const;
 type Format = (typeof FORMATS)[number];
 
 /** The kit's shared files, then the format's own files in their place. */
-export function kitFiles(format: Format): Map<string, string> {
+export function starterFiles(format: Format): Map<string, string> {
   const files = new Map<string, string>();
   const own = `formats/${format}/`;
-  for (const [path, text] of Object.entries(KITS)) {
-    if (!path.startsWith(KIT)) continue;
-    const local = path.slice(KIT.length);
+  for (const [path, text] of Object.entries(STARTERS)) {
+    if (!path.startsWith(STARTER_DIR)) continue;
+    const local = path.slice(STARTER_DIR.length);
     if (!local.startsWith("formats/")) files.set(local, text);
   }
-  for (const [path, text] of Object.entries(KITS)) {
-    const local = path.startsWith(KIT) ? path.slice(KIT.length) : "";
+  for (const [path, text] of Object.entries(STARTERS)) {
+    const local = path.startsWith(STARTER_DIR) ? path.slice(STARTER_DIR.length) : "";
     if (local.startsWith(own)) files.set(local.slice(own.length), text);
   }
   files.set("package.json", `${JSON.stringify({
@@ -51,7 +51,7 @@ export async function newCommand(args: Args): Promise<void> {
   if (existsSync(dir) && readdirSync(dir).length > 0) {
     throw new OstackError("video_exists", `${dir} already has files. Nothing was changed; pick another name or --dir.`, { dir });
   }
-  const files = kitFiles(format);
+  const files = starterFiles(format);
   for (const [path, text] of files) {
     const target = join(dir, ...path.split("/"));
     mkdirSync(dirname(target), { recursive: true });

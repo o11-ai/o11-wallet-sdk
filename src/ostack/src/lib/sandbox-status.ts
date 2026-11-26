@@ -24,9 +24,9 @@ const summarize = [
   "d,s,n=load(sys.argv[1]),load(sys.argv[2]),load(sys.argv[3])",
   "checks=d.get('checks') if isinstance(d,dict) and isinstance(d.get('checks'),list) else []",
   "doctor={'ok':d.get('ok') is True,'version':d.get('version'),'o11_version':d.get('o11_version'),'failing':[{'check':c.get('check'),'detail':c.get('detail')} for c in checks if isinstance(c,dict) and c.get('status')=='fail']} if isinstance(d,dict) else None",
-  // Ids only: the full question texts run to tens of KB. `o11 ostack setup status` (ostack_read setup) has them.
+  // Ids only: the full question texts run to tens of KB. `o11 ostack setup status` (kit_read setup) has them.
   "ids=lambda v:[q.get('id') if isinstance(q,dict) else q for q in (v if isinstance(v,list) else []) if isinstance(q,str) or (isinstance(q,dict) and isinstance(q.get('id'),str))]",
-  "setup={'version':s.get('version'),'timezone':s.get('timezone'),'pending_questions':ids(s.get('pending_questions')),'team_pending':ids(s.get('team_pending')),'question_text':'o11 ostack setup status, or ostack_read setup'} if isinstance(s,dict) else None",
+  "setup={'version':s.get('version'),'timezone':s.get('timezone'),'pending_questions':ids(s.get('pending_questions')),'team_pending':ids(s.get('team_pending')),'question_text':'o11 ostack setup status, or kit_read setup'} if isinstance(s,dict) else None",
   "needs=[x for x in (n.get('needs') if isinstance(n,dict) and isinstance(n.get('needs'),list) else []) if isinstance(x,dict) and isinstance(x.get('workflow'),str) and isinstance(x.get('ask'),str)]",
   "import datetime,os",
   "a=sys.argv[6] or None",

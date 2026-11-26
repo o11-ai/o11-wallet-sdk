@@ -1,7 +1,12 @@
 ---
-id: growth
-name: Growth
+kit: 1
+name: growth
+title: Growth
 summary: Work out how a company or a creator grew from public evidence, and turn it into plays you can copy.
+release: 0.13.1
+license: MIT
+uses:
+  effects: [read, spend]
 workflows:
   - id: full
     skill: ostack-growth-teardown

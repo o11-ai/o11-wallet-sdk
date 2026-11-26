@@ -1,7 +1,12 @@
 ---
-id: gtm
-name: Go-to-market
+kit: 1
+name: gtm
+title: Outbound
 summary: Find and qualify leads, send personal first messages, answer replies, follow up and book meetings.
+release: 0.13.1
+license: MIT
+uses:
+  effects: [read, write, send, spend]
 workflows:
   - id: outbound
     skill: ostack-outbound

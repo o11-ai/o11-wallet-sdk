@@ -3,6 +3,8 @@
  * steps. The CLI names itself in `cliVersionHeader` on every request; a client without the header is not a CLI.
  */
 export const minimumCliVersion = "0.1.33";
+/** The oldest CLI the Ostack setup skills accept: 0.1.37 added the launch-videos playbook. Not an API gate. */
+export const ostackMinimumCliVersion = "0.1.37";
 export const cliVersionHeader = "x-o11-cli-version";
 
 const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;

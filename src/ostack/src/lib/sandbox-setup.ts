@@ -8,7 +8,7 @@ import { O11_KEY_DIR, O11_KEY_FILE, o11InstallScript, o11KeyLockScript, o11Login
  * Ostack on the person's o11 sandbox, set up by an agent that has only the o11 `sandbox` tool (a cloud chat with the
  * o11 connector): the ordered sandbox requests it sends, each a plain action and params. The sandbox's own o11 CLI,
  * signed in with a key o11 issues for that sandbox alone, then runs ostack and its schedules there. Pure, so the wallet
- * serves it over MCP (ostack_read sandbox_setup).
+ * serves it over MCP (kit_read sandbox_setup).
  */
 export const SANDBOX_NAME = "ostack";
 export const SANDBOX_WORKSPACE = "$HOME/ostack";
@@ -126,7 +126,7 @@ export function sandboxSetupSteps(origin: string, agent?: AiLoginAgent) {
     { step: "run_check", request: exec(runCheckScript(), { OSTACK_PROMPT: "{prompt}" }),
       then: "For the ostack-setup checks on go: fill {prompt} with the check and it runs {agent} in ~/ostack the way a scheduled run does. Its output is the check's answer. Skip it otherwise." },
     { step: "turn_on_schedules", request: exec(scheduleScript("{agent}")),
-      then: "Only after use_login is done and the person's schedules are saved (ostack_write schedule, or o11 ostack schedule set with the CLI) with a timezone (ostack_read settings or o11 ostack settings show; save one with ostack_write settings or o11 ostack settings set timezone if it is missing). Run again after schedules change, or wait: cron reinstalls them every 15 minutes." },
+      then: "Only after use_login is done and the person's schedules are saved (kit_write schedule, or o11 ostack schedule set with the CLI) with a timezone (kit_read settings or o11 ostack settings show; save one with kit_write settings or o11 ostack settings set timezone if it is missing). Run again after schedules change, or wait: cron reinstalls them every 15 minutes." },
   ];
   if (agent) for (const step of steps) step.request = JSON.parse(JSON.stringify(step.request).replaceAll("{agent}", agent)) as SandboxSetupRequest;
   return {
@@ -141,7 +141,7 @@ export function sandboxSetupSteps(origin: string, agent?: AiLoginAgent) {
       { request: { action: "info", id: SANDBOX_NAME, params: {} },
         then: "Never creates a sandbox. If it is not found or deleted, the person has none: skip the rest. Otherwise keep sandbox.id as {sandbox}; if it is stopped, run get_sandbox first to resume it." },
       { request: exec(sandboxStatusScript()),
-        then: "setup.pending_questions lists question ids: read their text with ostack_read setup (o11 ostack setup status with the CLI). Ask the person everything in ask_person and those questions in one short message, after answering what you can yourself. Save the answers on your side (ostack_write, or the CLI); the sandbox reads them from o11 on its next run. Never ask the person to type on the sandbox. If agent_login.needs_sign_in is true, the agent login needs signing in: run check_login and the steps after it. If doctor.failing has the login check, run lock_o11_key, issue_o11_key and sign_in_o11. If doctor or setup is null or doctor.failing has another check, run install_ostack again and read this again. If cron_running is false, run install_o11 again. If schedules_installed is false and schedules are saved, run turn_on_schedules." },
+        then: "setup.pending_questions lists question ids: read their text with kit_read setup (o11 ostack setup status with the CLI). Ask the person everything in ask_person and those questions in one short message, after answering what you can yourself. Save the answers on your side (kit_write, or the CLI); the sandbox reads them from o11 on its next run. Never ask the person to type on the sandbox. If agent_login.needs_sign_in is true, the agent login needs signing in: run check_login and the steps after it. If doctor.failing has the login check, run lock_o11_key, issue_o11_key and sign_in_o11. If doctor or setup is null or doctor.failing has another check, run install_ostack again and read this again. If cron_running is false, run install_o11 again. If schedules_installed is false and schedules are saved, run turn_on_schedules." },
     ],
     next: `Run the steps in order with the o11 sandbox tool, filling in the {placeholders}. A failed step can run again, but use_login only as its then says. If exec answers status running, poll command-status (${STATUS}) until it has an exitCode, then read logs (${LOGS}) for the output. Tell the person only what a step's then says to ask them.`,
   };

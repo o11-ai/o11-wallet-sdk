@@ -1,6 +1,6 @@
 /** Why a wallet sign-in ended without access. cli_login_failed reports the reason; the message is unchanged. */
 export type LoginFailureReason = "timeout" | "denied" | "expired" | "network" | "invalid_key" | "card_not_found" | "cancelled"
-  | "rate_limited" | "unexpected_address" | "check_failed";
+  | "rate_limited" | "unexpected_address" | "check_failed" | "browser_required";
 
 export class LoginFailedError extends Error {
   constructor(readonly reason: LoginFailureReason, message: string) {

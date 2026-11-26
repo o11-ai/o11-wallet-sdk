@@ -5,7 +5,7 @@
  */
 export { canUse, usablePlaybooks } from "./lib/access.js";
 export {
-  dispatchWord, OSTACK_COMMANDS, sandboxCommand, type CommandEntry, type CommandRoute, type OstackMcpTool,
+  dispatchWord, OSTACK_COMMANDS, sandboxCommand, type CommandEntry, type CommandRoute, type KitMcpTool,
 } from "./lib/command-registry.js";
 export { readContent } from "./lib/content.js";
 export { OstackError } from "./lib/errors.js";

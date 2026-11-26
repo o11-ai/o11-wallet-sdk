@@ -22,10 +22,10 @@ export function loadPlaybooks(): Playbook[] {
   const playbooks: Playbook[] = [];
   for (const folder of contentFolders("playbooks")) {
     const dir = `playbooks/${folder}`;
-    const manifest = readContent(`${dir}/playbook.md`);
+    const manifest = readContent(`${dir}/kit.md`);
     if (!manifest) continue;
     const { data } = parseFrontmatter(manifest);
-    const id = typeof data.id === "string" ? data.id : folder;
+    const id = typeof data.name === "string" ? data.name : folder;
     const workflows = (Array.isArray(data.workflows) ? data.workflows : []).filter(isRecord).map((item) => ({
       id: String(item.id),
       ref: `${id}/${String(item.id)}`,
@@ -36,7 +36,7 @@ export function loadPlaybooks(): Playbook[] {
       perAudience: item.per_audience === true,
     }));
     playbooks.push({
-      id, name: typeof data.name === "string" ? data.name : id, summary: typeof data.summary === "string" ? data.summary : "", dir,
+      id, name: typeof data.title === "string" ? data.title : id, summary: typeof data.summary === "string" ? data.summary : "", dir,
       access: data.access === "beta" ? "beta" : "open", workflows,
     });
   }

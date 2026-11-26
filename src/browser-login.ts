@@ -1,5 +1,6 @@
 import { compiledCli } from './cli-update.js';
 import { lstat } from "node:fs/promises";
+import { writeSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from "zod";
@@ -9,9 +10,9 @@ import { credentialDirectory, readConfig, saveConfig, type ToolConfig } from "./
 import { tokenRequest, walletOrigin, walletServer } from "./access-tokens.js";
 import { withLoginLock } from './login-lock.js';
 import { openLoginTerminal } from './login-terminal.js';
-import { startEmailLogin, verifyEmailLogin, createEmailHandoff, EmailLoginError } from './email-login.js';
+import { startEmailLogin, verifyEmailApproval, createEmailHandoff, EmailLoginError } from './email-login.js';
+import { requestDeviceCode, startEmailCode } from './email-code-login.js';
 import { LoginFailedError } from './login-errors.js';
-import { telemetryHeaders } from './cli-telemetry-context.js';
 
 const loginUsage = "Use login [--server URL] [--client NAME] [--card ID] [--name NAME] [--profile PROFILE] [--email EMAIL] [--auth email|browser] [--no-browser] [--reauth]";
 export function loginOptions(args: string[]) {
@@ -71,7 +72,9 @@ export function manualBrowserLogin(noBrowser: boolean) {
 export type LoginAuth = 'email' | 'google' | 'browser';
 export async function browserLogin(args: string[], profile?: string, observe: { auth?: (auth: LoginAuth) => void } = {}) {
   const { flags, noBrowser, reauth, origin } = loginOptions(args);
-  const selectedProfile = profile ?? process.env.O11_TOOLS_PROFILE ?? (flags["--client"] || flags["--card"] || flags["--name"] ? `agent-${crypto.randomUUID()}` : undefined);
+  // Browser sign-in for a named agent gets its own profile. Email sign-in keeps the profile the commands name (or the
+  // default), because login --code-stdin finishes it there and later commands find access without --profile.
+  const selectedProfile = profile ?? process.env.O11_TOOLS_PROFILE ?? (!flags["--email"] && (flags["--client"] || flags["--card"] || flags["--name"]) ? `agent-${crypto.randomUUID()}` : undefined);
   credentialDirectory(selectedProfile);
   const usage = `o11${selectedProfile ? ` --profile ${selectedProfile}` : ""}`;
   const resource = cardAccessUrl(origin, flags["--card"], flags["--name"]);
@@ -93,6 +96,8 @@ export async function browserLogin(args: string[], profile?: string, observe: { 
         }
       }
     }
+    // --email is the two-step sign-in an agent drives: send the code now, then login --code-stdin (email-code-login.ts).
+    if (flags["--email"]) return startEmailCode({ origin, resource, flags, email: flags["--email"], home: profile, signal });
     const manualBrowser = manualBrowserLogin(noBrowser);
     const terminal = !manualBrowser && flags["--auth"] !== "browser" ? openLoginTerminal() : undefined;
     if (flags["--auth"] === "email" && !terminal) {
@@ -104,36 +109,29 @@ export async function browserLogin(args: string[], profile?: string, observe: { 
         ? 'Terminal email login is unavailable on Windows. Use --auth browser to sign in and approve access in your browser.'
         : `Terminal email login needs your own interactive local terminal and a browser on the same machine. No approval request was created. Run this command there, enter the code privately, then return to your agent:\n${retry}\nUse --auth browser instead if you want browser sign-in.`);
     }
-    const response = await fetch(`${origin}/oauth/device/code`, { method: "POST", redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]),
-      headers: { "Content-Type": "application/json", ...telemetryHeaders() }, body: JSON.stringify({ client_id: "o11-wallet-cli", resource,
-        client_name: flags["--client"], card_id: flags["--card"], task: flags["--task"] }),
-    });
-    if (!response.ok) throw new LoginFailedError(response.status === 429 ? 'rate_limited' : 'network', response.status === 429
-      ? "Browser sign-in is rate limited. Wait before starting another login."
-      : `Could not start browser sign-in (HTTP ${response.status}). Check the wallet URL and agent routes.`);
-    const request = z.object({ device_code: z.string().min(40), user_code: z.string(), verification_uri_complete: z.url(),
-      expires_in: z.number().int().min(1).max(600), interval: z.number().int().min(5).max(60),
-    }).parse(await response.json());
+    const request = await requestDeviceCode(origin, resource, flags, signal);
     const deadline = Date.now() + request.expires_in * 1000;
+    const minutes = Math.max(1, Math.round(request.expires_in / 60)), duration = `${minutes} minute${minutes === 1 ? '' : 's'}`;
+    const expired = (reason: 'timeout' | 'expired' = 'timeout') => new LoginFailedError(reason, `The approval link expired after ${duration} without approval. Run ${usage} login again for a new link and code.`);
     const loginSignal = AbortSignal.any([signal, AbortSignal.timeout(request.expires_in * 1000)]);
-    const url = new URL(request.verification_uri_complete);
-    if (url.origin !== origin || url.pathname !== "/connect") throw new LoginFailedError('unexpected_address', "The wallet returned an unexpected approval address");
+    const url = request.url;
     let approvalUrl = url.href;
-    let handoff: ReturnType<typeof createEmailHandoff> | undefined;
+    let handoff: ReturnType<typeof createEmailHandoff> | undefined, approved = false;
     try {
       if (terminal) {
         try {
-          const email = flags["--email"] ?? await terminal.email(loginSignal);
-          const device = { origin, resource, deviceCode: request.device_code, requestId: url.searchParams.get('request') ?? '', signal: loginSignal };
+          const email = await terminal.email(loginSignal);
+          const device = { origin, resource, deviceCode: request.device_code, requestId: request.requestId, signal: loginSignal };
           const started = await startEmailLogin(device, email);
           if (started.sent) {
             observe.auth?.('email');
             process.stderr.write(`Code sent to ${started.email_hint}. Enter it here, never in agent chat.\n`);
             for (let attempt = 0; attempt < 5; attempt++) {
               try {
-                const verified = await verifyEmailLogin(device, email, await terminal.code(loginSignal));
-                handoff = createEmailHandoff(verified);
-                approvalUrl = handoff.url;
+                // The wallet approves the request itself; an older wallet hands off to the browser instead.
+                const verified = await verifyEmailApproval(device, email, await terminal.code(loginSignal));
+                if (verified.approved) approved = true;
+                else { handoff = createEmailHandoff(verified.handoff); approvalUrl = handoff.url; }
                 break;
               } catch (error) {
                 if (!(error instanceof EmailLoginError) || error.code !== 'invalid_otp' || attempt === 4) throw error;
@@ -155,9 +153,12 @@ export async function browserLogin(args: string[], profile?: string, observe: { 
         if (flags["--auth"] !== "browser")
           process.stderr.write('Email codes need an interactive terminal and a browser on this machine. Continuing in your browser. To enter email here, run login --server ' + origin + ' in your own terminal.\n');
       }
-      process.stderr.write(`${manualBrowser ? "Open this approval page" : "Opening approval page; use this link only if no page appeared"}: ${approvalUrl}\nConfirm code ${request.user_code} and approve your agent.\n`);
-      process.stderr.write(`Verify saved access after approval: ${usage} doctor\n`);
-      if (!manualBrowser) {
+      if (approved) writeSync(2, 'Code accepted. Connecting…\n');
+      // Written straight to fd 2 before any polling, so an agent reading piped output sees the link at once.
+      else writeSync(2, `${manualBrowser ? "Open this approval page" : "Opening approval page; use this link only if no page appeared"}: ${approvalUrl}\n`
+        + `Confirm code ${request.user_code} and approve your agent. The link expires in ${duration}; this command waits until then.\n`
+        + `Verify saved access after approval: ${usage} doctor\n`);
+      if (!manualBrowser && !approved) {
         const command = process.platform === "darwin" ? ["open", approvalUrl] : process.platform === "win32"
           ? ["rundll32", "url.dll,FileProtocolHandler", approvalUrl] : ["xdg-open", approvalUrl];
         try { void Bun.spawn(command, { stdin: "ignore", stdout: "ignore", stderr: "ignore" }).exited.catch(() => {}); }
@@ -172,6 +173,7 @@ export async function browserLogin(args: string[], profile?: string, observe: { 
         if (result.error === "authorization_pending") continue;
         if (result.error === "slow_down") { interval += 5000; continue; }
         if (result.ambiguous) { interval = Math.min(60000, interval * 2); continue; }
+        if (!result.tokens && result.error === "expired_token") throw expired('expired');
         if (!result.tokens) throw new LoginFailedError(result.error === "access_denied" ? 'denied' : 'expired',
           result.error === "access_denied" ? "Connection declined. Run login again when ready." : "Connection expired or unavailable. Run login again.");
         const config: ToolConfig = { baseUrl: origin, resource, apiKey: result.tokens.access_token,
@@ -182,7 +184,11 @@ export async function browserLogin(args: string[], profile?: string, observe: { 
         catch { throw new LoginFailedError('check_failed', `Access saved. The connection check failed; run ${usage} doctor to retry without signing in again.`); }
         return { connected: true, server: origin, ...(selectedProfile ? { profile: selectedProfile, usage: `${usage} <command>` } : {}), ...(result.tokens.task ? { task: result.tokens.task } : {}) };
       }
-      throw new LoginFailedError('timeout', "Connection timed out. Run login again to start a new request.");
+      throw expired();
+    } catch (error) {
+      // The device code's own timer ended an email prompt or a request: report the expiry, not a generic failure.
+      if (!signal.aborted && loginSignal.aborted && !(error instanceof LoginFailedError && error.reason === 'check_failed')) throw expired();
+      throw error;
     } finally { handoff?.close(); }
   });
 }
